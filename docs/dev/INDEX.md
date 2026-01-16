@@ -6,7 +6,7 @@
 
 - **Pending**: 4 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 1 task
+- **Completed**: 2 tasks
 
 ## Current Focus
 
@@ -16,10 +16,17 @@
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| 002 | Database layer (SQLite) | Core | P3 |
+| 002 | Database layer (SQLite) | Core | P2 |
 | 003 | Monitor loop with threading | Core | P3 |
 | 004 | API server for JSON stats | API | P3 |
 | 005 | Main orchestration & shutdown | Core | P3 |
+
+## Completed Tasks
+
+| # | Task | Slice | Status |
+|---|------|-------|--------|
+| 001 | Initial setup & config | Config | ✓ |
+| 006 | Python packaging files | Config | ✓ |
 
 ## Quick Links
 

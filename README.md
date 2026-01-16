@@ -43,17 +43,31 @@ Lightweight web monitoring system for Raspberry Pi 1B+. Monitors configured URLs
 
 ## Installation
 
-### 1. Clone Repository
+### Option 1: Install from PyPI (when published)
+
+```bash
+pip install webstatuspi
+```
+
+### Option 2: Install from Source
+
+**1. Clone Repository**
 
 ```bash
 git clone <repository-url>
 cd webstatuspi
 ```
 
-### 2. Install Dependencies
+**2. Install Package**
 
+Using `pip`:
 ```bash
-pip3 install -r requirements.txt
+pip install .
+```
+
+Or with development dependencies:
+```bash
+pip install .[dev]
 ```
 
 ### 3. Configure Monitoring
@@ -82,8 +96,14 @@ urls:
 
 ### Start Monitoring
 
+Using the installed command:
 ```bash
-python3 main.py
+webstatuspi
+```
+
+Or using the Python module:
+```bash
+python3 -m webstatuspi
 ```
 
 ### Access API

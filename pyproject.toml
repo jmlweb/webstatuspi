@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webstatuspi"
+version = "0.1.0"
+description = "Lightweight web monitoring system for Raspberry Pi 1B+"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Jose Manuel Lucas Munoz"}
+]
+keywords = ["monitoring", "raspberry-pi", "web-status", "status-tracker"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Monitoring",
+]
+
+dependencies = [
+    "PyYAML>=6.0.1",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-mock>=3.0.0",
+    "coverage>=6.0.0",
+]
+
+[project.scripts]
+webstatuspi = "webstatuspi:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

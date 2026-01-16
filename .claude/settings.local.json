@@ -15,7 +15,11 @@
       "Bash(python -m py_compile:*)",
       "Bash(python3:*)",
       "Bash(pip3 install:*)",
-      "Skill(complete-task)"
+      "Skill(complete-task)",
+      "Skill(add-task)",
+      "Bash(pip install:*)",
+      "Bash(webstatuspi:*)",
+      "Bash(tree:*)"
     ]
   },
   "hooks": {
