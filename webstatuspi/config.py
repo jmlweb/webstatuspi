@@ -14,11 +14,20 @@ class ConfigError(Exception):
 
 
 @dataclass(frozen=True)
+class MonitorConfig:
+    """Configuration for the monitor loop."""
+    interval: int = 60  # seconds between check cycles
+
+    def __post_init__(self) -> None:
+        if self.interval < 1:
+            raise ConfigError("Monitor interval must be at least 1 second")
+
+
+@dataclass(frozen=True)
 class UrlConfig:
     """Configuration for a single URL to monitor."""
     name: str
     url: str
-    interval: int = 60
     timeout: int = 10
 
     def __post_init__(self) -> None:
@@ -30,8 +39,6 @@ class UrlConfig:
             raise ConfigError(f"URL cannot be empty for '{self.name}'")
         if not self.url.startswith(("http://", "https://")):
             raise ConfigError(f"URL must start with http:// or https:// for '{self.name}'")
-        if self.interval < 1:
-            raise ConfigError(f"Interval must be at least 1 second for '{self.name}'")
         if self.timeout < 1:
             raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
 
@@ -73,6 +80,7 @@ class ApiConfig:
 class Config:
     """Main configuration container."""
     urls: List[UrlConfig]
+    monitor: MonitorConfig = field(default_factory=MonitorConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
@@ -102,8 +110,19 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
     return UrlConfig(
         name=str(name),
         url=str(url),
-        interval=int(data.get("interval", 60)),
         timeout=int(data.get("timeout", 10)),
+    )
+
+
+def _parse_monitor_config(data: Optional[dict]) -> MonitorConfig:
+    """Parse monitor configuration section."""
+    if data is None:
+        return MonitorConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'monitor' section must be a dictionary")
+
+    return MonitorConfig(
+        interval=int(data.get("interval", 60)),
     )
 
 
@@ -150,15 +169,22 @@ def _apply_env_overrides(config_data: dict) -> dict:
     """Apply environment variable overrides to configuration.
 
     Supported overrides:
+    - WEBSTATUSPI_MONITOR_INTERVAL: Override monitor.interval
     - WEBSTATUSPI_API_PORT: Override api.port
     - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
     - WEBSTATUSPI_DB_PATH: Override database.path
     - WEBSTATUSPI_DB_RETENTION_DAYS: Override database.retention_days
     """
+    if "monitor" not in config_data:
+        config_data["monitor"] = {}
     if "api" not in config_data:
         config_data["api"] = {}
     if "database" not in config_data:
         config_data["database"] = {}
+
+    monitor_interval = os.environ.get("WEBSTATUSPI_MONITOR_INTERVAL")
+    if monitor_interval is not None:
+        config_data["monitor"]["interval"] = int(monitor_interval)
 
     api_port = os.environ.get("WEBSTATUSPI_API_PORT")
     if api_port is not None:
@@ -222,6 +248,7 @@ def load_config(config_path: str) -> Config:
 
     return Config(
         urls=urls,
+        monitor=_parse_monitor_config(data.get("monitor")),
         database=_parse_database_config(data.get("database")),
         display=_parse_display_config(data.get("display")),
         api=_parse_api_config(data.get("api")),

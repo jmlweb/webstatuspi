@@ -5,7 +5,7 @@ Lightweight web monitoring system for Raspberry Pi 1B+. Monitors configured URLs
 ## Features
 
 - ⚡ **Ultra-lightweight**: Designed for Raspberry Pi 1B+ (512MB RAM, single-core)
-- 🔄 **Continuous monitoring**: Configurable polling intervals per URL
+- 🔄 **Continuous monitoring**: Configurable global polling interval
 - 📊 **Statistics tracking**: Success rate, failure count, response times
 - 🌐 **JSON API**: Access monitoring data via HTTP
 - 📝 **Console output**: Real-time display of check results
@@ -75,21 +75,21 @@ pip install .[dev]
 Create a `config.yaml` file in the project root:
 
 ```yaml
-server:
-  port: 8080
-  host: 0.0.0.0
-
-monitoring:
-  default_interval: 30  # seconds between checks
-  timeout: 10           # request timeout in seconds
+monitor:
+  interval: 60  # seconds between check cycles (default: 60)
 
 urls:
   - name: "Google"
     url: "https://www.google.com"
+    timeout: 10  # request timeout in seconds (default: 10)
 
   - name: "GitHub"
     url: "https://github.com"
-    interval: 60  # optional: custom interval for this URL
+    timeout: 10
+
+api:
+  enabled: true
+  port: 8080
 ```
 
 ## Usage
@@ -252,14 +252,14 @@ server:
   host: 0.0.0.0     # Listen on all interfaces (use 127.0.0.1 for localhost only)
 ```
 
-### Monitoring Settings
+### Monitor Settings
 
 ```yaml
-monitoring:
-  default_interval: 30  # Default seconds between checks (minimum: 10)
-  timeout: 10           # Request timeout in seconds (must be < interval)
-  user_agent: "WebStatusPi/1.0"  # Optional custom user agent
+monitor:
+  interval: 60  # Seconds between check cycles (default: 60, minimum: 1)
 ```
+
+All URLs are checked together in each cycle. This simplifies configuration and ensures consistent timing across all monitored endpoints.
 
 ### URL Configuration
 
@@ -267,7 +267,7 @@ monitoring:
 urls:
   - name: "APP_ES"           # Required: unique identifier (max 10 chars)
     url: "https://example.com"  # Required: full URL with protocol
-    interval: 60              # Optional: override default_interval
+    timeout: 10              # Optional: request timeout in seconds (default: 10)
 ```
 
 **Validation:**
@@ -275,8 +275,7 @@ urls:
 - `name` must be ≤ 10 characters (optimized for OLED display)
 - `name` should use uppercase and underscores (e.g., "APP_ES", "API_PROD")
 - `url` must start with `http://` or `https://`
-- `interval` must be ≥ 10 seconds (prevents Pi overload)
-- `timeout` must be < `interval`
+- `timeout` must be at least 1 second
 
 ### Database Configuration
 

@@ -1,21 +1,21 @@
 # WebStatusPi Configuration
 # See docs for full configuration options
 
+monitor:
+  interval: 60  # seconds between check cycles (default: 60)
+
 urls:
   - name: "UB_WEB"
     url: "https://www.unobravo.com"
-    interval: 60  # seconds between checks (default: 60)
     timeout: 10   # request timeout in seconds (default: 10)
 
   - name: "UB_APP"
     url: "https://app.unobravo.com"
-    interval: 60  # seconds between checks (default: 60)
     timeout: 10   # request timeout in seconds (default: 10)
 
   # Example: Monitor a local service
   # - name: "LOCAL_API"
   #   url: "http://localhost:3000/health"
-  #   interval: 30
   #   timeout: 5
 
 database:
@@ -31,6 +31,7 @@ api:
   port: 8080      # API server port
 
 # Environment variable overrides (optional):
+# - WEBSTATUSPI_MONITOR_INTERVAL: Override monitor.interval
 # - WEBSTATUSPI_API_PORT: Override api.port
 # - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
 # - WEBSTATUSPI_DB_PATH: Override database.path
