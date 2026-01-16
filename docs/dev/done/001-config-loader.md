@@ -1,11 +1,12 @@
 # Task #001: Config Loader with Dataclasses
 
 ## Metadata
-- **Status**: pending
+- **Status**: completed
 - **Priority**: P2 - Next
 - **Slice**: Config
 - **Created**: 2026-01-16
-- **Started**: -
+- **Started**: 2026-01-16
+- **Completed**: 2026-01-16
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -13,13 +14,13 @@
 **User Story**: As a developer, I want to load and validate configuration from a YAML file using type-safe dataclasses.
 
 **Acceptance Criteria**:
-- [ ] Define `Config` dataclass with all required fields
-- [ ] Define `UrlConfig` dataclass for URL entries
-- [ ] Load config from `config.yaml` file path
-- [ ] Validate required fields are present
-- [ ] Provide sensible defaults for optional fields
-- [ ] Handle file not found and parse errors gracefully
-- [ ] Support environment variable overrides (optional)
+- [x] Define `Config` dataclass with all required fields
+- [x] Define `UrlConfig` dataclass for URL entries
+- [x] Load config from `config.yaml` file path
+- [x] Validate required fields are present
+- [x] Provide sensible defaults for optional fields
+- [x] Handle file not found and parse errors gracefully
+- [x] Support environment variable overrides (optional)
 
 ## Implementation Notes
 
@@ -61,7 +62,25 @@ api:
 - None (this is the foundation task)
 
 ## Progress Log
-(No progress yet)
+
+### 2026-01-16
+- Created `src/config.py` with dataclasses: `UrlConfig`, `DatabaseConfig`, `DisplayConfig`, `ApiConfig`, `Config`
+- Used `frozen=True` for immutability on all dataclasses
+- Implemented `load_config()` function with YAML parsing
+- Added validation in `__post_init__` methods:
+  - URL name max 10 chars (OLED constraint)
+  - URL must be http/https
+  - Intervals/timeouts must be positive
+  - Port must be valid range
+  - Duplicate URL names detected
+- Implemented environment variable overrides for API and database settings
+- Created `config.yaml` example with GOOGLE and GITHUB URLs
+- Created `src/__init__.py` for package initialization
+- Tested successfully: config loading and all error cases pass
+- Task completed - all acceptance criteria met
 
 ## Learnings
-(None yet)
+
+Learnings transferred to LEARNINGS.md:
+- L001: Manual YAML parsing is sufficient for config loading
+- L002: Dataclass __post_init__ enables immutable validation

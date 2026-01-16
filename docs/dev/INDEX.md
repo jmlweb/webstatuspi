@@ -4,19 +4,18 @@
 
 ## Quick Stats
 
-- **Pending**: 5 tasks
+- **Pending**: 4 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 0 tasks
+- **Completed**: 1 task
 
 ## Current Focus
 
-> No active task. Start with Task #001: Config loader implementation
+> No active task. Next up: Task #002 - Database layer (SQLite)
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| 001 | Config loader with dataclasses | Config | P2 - Next |
 | 002 | Database layer (SQLite) | Core | P3 |
 | 003 | Monitor loop with threading | Core | P3 |
 | 004 | API server for JSON stats | API | P3 |

@@ -34,6 +34,30 @@ Document a discovery or insight in the project's knowledge base.
 
 **DO NOT wait until task completion. Document immediately.**
 
+## DO NOT Add Learnings For
+
+**These are NOT learnings - do not document them:**
+
+1. **Expected behavior confirmed**
+   - "Library X works as documented" - not a learning
+   - "Function Y behaves as expected" - not a learning
+   - "Standard approach worked" - not a learning
+
+2. **Routine implementation notes**
+   - "Added function to handle X" - this is a commit, not a learning
+   - "Implemented feature Y" - progress note, not a learning
+   - "Code works after writing tests" - expected outcome
+
+3. **General knowledge**
+   - "Python dataclasses support frozen=True" - documented feature
+   - "YAML can be parsed with PyYAML" - common knowledge
+   - "SQLite supports transactions" - standard behavior
+
+**The key test: Was this SURPRISING or NON-OBVIOUS?**
+
+If the answer is "no, it worked as I expected" → Do NOT add it.
+If the answer is "yes, I didn't expect this" → Add it as a learning.
+
 ## Usage
 
 - `/add-learning "luma.oled requires I2C permissions"` - Quick add

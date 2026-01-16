@@ -12,7 +12,10 @@
       "Bash(cat docs/dev/*)",
       "Bash(flake8:*)",
       "Bash(mypy:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Skill(complete-task)"
     ]
   },
   "hooks": {

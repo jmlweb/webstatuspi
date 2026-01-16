@@ -66,6 +66,11 @@ If you cannot proceed:
 
 **DO NOT wait until task completion.** Document learnings as you discover them.
 
+**DO NOT add learnings for:**
+- Expected behavior ("X works as documented")
+- Routine implementation ("added function Y")
+- General knowledge about standard libraries
+
 ## Directory Structure
 
 ```

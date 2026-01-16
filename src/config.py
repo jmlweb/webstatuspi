@@ -1,0 +1,228 @@
+"""Configuration loader with type-safe dataclasses."""
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Optional
+
+import yaml
+
+
+class ConfigError(Exception):
+    """Raised when configuration is invalid or cannot be loaded."""
+    pass
+
+
+@dataclass(frozen=True)
+class UrlConfig:
+    """Configuration for a single URL to monitor."""
+    name: str
+    url: str
+    interval: int = 60
+    timeout: int = 10
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ConfigError("URL name cannot be empty")
+        if len(self.name) > 10:
+            raise ConfigError(f"URL name '{self.name}' exceeds 10 characters (OLED display limit)")
+        if not self.url:
+            raise ConfigError(f"URL cannot be empty for '{self.name}'")
+        if not self.url.startswith(("http://", "https://")):
+            raise ConfigError(f"URL must start with http:// or https:// for '{self.name}'")
+        if self.interval < 1:
+            raise ConfigError(f"Interval must be at least 1 second for '{self.name}'")
+        if self.timeout < 1:
+            raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
+
+
+@dataclass(frozen=True)
+class DatabaseConfig:
+    """Configuration for SQLite database."""
+    path: str = "./data/status.db"
+    retention_days: int = 7
+
+    def __post_init__(self) -> None:
+        if self.retention_days < 1:
+            raise ConfigError("Database retention_days must be at least 1")
+
+
+@dataclass(frozen=True)
+class DisplayConfig:
+    """Configuration for OLED display (future feature)."""
+    enabled: bool = True
+    cycle_interval: int = 5
+
+    def __post_init__(self) -> None:
+        if self.cycle_interval < 1:
+            raise ConfigError("Display cycle_interval must be at least 1 second")
+
+
+@dataclass(frozen=True)
+class ApiConfig:
+    """Configuration for JSON API server."""
+    enabled: bool = True
+    port: int = 8080
+
+    def __post_init__(self) -> None:
+        if self.port < 1 or self.port > 65535:
+            raise ConfigError(f"API port must be between 1 and 65535, got {self.port}")
+
+
+@dataclass(frozen=True)
+class Config:
+    """Main configuration container."""
+    urls: List[UrlConfig]
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    display: DisplayConfig = field(default_factory=DisplayConfig)
+    api: ApiConfig = field(default_factory=ApiConfig)
+
+    def __post_init__(self) -> None:
+        if not self.urls:
+            raise ConfigError("At least one URL must be configured")
+        names = [url.name for url in self.urls]
+        duplicates = [name for name in names if names.count(name) > 1]
+        if duplicates:
+            raise ConfigError(f"Duplicate URL names found: {set(duplicates)}")
+
+
+def _parse_url_config(data: dict, index: int) -> UrlConfig:
+    """Parse a single URL configuration entry."""
+    if not isinstance(data, dict):
+        raise ConfigError(f"URL entry {index} must be a dictionary")
+
+    name = data.get("name")
+    url = data.get("url")
+
+    if name is None:
+        raise ConfigError(f"URL entry {index} is missing 'name' field")
+    if url is None:
+        raise ConfigError(f"URL entry {index} is missing 'url' field")
+
+    return UrlConfig(
+        name=str(name),
+        url=str(url),
+        interval=int(data.get("interval", 60)),
+        timeout=int(data.get("timeout", 10)),
+    )
+
+
+def _parse_database_config(data: Optional[dict]) -> DatabaseConfig:
+    """Parse database configuration section."""
+    if data is None:
+        return DatabaseConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'database' section must be a dictionary")
+
+    return DatabaseConfig(
+        path=str(data.get("path", "./data/status.db")),
+        retention_days=int(data.get("retention_days", 7)),
+    )
+
+
+def _parse_display_config(data: Optional[dict]) -> DisplayConfig:
+    """Parse display configuration section."""
+    if data is None:
+        return DisplayConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'display' section must be a dictionary")
+
+    return DisplayConfig(
+        enabled=bool(data.get("enabled", True)),
+        cycle_interval=int(data.get("cycle_interval", 5)),
+    )
+
+
+def _parse_api_config(data: Optional[dict]) -> ApiConfig:
+    """Parse API configuration section."""
+    if data is None:
+        return ApiConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'api' section must be a dictionary")
+
+    return ApiConfig(
+        enabled=bool(data.get("enabled", True)),
+        port=int(data.get("port", 8080)),
+    )
+
+
+def _apply_env_overrides(config_data: dict) -> dict:
+    """Apply environment variable overrides to configuration.
+
+    Supported overrides:
+    - WEBSTATUSPI_API_PORT: Override api.port
+    - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
+    - WEBSTATUSPI_DB_PATH: Override database.path
+    - WEBSTATUSPI_DB_RETENTION_DAYS: Override database.retention_days
+    """
+    if "api" not in config_data:
+        config_data["api"] = {}
+    if "database" not in config_data:
+        config_data["database"] = {}
+
+    api_port = os.environ.get("WEBSTATUSPI_API_PORT")
+    if api_port is not None:
+        config_data["api"]["port"] = int(api_port)
+
+    api_enabled = os.environ.get("WEBSTATUSPI_API_ENABLED")
+    if api_enabled is not None:
+        config_data["api"]["enabled"] = api_enabled.lower() in ("true", "1", "yes")
+
+    db_path = os.environ.get("WEBSTATUSPI_DB_PATH")
+    if db_path is not None:
+        config_data["database"]["path"] = db_path
+
+    db_retention = os.environ.get("WEBSTATUSPI_DB_RETENTION_DAYS")
+    if db_retention is not None:
+        config_data["database"]["retention_days"] = int(db_retention)
+
+    return config_data
+
+
+def load_config(config_path: str) -> Config:
+    """Load and validate configuration from a YAML file.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        Validated Config object.
+
+    Raises:
+        ConfigError: If the file cannot be read or configuration is invalid.
+    """
+    path = Path(config_path)
+
+    if not path.exists():
+        raise ConfigError(f"Configuration file not found: {config_path}")
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ConfigError(f"Failed to parse YAML configuration: {e}")
+    except OSError as e:
+        raise ConfigError(f"Failed to read configuration file: {e}")
+
+    if data is None:
+        raise ConfigError("Configuration file is empty")
+
+    if not isinstance(data, dict):
+        raise ConfigError("Configuration must be a YAML dictionary")
+
+    data = _apply_env_overrides(data)
+
+    urls_data = data.get("urls")
+    if urls_data is None:
+        raise ConfigError("Configuration must contain 'urls' section")
+    if not isinstance(urls_data, list):
+        raise ConfigError("'urls' must be a list")
+
+    urls = [_parse_url_config(url_data, i) for i, url_data in enumerate(urls_data)]
+
+    return Config(
+        urls=urls,
+        database=_parse_database_config(data.get("database")),
+        display=_parse_display_config(data.get("display")),
+        api=_parse_api_config(data.get("api")),
+    )

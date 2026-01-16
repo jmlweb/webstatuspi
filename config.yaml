@@ -1,0 +1,37 @@
+# WebStatusPi Configuration
+# See docs for full configuration options
+
+urls:
+  - name: "UB_WEB"
+    url: "https://www.unobravo.com"
+    interval: 60  # seconds between checks (default: 60)
+    timeout: 10   # request timeout in seconds (default: 10)
+
+  - name: "UB_APP"
+    url: "https://app.unobravo.com"
+    interval: 60  # seconds between checks (default: 60)
+    timeout: 10   # request timeout in seconds (default: 10)
+
+  # Example: Monitor a local service
+  # - name: "LOCAL_API"
+  #   url: "http://localhost:3000/health"
+  #   interval: 30
+  #   timeout: 5
+
+database:
+  path: "./data/status.db"  # SQLite database path
+  retention_days: 7         # Delete checks older than this
+
+display:
+  enabled: true       # Enable OLED display (future feature)
+  cycle_interval: 5   # Seconds between URL display cycles
+
+api:
+  enabled: true   # Enable JSON API server
+  port: 8080      # API server port
+
+# Environment variable overrides (optional):
+# - WEBSTATUSPI_API_PORT: Override api.port
+# - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
+# - WEBSTATUSPI_DB_PATH: Override database.path
+# - WEBSTATUSPI_DB_RETENTION_DAYS: Override database.retention_days
