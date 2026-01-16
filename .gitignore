@@ -65,3 +65,4 @@ venv.bak/
 # Project-specific
 data/
 *.db
+.claude/settings.local.json
