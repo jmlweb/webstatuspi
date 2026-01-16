@@ -1,0 +1,345 @@
+# Hardware Specifications - WebStatusPi
+
+This document describes the hardware components, GPIO pin assignments, and display UI specifications for WebStatusPi. These features are planned for Phase 2 and should NOT be implemented until requested.
+
+## Hardware Components
+
+1. **0.96" OLED Display (I2C)** - See [Display UI Specifications](#display-ui-specifications)
+2. **Physical Button (GPIO)** - For screen navigation
+3. **Buzzer (GPIO)** - Audio alerts on failures
+4. **Status LEDs (GPIO)** - Visual status indicators
+
+## Hardware Specifications
+
+### OLED Display
+
+- **Display**: 0.96" OLED I2C (128x64 pixels, monochrome)
+- **Resolution**: 128 pixels wide × 64 pixels tall
+- **Font recommendations**:
+  - **Large text** (URLs/Status): 12-16px (3-4 lines max)
+  - **Small text** (Stats/Details): 8-10px (6-8 lines max)
+  - **Monospace font** for alignment (Courier, DejaVu Sans Mono)
+
+### GPIO Pin Assignment
+
+```yaml
+hardware:
+  button_pin: 17      # GPIO17 (physical pin 11)
+  buzzer_pin: 27      # GPIO27 (physical pin 13)
+  led_green_pin: 22   # GPIO22 (physical pin 15)
+  led_red_pin: 23     # GPIO23 (physical pin 16)
+  oled_sda: 2         # GPIO2 (I2C SDA, physical pin 3)
+  oled_scl: 3         # GPIO3 (I2C SCL, physical pin 5)
+```
+
+### Connection Diagram
+
+The following diagram shows the physical connections between the Raspberry Pi GPIO header and hardware components:
+
+```mermaid
+graph TB
+    subgraph "Raspberry Pi 1B+ GPIO Header"
+        GPIO2[GPIO2<br/>Pin 3]
+        GPIO3[GPIO3<br/>Pin 5]
+        GPIO17[GPIO17<br/>Pin 11]
+        GPIO27[GPIO27<br/>Pin 13]
+        GPIO22[GPIO22<br/>Pin 15]
+        GPIO23[GPIO23<br/>Pin 16]
+        VCC[3.3V/5V]
+        GND[GND]
+    end
+    
+    subgraph "Hardware Components"
+        OLED[0.96 OLED I2C<br/>Display]
+        BUTTON[Button<br/>with pull-up]
+        BUZZER[Passive<br/>Buzzer]
+        LEDG[Green LED<br/>+ 330Ω resistor]
+        LEDR[Red LED<br/>+ 330Ω resistor]
+    end
+    
+    GPIO2 -->|SDA| OLED
+    GPIO3 -->|SCL| OLED
+    VCC --> OLED
+    GND --> OLED
+    
+    GPIO17 -->|Signal| BUTTON
+    GND --> BUTTON
+    VCC -->|10kΩ pull-up| BUTTON
+    
+    GPIO27 -->|Signal| BUZZER
+    GND --> BUZZER
+    
+    GPIO22 -->|Signal| LEDG
+    GND --> LEDG
+    
+    GPIO23 -->|Signal| LEDR
+    GND --> LEDR
+    
+    style GPIO2 fill:#90EE90
+    style GPIO3 fill:#90EE90
+    style GPIO17 fill:#FFB6C1
+    style GPIO27 fill:#87CEEB
+    style GPIO22 fill:#98FB98
+    style GPIO23 fill:#FF6B6B
+```
+
+### Physical Pinout Reference
+
+Physical GPIO header layout (40-pin header, Raspberry Pi 1B+ compatible):
+
+```
+     ┌─────────────────────────────────────────┐
+     │  3.3V  [ 1] [ 2]  5V                   │
+     │  GPIO2 [ 3] [ 4]  5V      ← I2C SDA    │
+     │  GPIO3 [ 5] [ 6]  GND     ← I2C SCL    │
+     │  GPIO4 [ 7] [ 8]  GPIO14               │
+     │    GND [ 9] [10]  GPIO15               │
+     │ GPIO17 [11] [12]  GPIO18  ← Button     │
+     │ GPIO27 [13] [14]  GND     ← Buzzer     │
+     │ GPIO22 [15] [16]  GPIO23  ← LED Green  │
+     │  3.3V  [17] [18]  GPIO24  ← LED Red    │
+     │ GPIO10 [19] [20]  GND                  │
+     │  GPIO9 [21] [22]  GPIO25               │
+     │ GPIO11 [23] [24]  GPIO8                │
+     │    GND [25] [26]  GPIO7                │
+     │      ... (remaining pins) ...          │
+     └─────────────────────────────────────────┘
+```
+
+### Connection Details
+
+**OLED Display (I2C)**:
+- `VCC` → 3.3V or 5V (check OLED module specs)
+- `GND` → GND (any ground pin)
+- `SDA` → GPIO2 (physical pin 3)
+- `SCL` → GPIO3 (physical pin 5)
+
+**Button**:
+- One terminal → GPIO17 (physical pin 11)
+- Other terminal → GND
+- **Note**: Requires external 10kΩ pull-up resistor between GPIO17 and 3.3V, or enable internal pull-up in software
+
+**Buzzer (Passive)**:
+- Positive terminal → GPIO27 (physical pin 13)
+- Negative terminal → GND
+- **Note**: Use a passive buzzer for PWM control. Active buzzers may work but offer less control.
+
+**Green LED**:
+- Anode → 330Ω resistor → GPIO22 (physical pin 15)
+- Cathode → GND
+- **Note**: Standard current-limiting resistor for 3.3V GPIO (adjust if using different voltage)
+
+**Red LED**:
+- Anode → 330Ω resistor → GPIO23 (physical pin 16)
+- Cathode → GND
+- **Note**: Standard current-limiting resistor for 3.3V GPIO (adjust if using different voltage)
+
+**Important Notes**:
+- All GND connections can share the same ground rail
+- GPIO pins output 3.3V logic (not 5V tolerant)
+- Use appropriate resistors to protect GPIO pins and components
+- I2C bus (GPIO2/GPIO3) is shared; ensure no conflicts with other I2C devices
+
+## Display UI Specifications
+
+The display has two main modes: **Alert Mode** (when failures detected) and **Normal Mode** (all URLs healthy).
+
+### Display State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Startup
+    Startup --> NormalMode: Initialized
+    NormalMode --> AlertMode: URL failure detected
+    AlertMode --> NormalMode: All URLs OK or acknowledged
+    
+    state NormalMode {
+        [*] --> StatusScreen
+        StatusScreen --> StatsScreen: Button press
+        StatsScreen --> StatusScreen: Button press
+    }
+    
+    state AlertMode {
+        [*] --> FailedURL1
+        FailedURL1 --> FailedURL2: Button press
+        FailedURL2 --> FailedURL3: Button press
+        FailedURL3 --> FailedURL1: Button press
+    }
+```
+
+### Alert Mode (One or More URLs Failing)
+
+**Trigger**: Automatically activates when any URL transitions from OK → FAIL
+
+**Button behavior**: Advances to next failed URL (cycles through failed URLs only)
+
+**Screens** (cycle through failed URLs):
+
+```
+┌────────────────────┐
+│ ⚠ ALERT            │  ← Header (inverted colors)
+│                    │
+│ APP_ES             │  ← URL name (large, bold)
+│ ✗ 503              │  ← Status icon + code
+│ 123ms              │  ← Response time
+│                    │
+│ [1/3]              │  ← Indicator (screen 1 of 3 failing)
+└────────────────────┘
+
+Press button → Next failed URL
+
+┌────────────────────┐
+│ ⚠ ALERT            │
+│                    │
+│ API_PROD           │
+│ ✗ Timeout          │  ← Error message if no status code
+│ 10000ms            │
+│                    │
+│ [2/3]              │
+└────────────────────┘
+```
+
+**After viewing all failed URLs**: Button press exits Alert Mode → enters Normal Mode
+
+### Normal Mode (All URLs Healthy or After Acknowledging Alerts)
+
+**Trigger**: All URLs are OK, or user has acknowledged all alerts
+
+**Button behavior**: Cycles between two screen types for all URLs
+
+**Screen Type 1: Current Status** (auto-rotates every 5 seconds between URLs)
+
+```
+┌────────────────────┐
+│ STATUS    [1/5]    │  ← Header + URL counter
+│                    │
+│ APP_ES             │  ← URL name (large)
+│ ✓ 200              │  ← Status icon + code
+│ 234ms              │  ← Response time
+│                    │
+│ Last: 22:30:15     │  ← Timestamp of last check
+└────────────────────┘
+```
+
+**Screen Type 2: Statistics** (auto-rotates every 5 seconds between URLs)
+
+```
+┌────────────────────┐
+│ STATS     [1/5]    │  ← Header + URL counter
+│                    │
+│ APP_ES             │  ← URL name (large)
+│                    │
+│ 2/150   98.7%      │  ← Failures/Total + Success rate
+│                    │
+│ Uptime: 24h        │  ← Optional: time since last failure
+└────────────────────┘
+```
+
+**Button press**: Cycles between screen types (Status → Stats → Status...)
+**Auto-rotation**: Within each screen type, URLs rotate every 5 seconds
+
+### Summary/Overview Screen (Optional Enhancement)
+
+When button is held for 2+ seconds in Normal Mode, show overview:
+
+```
+┌────────────────────┐
+│ OVERVIEW           │
+│                    │
+│ APP_ES    ✓ 98.7%  │  ← Name + icon + success rate
+│ API_PROD  ✓ 99.1%  │
+│ GOOGLE    ✓ 100%   │
+│ GITHUB    ✗ 95.3%  │  ← Failed URL (red icon)
+│                    │
+│ 4 URLs  • 1 Alert  │  ← Summary footer
+└────────────────────┘
+```
+
+## LED Behavior
+
+**Green LED**:
+- **Solid ON**: All URLs healthy (success rate 100%)
+- **OFF**: One or more URLs failing
+
+**Red LED**:
+- **OFF**: All URLs healthy
+- **Blinking (1Hz)**: One or more URLs failing
+- **Solid ON**: Critical failure (all URLs down)
+
+## Buzzer Behavior
+
+**Trigger**: Only when a URL transitions from OK → FAIL (not on every failed check)
+
+**Pattern**: Intermittent beeping (0.5s ON, 0.5s OFF) for 30 seconds
+
+**Stop conditions**:
+- User presses button (immediate silence + acknowledge alert)
+- 30 seconds elapsed (auto-silence, alert remains on display)
+
+**Note**: Buzzer does NOT re-trigger if URL stays failing. Only triggers on state change OK → FAIL.
+
+## Display Update Frequency
+
+- **Check results**: Update immediately when check completes
+- **Stats**: Update after each check
+- **Auto-rotation**: Every 5 seconds (configurable)
+- **Screen refresh rate**: 1-2 FPS (sufficient for OLED, saves CPU)
+
+## Configuration Options (config.yaml)
+
+```yaml
+display:
+  enabled: true
+  rotation_interval: 5  # seconds between auto-rotation
+  brightness: 255  # 0-255 (OLED brightness)
+
+buzzer:
+  enabled: true
+  duration: 30  # seconds before auto-silence
+
+leds:
+  enabled: true
+```
+
+## Text Layout Guidelines
+
+**Maximum characters per line** (based on font size):
+- **16px font**: ~8-10 characters (URLs, status codes)
+- **12px font**: ~10-12 characters
+- **8px font**: ~16-20 characters (stats, timestamps)
+
+**Layout priorities** (limited space):
+1. URL name (most important, large and bold)
+2. Status indicator (✓/✗) + status code/error
+3. Response time or success rate
+4. Timestamp or secondary info
+
+**Text truncation**: If URL name exceeds 10 characters (shouldn't happen with validation), truncate with "...":
+- "VERYLONGNAME" → "VERYLONG..."
+
+## Error Handling (Hardware)
+
+- **I2C communication failure**: Log error, continue monitoring (display non-critical)
+- **Display initialization failure**: Log warning, disable display, continue monitoring
+- **Button debouncing**: 200ms debounce to prevent multiple triggers
+- **GPIO pin conflicts**: Validate pin assignments at startup, fail fast if conflicts detected
+
+## Performance Considerations (Pi 1B+)
+
+- **Display updates**: Only redraw when data changes (avoid constant screen refresh)
+- **CPU usage**: Display thread should use <5% CPU
+- **I2C frequency**: Use standard 100kHz (not fast mode 400kHz) for reliability
+- **Font rendering**: Pre-render common characters to reduce CPU load
+- **Button polling**: Use interrupts instead of polling for button events (saves CPU)
+
+## Future Dependencies (DO NOT INSTALL YET)
+
+When adding hardware features:
+
+```
+Adafruit-SSD1306==1.6.2  # OLED display support (I2C)
+RPi.GPIO==0.7.1          # GPIO control (button, buzzer, LEDs)
+Pillow==9.5.0            # Image generation for OLED
+```
+
+See also [Testing Documentation](testing/MOCKING.md) for information on mocking hardware components during development.
