@@ -1,26 +1,27 @@
 # Task #003: Monitor Loop with Threading
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core
 - **Created**: 2026-01-16
-- **Started**: -
-- **Blocked by**: #001, #002 (needs config and database)
+- **Started**: 2026-01-17
+- **Completed**: 2026-01-17
+- **Blocked by**: - (dependencies #001, #002 completed)
 
 ## Vertical Slice Definition
 
 **User Story**: As a monitoring system, I want to periodically check URL health status and store results.
 
 **Acceptance Criteria**:
-- [ ] Poll each URL at its configured interval
-- [ ] Use threading for concurrent URL checks
-- [ ] Measure response time accurately
-- [ ] Detect HTTP status codes and connection errors
-- [ ] Store results in database
-- [ ] Run periodic cleanup of old checks (based on `retention_days` config)
-- [ ] Handle individual URL failures without stopping others
-- [ ] Support graceful shutdown signal
+- [x] Poll each URL at its configured interval
+- [x] Use threading for concurrent URL checks
+- [x] Measure response time accurately
+- [x] Detect HTTP status codes and connection errors
+- [x] Store results in database
+- [x] Run periodic cleanup of old checks (based on `retention_days` config)
+- [x] Handle individual URL failures without stopping others
+- [x] Support graceful shutdown signal
 
 ## Implementation Notes
 
@@ -66,15 +67,24 @@ def check_url(url_config: UrlConfig) -> CheckResult:
 - Run cleanup periodically (not on every check) to minimize SD card writes
 
 ## Files to Modify
-- `src/monitor.py` (create) - Monitor loop and URL checking
-- `src/models.py` (update) - Add CheckResult if not exists
+- `webstatuspi/monitor.py` (create) - Monitor loop and URL checking
+- `webstatuspi/models.py` (update) - CheckResult already exists from #002
 
 ## Dependencies
 - #001 Config loader (for URL list and intervals)
 - #002 Database layer (for storing results)
 
 ## Progress Log
-(No progress yet)
+- [2026-01-17 14:00] Started task
+- [2026-01-17 14:15] Created `webstatuspi/monitor.py` with:
+  - `check_url()` function using `urllib.request` (lightweight)
+  - `Monitor` class with `ThreadPoolExecutor` (max 3 workers)
+  - Staggered initial check times to avoid burst
+  - Graceful shutdown via `threading.Event`
+  - Periodic cleanup every 100 cycles
+- [2026-01-17 14:20] Created `tests/test_monitor.py` with 21 tests
+- [2026-01-17 14:25] All 46 tests passing
+- [2026-01-17 14:30] Task completed
 
 ## Learnings
-(None yet)
+Transferred to LEARNINGS.md as L008, L009, L010

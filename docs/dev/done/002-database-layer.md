@@ -1,25 +1,26 @@
 # Task #002: Database Layer (SQLite)
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P2 - Active
 - **Slice**: Core
 - **Created**: 2026-01-16
-- **Started**: -
-- **Blocked by**: #001 (needs config for db path)
+- **Started**: 2026-01-17
+- **Completed**: 2026-01-17
+- **Blocked by**: None
 
 ## Vertical Slice Definition
 
 **User Story**: As a system, I want to persist URL check results in SQLite for historical data and API queries.
 
 **Acceptance Criteria**:
-- [ ] Define SQLite schema for status checks
-- [ ] Initialize database and create tables on first run
-- [ ] Insert new check results
-- [ ] Query latest status for each URL
-- [ ] Query status history with time range
-- [ ] Handle database errors gracefully
-- [ ] Support database path from config
+- [x] Define SQLite schema for status checks
+- [x] Initialize database and create tables on first run
+- [x] Insert new check results
+- [x] Query latest status for each URL
+- [x] Query status history with time range
+- [x] Handle database errors gracefully
+- [x] Support database path from config
 
 ## Implementation Notes
 
@@ -57,14 +58,21 @@ def cleanup_old_checks(conn, retention_days: int) -> int  # returns count of del
 - With 5-10 URLs and 30-60s intervals: ~1.4 MB/day → 7 days ≈ 10 MB (manageable)
 
 ## Files to Modify
-- `src/database.py` (create) - Database operations
-- `src/models.py` (create) - CheckResult, UrlStatus dataclasses
+- `webstatuspi/database.py` (created) - Database operations
+- `webstatuspi/models.py` (created) - CheckResult, UrlStatus dataclasses
+- `tests/test_database.py` (created) - Unit tests (25 tests)
 
 ## Dependencies
 - #001 Config loader (for database path)
 
 ## Progress Log
-(No progress yet)
+- [2026-01-17] Started task - Planning database layer implementation
+- [2026-01-17] Created models.py with CheckResult and UrlStatus dataclasses
+- [2026-01-17] Created database.py with init_db, insert_check, get_latest_status, get_history, cleanup_old_checks, get_url_names
+- [2026-01-17] Added 25 unit tests covering all database operations - all passing
+- [2026-01-17] Task completed
 
 ## Learnings
-(None yet)
+- L003: Source files are in `webstatuspi/` directory, not `src/` (transferred)
+- L004: WAL mode enabled for better concurrent read performance on Pi (transferred)
+- L005: Added composite index on (url_name, checked_at) for efficient history queries (transferred)

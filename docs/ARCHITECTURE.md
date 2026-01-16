@@ -307,13 +307,30 @@ Key configuration sections:
 
 ## Performance Considerations
 
-### Expected Performance (Pi 1B+)
+### Expected Performance (Pi 1B+ with Raspberry Pi OS Lite)
 
+Based on [Hardware Load Analysis](HARDWARE-LOAD-ANALYSIS.md):
+
+| Scenario | URLs | CPU Est. | RAM Est. | RAM % | Status |
+|----------|------|----------|----------|-------|--------|
+| Current | 2 | 13-32% | 103-189MB | 21-38% | ✅ OK |
+| Moderate | 5 | 14-36% | 106-194MB | 21-39% | ✅ OK |
+| **Target** | 10 | 15-44% | 108-199MB | 22-40% | ✅ OK |
+
+Other metrics:
 - **Startup time**: < 5 seconds
-- **RAM usage**: < 200MB steady state
-- **CPU usage**: < 20% with 5 URLs being monitored
 - **API response time**: < 100ms for stats endpoint
 - **Check overhead**: < 50ms per URL (excluding network time)
+- **Display overhead**: ~2-4% CPU, ~7-14MB RAM
+- **Available RAM**: ~448-496MB (with `gpu_mem=16`)
+
+**Note**: Raspberry Pi OS Lite provides ~448-496MB available RAM (vs ~256MB with desktop). This provides comfortable headroom for 10 URLs with OLED display.
+
+### Identified Risks
+
+1. **Memory Leaks** (Medium Risk): Monitor RAM usage in production, ensure proper resource cleanup
+2. **SD Card Wear** (Medium-Low Risk): WAL mode and 7-day retention mitigate this
+3. **CPU Spikes on Timeouts** (Low Risk): Stagger intervals to avoid bursts
 
 ### Optimization Strategies
 
@@ -322,12 +339,13 @@ Key configuration sections:
 3. **Separate stats table**: Avoid aggregations on large `checks` table
 4. **Efficient queries**: Query only needed columns, use LIMIT for recent checks
 5. **Minimal logging**: Reduce SD card writes (only log errors, not every check)
+6. **Display optimization**: Update only when data changes, use 1-2 FPS refresh rate
 
 ### Scalability Limits
 
 Designed for:
-- **5-10 URLs maximum** to avoid resource exhaustion
-- **Intervals ≥ 30 seconds** to prevent CPU overload
+- **Up to 10 URLs** with Raspberry Pi OS Lite (with OLED display)
+- **Intervals ≥ 30 seconds** (60s recommended) to prevent CPU overload
 - **Timeout ≤ 10 seconds** to avoid blocking
 - **Long-running**: Days/weeks without memory leaks
 

@@ -6,7 +6,7 @@
 - **Slice**: Core
 - **Created**: 2026-01-16
 - **Started**: -
-- **Blocked by**: #001, #002, #003, #004 (integrates all components)
+- **Blocked by**: #003, #004 (dependencies #001, #002 completed)
 
 ## Vertical Slice Definition
 
@@ -83,8 +83,8 @@ if __name__ == "__main__":
 - Consider startup delay between components
 
 ## Files to Modify
-- `src/main.py` (create) - Entry point and orchestration
-- `src/__init__.py` (create) - Package marker
+- `webstatuspi/main.py` (create) - Entry point and orchestration
+- `webstatuspi/__init__.py` (update) - Already exists from #006
 
 ## Dependencies
 - #001 Config loader

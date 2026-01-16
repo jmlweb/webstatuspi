@@ -2,6 +2,14 @@
 
 This document describes the hardware components, GPIO pin assignments, and display UI specifications for WebStatusPi. These features are planned for Phase 2 and should NOT be implemented until requested.
 
+## Target Environment
+
+- **OS**: Raspberry Pi OS Lite (headless, no desktop)
+- **GPU Memory**: `gpu_mem=16` in `/boot/config.txt`
+- **Available RAM**: ~496MB (sufficient for all features including OLED display)
+
+See [Hardware Load Analysis](HARDWARE-LOAD-ANALYSIS.md) for detailed resource calculations.
+
 ## Hardware Components
 
 1. **0.96" OLED Display (I2C)** - See [Display UI Specifications](#display-ui-specifications)
@@ -34,8 +42,6 @@ hardware:
 
 ### Connection Diagram
 
-The following diagram shows the physical connections between the Raspberry Pi GPIO header and hardware components:
-
 ```mermaid
 graph TB
     subgraph "Raspberry Pi 1B+ GPIO Header"
@@ -48,7 +54,7 @@ graph TB
         VCC[3.3V/5V]
         GND[GND]
     end
-    
+
     subgraph "Hardware Components"
         OLED[0.96 OLED I2C<br/>Display]
         BUTTON[Button<br/>with pull-up]
@@ -56,25 +62,25 @@ graph TB
         LEDG[Green LED<br/>+ 330Ω resistor]
         LEDR[Red LED<br/>+ 330Ω resistor]
     end
-    
+
     GPIO2 -->|SDA| OLED
     GPIO3 -->|SCL| OLED
     VCC --> OLED
     GND --> OLED
-    
+
     GPIO17 -->|Signal| BUTTON
     GND --> BUTTON
     VCC -->|10kΩ pull-up| BUTTON
-    
+
     GPIO27 -->|Signal| BUZZER
     GND --> BUZZER
-    
+
     GPIO22 -->|Signal| LEDG
     GND --> LEDG
-    
+
     GPIO23 -->|Signal| LEDR
     GND --> LEDR
-    
+
     style GPIO2 fill:#90EE90
     style GPIO3 fill:#90EE90
     style GPIO17 fill:#FFB6C1
@@ -85,8 +91,6 @@ graph TB
 
 ### Physical Pinout Reference
 
-Physical GPIO header layout (40-pin header, Raspberry Pi 1B+ compatible):
-
 ```
      ┌─────────────────────────────────────────┐
      │  3.3V  [ 1] [ 2]  5V                   │
@@ -96,12 +100,8 @@ Physical GPIO header layout (40-pin header, Raspberry Pi 1B+ compatible):
      │    GND [ 9] [10]  GPIO15               │
      │ GPIO17 [11] [12]  GPIO18  ← Button     │
      │ GPIO27 [13] [14]  GND     ← Buzzer     │
-     │ GPIO22 [15] [16]  GPIO23  ← LED Green  │
-     │  3.3V  [17] [18]  GPIO24  ← LED Red    │
-     │ GPIO10 [19] [20]  GND                  │
-     │  GPIO9 [21] [22]  GPIO25               │
-     │ GPIO11 [23] [24]  GPIO8                │
-     │    GND [25] [26]  GPIO7                │
+     │ GPIO22 [15] [16]  GPIO23  ← LEDs       │
+     │  3.3V  [17] [18]  GPIO24               │
      │      ... (remaining pins) ...          │
      └─────────────────────────────────────────┘
 ```
@@ -127,12 +127,10 @@ Physical GPIO header layout (40-pin header, Raspberry Pi 1B+ compatible):
 **Green LED**:
 - Anode → 330Ω resistor → GPIO22 (physical pin 15)
 - Cathode → GND
-- **Note**: Standard current-limiting resistor for 3.3V GPIO (adjust if using different voltage)
 
 **Red LED**:
 - Anode → 330Ω resistor → GPIO23 (physical pin 16)
 - Cathode → GND
-- **Note**: Standard current-limiting resistor for 3.3V GPIO (adjust if using different voltage)
 
 **Important Notes**:
 - All GND connections can share the same ground rail
@@ -152,13 +150,13 @@ stateDiagram-v2
     Startup --> NormalMode: Initialized
     NormalMode --> AlertMode: URL failure detected
     AlertMode --> NormalMode: All URLs OK or acknowledged
-    
+
     state NormalMode {
         [*] --> StatusScreen
         StatusScreen --> StatsScreen: Button press
         StatsScreen --> StatusScreen: Button press
     }
-    
+
     state AlertMode {
         [*] --> FailedURL1
         FailedURL1 --> FailedURL2: Button press
@@ -324,7 +322,9 @@ leds:
 - **Button debouncing**: 200ms debounce to prevent multiple triggers
 - **GPIO pin conflicts**: Validate pin assignments at startup, fail fast if conflicts detected
 
-## Performance Considerations (Pi 1B+)
+## Performance Considerations (Pi 1B+ with Lite)
+
+With Raspberry Pi OS Lite and `gpu_mem=16`, ~496MB RAM is available. Display adds ~7-14MB which is well within limits.
 
 - **Display updates**: Only redraw when data changes (avoid constant screen refresh)
 - **CPU usage**: Display thread should use <5% CPU
@@ -332,7 +332,7 @@ leds:
 - **Font rendering**: Pre-render common characters to reduce CPU load
 - **Button polling**: Use interrupts instead of polling for button events (saves CPU)
 
-## Future Dependencies (DO NOT INSTALL YET)
+## Dependencies (Phase 2)
 
 When adding hardware features:
 

@@ -6,7 +6,7 @@
 - **Slice**: API
 - **Created**: 2026-01-16
 - **Started**: -
-- **Blocked by**: #002 (needs database for queries)
+- **Blocked by**: - (dependency #002 completed)
 
 ## Vertical Slice Definition
 
@@ -79,8 +79,8 @@ class StatusHandler(BaseHTTPRequestHandler):
 - Avoid keep-alive connections
 
 ## Files to Modify
-- `src/api.py` (create) - HTTP server implementation
-- `src/database.py` (update) - Add query methods if needed
+- `webstatuspi/api.py` (create) - HTTP server implementation
+- `webstatuspi/database.py` (update) - Add query methods if needed
 
 ## Dependencies
 - #002 Database layer (for querying status)
