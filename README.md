@@ -1,6 +1,6 @@
 # WebStatusPi
 
-Lightweight web monitoring system for Raspberry Pi 1B+. Monitors configured URLs, tracks success/failure statistics, and provides a JSON API for accessing monitoring data.
+Ultra-lightweight web monitoring system for Raspberry Pi 1B+. Monitors configured URLs, tracks success/failure statistics, and provides a JSON API for accessing monitoring data.
 
 ## Features
 
@@ -54,7 +54,7 @@ pip install webstatuspi
 **1. Clone Repository**
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/jmlweb/webstatuspi.git
 cd webstatuspi
 ```
 
@@ -489,7 +489,7 @@ Contributions are welcome! Please read [AGENTS.md](AGENTS.md) for development gu
 
 ## License
 
-[Specify your license here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
