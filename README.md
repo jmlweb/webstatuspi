@@ -33,13 +33,13 @@ monitor:
   interval: 60  # seconds between checks
 
 urls:
-  - name: "Google"
-    url: "https://www.google.com"
-    timeout: 10
+  - name: "UB_APP"
+    url: "https://app.unobravo.com"
+    timeout: 5
 
-  - name: "GitHub"
-    url: "https://github.com"
-    timeout: 10
+  - name: "UB_WEB"
+    url: "https://www.unobravo.com"
+    timeout: 5
 
 api:
   enabled: true
@@ -138,9 +138,9 @@ Then enable: `sudo systemctl daemon-reload && sudo systemctl enable --now websta
 When running, you'll see real-time results:
 
 ```
-[2026-01-16 22:30:15] Google (https://www.google.com) - ✓ 200 OK (234ms)
-[2026-01-16 22:30:18] GitHub (https://github.com) - ✓ 200 OK (456ms)
-[2026-01-16 22:30:45] Google (https://www.google.com) - ✗ 503 Service Unavailable (123ms)
+[2026-01-16 22:30:15] UB_APP (https://app.unobravo.com) - ✓ 200 OK (234ms)
+[2026-01-16 22:30:18] UB_WEB (https://www.unobravo.com) - ✓ 200 OK (456ms)
+[2026-01-16 22:30:45] UB_APP (https://app.unobravo.com) - ✗ 503 Service Unavailable (123ms)
 ```
 
 ### API Endpoints
@@ -148,13 +148,19 @@ When running, you'll see real-time results:
 **Get all stats:**
 
 ```bash
-curl http://<pi-ip>:8080/
+curl http://<pi-ip>:8080/status
 ```
 
 **Get specific URL stats:**
 
 ```bash
-curl http://<pi-ip>:8080/status/Google
+curl http://<pi-ip>:8080/status/UB_APP
+```
+
+**Health check:**
+
+```bash
+curl http://<pi-ip>:8080/health
 ```
 
 <details>
@@ -164,8 +170,8 @@ curl http://<pi-ip>:8080/status/Google
 {
   "urls": [
     {
-      "name": "Google",
-      "url": "https://www.google.com",
+      "name": "UB_APP",
+      "url": "https://app.unobravo.com",
       "total_requests": 150,
       "total_failures": 2,
       "success_rate": 98.67,

@@ -20,7 +20,7 @@ urls:
   - name: "JML"
     url: "https://jmlweb.es"
   
-  - name "PLAYAS":
+  - name: "PLAYAS"
     url: "https://playasmurcia.com"
 
   # Add more URLs as needed:
