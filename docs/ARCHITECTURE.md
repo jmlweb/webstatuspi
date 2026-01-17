@@ -367,7 +367,6 @@ See [HARDWARE.md](HARDWARE.md) for detailed hardware specifications.
 
 ### Potential Enhancements (Not Implemented Yet)
 
-- **systemd service**: Auto-start on boot
 - **Log rotation**: Automatic cleanup of old check records
 - **Alerting**: Email/SMS notifications on failures
 - **Web dashboard**: HTML interface (instead of just JSON API)

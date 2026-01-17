@@ -34,29 +34,9 @@ def _handle_shutdown(signum: int, frame: object) -> None:
         _shutdown_event.set()
 
 
-def main() -> None:
-    """Main entry point for the webstatuspi package."""
+def _cmd_run(args: argparse.Namespace) -> None:
+    """Execute the run command - start the monitoring service."""
     global _shutdown_event
-
-    parser = argparse.ArgumentParser(
-        description="WebStatusPi - Lightweight web monitoring for Raspberry Pi"
-    )
-    parser.add_argument(
-        "-c", "--config",
-        default="config.yaml",
-        help="Path to configuration file (default: config.yaml)",
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose (debug) logging",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"webstatuspi {__version__}",
-    )
-    args = parser.parse_args()
 
     _setup_logging(args.verbose)
 
@@ -127,3 +107,100 @@ def main() -> None:
         logger.info("Database connection closed")
 
         logger.info("Shutdown complete")
+
+
+def _cmd_install_service(args: argparse.Namespace) -> None:
+    """Execute the install-service command."""
+    from .service import detect_paths, install_service
+
+    # Get default paths
+    defaults = detect_paths()
+
+    # Use provided values or defaults
+    user = args.user or defaults["user"]
+    working_dir = args.working_dir or defaults["working_dir"]
+    python_path = defaults["python_path"]
+
+    success = install_service(
+        user=user,
+        working_dir=working_dir,
+        python_path=python_path,
+        enable=args.enable,
+        start=args.start,
+        dry_run=args.dry_run,
+    )
+
+    if not success:
+        sys.exit(1)
+
+
+def main() -> None:
+    """Main entry point for the webstatuspi package."""
+    parser = argparse.ArgumentParser(
+        description="WebStatusPi - Lightweight web monitoring for Raspberry Pi"
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"webstatuspi {__version__}",
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    # Run subcommand (default behavior)
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Start the monitoring service (default)",
+    )
+    run_parser.add_argument(
+        "-c", "--config",
+        default="config.yaml",
+        help="Path to configuration file (default: config.yaml)",
+    )
+    run_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) logging",
+    )
+    run_parser.set_defaults(func=_cmd_run)
+
+    # Install-service subcommand
+    install_parser = subparsers.add_parser(
+        "install-service",
+        help="Install systemd service for auto-start",
+    )
+    install_parser.add_argument(
+        "--user",
+        help="User to run the service as (default: current user)",
+    )
+    install_parser.add_argument(
+        "--working-dir",
+        help="Working directory for the service (default: current directory)",
+    )
+    install_parser.add_argument(
+        "--enable",
+        action="store_true",
+        help="Enable service for auto-start on boot",
+    )
+    install_parser.add_argument(
+        "--start",
+        action="store_true",
+        help="Start the service immediately after installation",
+    )
+    install_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show the service file without installing",
+    )
+    install_parser.set_defaults(func=_cmd_install_service)
+
+    args = parser.parse_args()
+
+    # Default to 'run' if no command specified (backward compatibility)
+    if args.command is None:
+        # Re-parse with default values for run command
+        args.config = "config.yaml"
+        args.verbose = False
+        args.func = _cmd_run
+
+    args.func(args)
