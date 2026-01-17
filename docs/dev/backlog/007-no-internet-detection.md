@@ -6,7 +6,6 @@
 - **Slice**: Core
 - **Created**: 2026-01-17
 - **Started**: -
-- **Blocked by**: #003 (needs monitor loop implementation)
 
 ## Vertical Slice Definition
 
@@ -99,7 +98,7 @@ This state can be queried by:
 
 ## Dependencies
 
-- #003 Monitor loop with threading (needs monitor implementation to integrate)
+None - all prerequisites completed.
 
 ## Progress Log
 (No progress yet)

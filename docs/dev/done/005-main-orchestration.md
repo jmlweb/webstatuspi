@@ -1,26 +1,27 @@
 # Task #005: Main Orchestration & Graceful Shutdown
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core
 - **Created**: 2026-01-16
-- **Started**: -
-- **Blocked by**: #003, #004 (dependencies #001, #002 completed)
+- **Started**: 2026-01-17
+- **Completed**: 2026-01-17
+- **Blocked by**: None
 
 ## Vertical Slice Definition
 
 **User Story**: As an operator, I want the application to start all components and shutdown gracefully on SIGTERM/SIGINT.
 
 **Acceptance Criteria**:
-- [ ] Single entry point (`main.py` or `__main__.py`)
-- [ ] Load configuration first
-- [ ] Initialize database
-- [ ] Start monitor loop in background
-- [ ] Start API server in background
-- [ ] Handle SIGTERM and SIGINT for graceful shutdown
-- [ ] Stop all threads cleanly before exit
-- [ ] Log startup and shutdown events
+- [x] Single entry point (`main.py` or `__main__.py`)
+- [x] Load configuration first
+- [x] Initialize database
+- [x] Start monitor loop in background
+- [x] Start API server in background
+- [x] Handle SIGTERM and SIGINT for graceful shutdown
+- [x] Stop all threads cleanly before exit
+- [x] Log startup and shutdown events
 
 ## Implementation Notes
 
@@ -93,7 +94,15 @@ if __name__ == "__main__":
 - #004 API server
 
 ## Progress Log
-(No progress yet)
+- [2026-01-17 00:00] Started task
+- [2026-01-17 01:04] Implemented main() in __init__.py with:
+  - CLI argument parsing (-c/--config, -v/--verbose, --version)
+  - Logging setup with configurable verbosity
+  - Signal handlers for SIGTERM/SIGINT
+  - Component startup sequence (config → db → monitor → api)
+  - Graceful shutdown sequence
+- [2026-01-17 01:04] All acceptance criteria verified via testing
+- [2026-01-17 01:05] Task completed
 
 ## Learnings
 (None yet)

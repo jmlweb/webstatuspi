@@ -1,11 +1,12 @@
 # Task #004: API Server for JSON Stats
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: API
 - **Created**: 2026-01-16
-- **Started**: -
+- **Started**: 2026-01-17
+- **Completed**: 2026-01-17
 - **Blocked by**: - (dependency #002 completed)
 
 ## Vertical Slice Definition
@@ -13,13 +14,13 @@
 **User Story**: As a user/external system, I want to query current status via HTTP API.
 
 **Acceptance Criteria**:
-- [ ] HTTP server running on configurable port
-- [ ] `GET /status` - Returns current status of all URLs
-- [ ] `GET /status/<name>` - Returns status of specific URL
-- [ ] `GET /health` - Returns API health check
-- [ ] JSON responses with proper Content-Type
-- [ ] Handle errors with appropriate HTTP codes
-- [ ] Runs in separate thread (non-blocking)
+- [x] HTTP server running on configurable port
+- [x] `GET /status` - Returns current status of all URLs
+- [x] `GET /status/<name>` - Returns status of specific URL
+- [x] `GET /health` - Returns API health check
+- [x] JSON responses with proper Content-Type
+- [x] Handle errors with appropriate HTTP codes
+- [x] Runs in separate thread (non-blocking)
 
 ## Implementation Notes
 
@@ -86,7 +87,13 @@ class StatusHandler(BaseHTTPRequestHandler):
 - #002 Database layer (for querying status)
 
 ## Progress Log
-(No progress yet)
+- [2026-01-17] Started task
+- [2026-01-17] Created api.py with StatusHandler and ApiServer classes
+- [2026-01-17] Implemented GET /status, /status/<name>, /health endpoints
+- [2026-01-17] Added threading support with graceful shutdown
+- [2026-01-17] Created 18 tests covering all endpoints and edge cases
+- [2026-01-17] All 64 tests passing
+- [2026-01-17] Task completed
 
 ## Learnings
 (None yet)
