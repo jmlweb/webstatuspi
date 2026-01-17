@@ -1,20 +1,24 @@
 # WebStatusPi Configuration
-# See docs for full configuration options
+# Copy this file to config.yaml and customize for your environment
+#
+# Usage:
+#   cp config.example.yaml config.yaml
+#   # Edit config.yaml with your URLs and settings
 
 monitor:
   interval: 60  # seconds between check cycles (default: 60)
 
 urls:
-  - name: "UB_WEB"
-    url: "https://www.unobravo.com"
+  - name: "EXAMPLE_SITE"
+    url: "https://example.com"
     timeout: 10   # request timeout in seconds (default: 10)
 
-  - name: "UB_APP"
-    url: "https://app.unobravo.com"
-    timeout: 10   # request timeout in seconds (default: 10)
+  - name: "EXAMPLE_API"
+    url: "https://api.example.com/health"
+    timeout: 5
 
-  # Example: Monitor a local service
-  # - name: "LOCAL_API"
+  # Add more URLs as needed:
+  # - name: "MY_SERVICE"
   #   url: "http://localhost:3000/health"
   #   timeout: 5
 
