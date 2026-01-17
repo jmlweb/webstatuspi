@@ -43,13 +43,7 @@ Ultra-lightweight web monitoring system for Raspberry Pi 1B+. Monitors configure
 
 ## Installation
 
-### Option 1: Install from PyPI (when published)
-
-```bash
-pip install webstatuspi
-```
-
-### Option 2: Install from Source
+### Install from Source
 
 **1. Clone Repository**
 
