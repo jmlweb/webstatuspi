@@ -127,6 +127,20 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Learning**: Adding `Connection: close` header tells clients not to reuse the connection. This avoids HTTP keep-alive complexity in single-threaded servers, prevents connection accumulation, and simplifies resource management. The minor overhead of new connections is negligible for low-traffic monitoring APIs.
 **Action**: Added `Connection: close` header in `_send_json()` method
 
+### L015: Client-side rendering eliminates need for server-side templating
+**Date**: 2026-01-18
+**Task**: #011 Evaluate dashboard templates vs embedded HTML
+**Context**: Evaluating whether to use template engines (Jinja2, string.Template) for the dashboard instead of embedded HTML
+**Learning**: The dashboard uses client-side JavaScript rendering (fetch from `/status`, render with DOM manipulation). All dynamic content is rendered in the browser, not on the server. Template engines like Jinja2 are designed for server-side rendering and provide no functional benefit when the server only sends static HTML that fetches data via AJAX. This is a common pattern in modern web apps and eliminates the need for server-side templating dependencies.
+**Action**: Documented in ADR-004. Kept embedded HTML approach, avoiding Jinja2 dependency (~144KB + MarkupSafe)
+
+### L016: Module separation improves maintainability without adding dependencies
+**Date**: 2026-01-18
+**Task**: #011 Evaluate dashboard templates vs embedded HTML
+**Context**: Addressing maintainability concerns with 35KB HTML embedded in api.py (78% of file)
+**Learning**: Extracting embedded content to a separate Python module (`_dashboard.py`) provides the maintainability benefits of file separation while preserving all runtime advantages of embedded strings: zero dependencies, zero I/O overhead, single import at module load. This gives cleaner git diffs (HTML changes isolated from Python logic) and better code organization without any performance or deployment cost. The underscore prefix signals it's an internal implementation detail.
+**Action**: Created `webstatuspi/_dashboard.py` with `HTML_DASHBOARD` constant. Reduced `api.py` from 44KB to 10KB (Python only). All 27 tests pass.
+
 ---
 
 ## Learning Template

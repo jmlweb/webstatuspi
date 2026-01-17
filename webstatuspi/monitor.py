@@ -17,6 +17,34 @@ from .models import CheckResult
 
 logger = logging.getLogger(__name__)
 
+
+class _RedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Custom redirect handler that follows 307 and 308 redirects."""
+
+    def http_error_307(self, req, fp, code, msg, headers):
+        """Handle 307 Temporary Redirect."""
+        return self._do_redirect(req, fp, code, msg, headers)
+
+    def http_error_308(self, req, fp, code, msg, headers):
+        """Handle 308 Permanent Redirect."""
+        return self._do_redirect(req, fp, code, msg, headers)
+
+    def _do_redirect(self, req, fp, code, msg, headers):
+        """Follow redirect preserving the original method."""
+        new_url = headers.get("Location")
+        if new_url:
+            new_req = urllib.request.Request(
+                new_url,
+                method=req.get_method(),
+                headers=dict(req.headers),
+            )
+            return self.parent.open(new_req, timeout=req.timeout)
+        return None
+
+
+# Create opener with custom redirect handler
+_opener = urllib.request.build_opener(_RedirectHandler())
+
 # Pi 1B+ optimized: limit concurrent checks
 MAX_WORKERS = 3
 # Run cleanup every N check cycles to minimize SD card writes
@@ -62,7 +90,7 @@ def check_url(url_config: UrlConfig) -> CheckResult:
             method="GET",
             headers={"User-Agent": "WebStatusPi/0.1"},
         )
-        with urllib.request.urlopen(request, timeout=url_config.timeout) as response:
+        with _opener.open(request, timeout=url_config.timeout) as response:
             elapsed_ms = int((time.monotonic() - start) * 1000)
             status_code = response.status
             is_up = 200 <= status_code < 400
@@ -79,13 +107,15 @@ def check_url(url_config: UrlConfig) -> CheckResult:
 
     except urllib.error.HTTPError as e:
         elapsed_ms = int((time.monotonic() - start) * 1000)
+        # Treat 3xx redirects as "up" - server is responding
+        is_up = 300 <= e.code < 400
         return CheckResult(
             url_name=url_config.name,
             url=url_config.url,
             status_code=e.code,
             response_time_ms=elapsed_ms,
-            is_up=False,
-            error_message=f"HTTP {e.code}: {e.reason}",
+            is_up=is_up,
+            error_message=None if is_up else f"HTTP {e.code}: {e.reason}",
             checked_at=checked_at,
         )
 

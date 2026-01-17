@@ -1,0 +1,28 @@
+# Test configuration for dashboard
+monitor:
+  interval: 30
+
+urls:
+  - name: "GOOGLE"
+    url: "https://www.google.com"
+    timeout: 5
+
+  - name: "GITHUB"
+    url: "https://github.com"
+    timeout: 5
+
+  - name: "HTTPBIN"
+    url: "https://httpbin.org/status/200"
+    timeout: 5
+
+  - name: "INVALID"
+    url: "https://this-domain-does-not-exist-12345.com"
+    timeout: 3
+
+database:
+  path: "./data/test_status.db"
+  retention_days: 1
+
+api:
+  enabled: true
+  port: 8080

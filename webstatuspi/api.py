@@ -4,13 +4,14 @@ import json
 import logging
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional
 
 from .config import ApiConfig
-from .database import get_latest_status, DatabaseError
+from .database import get_history, get_latest_status, DatabaseError
 from .models import UrlStatus
+from ._dashboard import HTML_DASHBOARD
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +75,23 @@ class StatusHandler(BaseHTTPRequestHandler):
         """Send a JSON error response."""
         self._send_json(code, {"error": message})
 
+    def _send_html(self, code: int, html: str) -> None:
+        """Send an HTML response with the given status code."""
+        body = html.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "max-age=3600")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         try:
-            if self.path == "/health":
+            if self.path == "/":
+                self._handle_dashboard()
+            elif self.path == "/health":
                 self._handle_health()
             elif self.path == "/status":
                 self._handle_status_all()
@@ -87,11 +101,21 @@ class StatusHandler(BaseHTTPRequestHandler):
                     self._handle_status_by_name(name)
                 else:
                     self._send_error_json(400, "URL name is required")
+            elif self.path.startswith("/history/"):
+                name = self.path[9:]  # Extract name after /history/
+                if name:
+                    self._handle_history_by_name(name)
+                else:
+                    self._send_error_json(400, "URL name is required")
             else:
                 self._send_error_json(404, "Not found")
         except Exception as e:
             logger.exception("Error handling request: %s", e)
             self._send_error_json(500, "Internal server error")
+
+    def _handle_dashboard(self) -> None:
+        """Handle GET / endpoint - serve HTML dashboard."""
+        self._send_html(200, HTML_DASHBOARD)
 
     def _handle_health(self) -> None:
         """Handle GET /health endpoint."""
@@ -129,6 +153,44 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_json(200, response)
         except DatabaseError as e:
             logger.error("Database error in /status/%s: %s", name, e)
+            self._send_error_json(500, "Database error")
+
+    def _handle_history_by_name(self, name: str) -> None:
+        """Handle GET /history/<name> endpoint."""
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            # First check if the URL exists
+            statuses = get_latest_status(self.db_conn)
+            matching = [s for s in statuses if s.url_name == name]
+
+            if not matching:
+                self._send_error_json(404, f"URL '{name}' not found")
+                return
+
+            # Get history for the last 24 hours, limited to 100 checks
+            since = datetime.utcnow() - timedelta(hours=24)
+            checks = get_history(self.db_conn, name, since, limit=100)
+
+            response = {
+                "name": name,
+                "checks": [
+                    {
+                        "checked_at": c.checked_at.isoformat() + "Z",
+                        "is_up": c.is_up,
+                        "status_code": c.status_code,
+                        "response_time_ms": c.response_time_ms,
+                        "error": c.error_message,
+                    }
+                    for c in checks
+                ],
+                "count": len(checks),
+            }
+            self._send_json(200, response)
+        except DatabaseError as e:
+            logger.error("Database error in /history/%s: %s", name, e)
             self._send_error_json(500, "Database error")
 
 

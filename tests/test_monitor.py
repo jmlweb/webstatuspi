@@ -52,7 +52,7 @@ class TestCheckUrl:
 
     def test_returns_check_result(self, url_config: UrlConfig) -> None:
         """Returns a CheckResult instance."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -67,7 +67,7 @@ class TestCheckUrl:
 
     def test_successful_check_is_up(self, url_config: UrlConfig) -> None:
         """Successful 2xx response marks URL as up."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -82,7 +82,7 @@ class TestCheckUrl:
 
     def test_redirect_is_up(self, url_config: UrlConfig) -> None:
         """3xx redirect responses mark URL as up."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = 301
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -99,7 +99,7 @@ class TestCheckUrl:
         self, url_config: UrlConfig, redirect_code: int
     ) -> None:
         """All 3xx redirect codes are treated as up."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = redirect_code
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -119,7 +119,7 @@ class TestCheckUrl:
         urllib.request.urlopen follows redirects by default,
         so the final status (e.g., 200) is what we receive.
         """
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             # Simulate urllib following redirect and returning final 200
             mock_response = MagicMock()
             mock_response.status = 200
@@ -134,7 +134,7 @@ class TestCheckUrl:
 
     def test_redirect_does_not_cause_exception(self, url_config: UrlConfig) -> None:
         """Redirects don't raise exceptions or cause failures."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             # Simulate redirect being followed successfully
             mock_response = MagicMock()
             mock_response.status = 200
@@ -147,11 +147,33 @@ class TestCheckUrl:
             assert result.error_message is None
             assert result.is_up is True
 
+    @pytest.mark.parametrize("redirect_code", [301, 302, 303, 307, 308])
+    def test_redirect_as_http_error_is_up(
+        self, url_config: UrlConfig, redirect_code: int
+    ) -> None:
+        """Redirects raised as HTTPError are still treated as up.
+
+        Some redirect codes (especially 308) may be raised as HTTPError
+        instead of being followed automatically by urllib.
+        """
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(
+                url_config.url, redirect_code, "Redirect", {}, None
+            )
+
+            result = check_url(url_config)
+
+            assert result.is_up is True, f"Redirect {redirect_code} as HTTPError should be up"
+            assert result.status_code == redirect_code
+            assert result.error_message is None
+
     def test_client_error_is_down(self, url_config: UrlConfig) -> None:
         """4xx client error marks URL as down."""
         import urllib.error
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_urlopen.side_effect = urllib.error.HTTPError(
                 url_config.url, 404, "Not Found", {}, None
             )
@@ -166,7 +188,7 @@ class TestCheckUrl:
         """5xx server error marks URL as down."""
         import urllib.error
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_urlopen.side_effect = urllib.error.HTTPError(
                 url_config.url, 500, "Internal Server Error", {}, None
             )
@@ -181,7 +203,7 @@ class TestCheckUrl:
         """Connection errors mark URL as down with no status code."""
         import urllib.error
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
 
             result = check_url(url_config)
@@ -194,7 +216,7 @@ class TestCheckUrl:
         """Timeout errors mark URL as down."""
         import socket
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_urlopen.side_effect = socket.timeout("timed out")
 
             result = check_url(url_config)
@@ -204,7 +226,7 @@ class TestCheckUrl:
 
     def test_measures_response_time(self, url_config: UrlConfig) -> None:
         """Response time is measured in milliseconds."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -218,7 +240,7 @@ class TestCheckUrl:
 
     def test_sets_checked_at_timestamp(self, url_config: UrlConfig) -> None:
         """Checked at timestamp is set to current time."""
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.__enter__ = MagicMock(return_value=mock_response)

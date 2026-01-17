@@ -15,6 +15,7 @@ import pytest
 from webstatuspi.api import (
     ApiError,
     ApiServer,
+    HTML_DASHBOARD,
     StatusHandler,
     _build_status_response,
     _create_handler_class,
@@ -355,3 +356,203 @@ class TestApiEndpoints:
         with urllib.request.urlopen(url, timeout=5) as response:
             content_type = response.headers.get("Content-Type")
             assert content_type == "application/json"
+
+    def test_dashboard_endpoint(self, running_server: ApiServer) -> None:
+        """GET / returns HTML dashboard."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            assert response.status == 200
+            content_type = response.headers.get("Content-Type")
+            assert "text/html" in content_type
+            body = response.read().decode("utf-8")
+            assert "<!DOCTYPE html>" in body
+            assert "WebStatusPi" in body
+
+    def test_dashboard_contains_required_elements(
+        self, running_server: ApiServer
+    ) -> None:
+        """Dashboard HTML contains all required UI elements."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+            # Header elements
+            assert "LIVE FEED" in body
+            # Summary bar elements
+            assert 'id="countUp"' in body
+            assert 'id="countDown"' in body
+            assert 'id="updatedTime"' in body
+            # Cards container
+            assert 'id="cardsContainer"' in body
+            # JavaScript polling
+            assert "fetch('/status')" in body
+            assert "setInterval" in body
+
+    def test_dashboard_has_cache_header(self, running_server: ApiServer) -> None:
+        """Dashboard response includes cache control header."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            cache_control = response.headers.get("Cache-Control")
+            assert cache_control == "max-age=3600"
+
+    def test_dashboard_cyberpunk_styles(self, running_server: ApiServer) -> None:
+        """Dashboard includes cyberpunk CSS styles."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+            # Cyberpunk background colors
+            assert "#0a0a0f" in body  # Main dark background
+            assert "#12121a" in body  # Panel background
+            # Neon status colors
+            assert "#00ff66" in body  # UP green
+            assert "#ff0040" in body  # DOWN red
+            assert "#00fff9" in body  # Cyan accent
+            # Mono font
+            assert "JetBrains Mono" in body
+
+
+class TestHistoryEndpoint:
+    """Tests for GET /history/<name> endpoint."""
+
+    @pytest.fixture
+    def running_server(
+        self, db_conn: sqlite3.Connection
+    ) -> ApiServer:
+        """Start a server and yield it, stopping after test."""
+        port = get_free_port()
+        config = ApiConfig(enabled=True, port=port)
+        server = ApiServer(config, db_conn)
+        server.start()
+        time.sleep(0.1)
+        yield server
+        server.stop()
+
+    def _get(self, server: ApiServer, path: str) -> tuple:
+        """Make a GET request and return (status_code, json_body)."""
+        port = server.config.port
+        url = f"http://localhost:{port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                body = json.loads(response.read().decode("utf-8"))
+                return response.status, body
+        except urllib.error.HTTPError as e:
+            body = json.loads(e.read().decode("utf-8"))
+            return e.code, body
+
+    def test_history_returns_checks(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """GET /history/<name> returns check history ordered by time."""
+        # Insert multiple checks
+        for i in range(3):
+            check = CheckResult(
+                url_name="HISTORY_TEST",
+                url="https://history.example.com",
+                status_code=200 if i % 2 == 0 else 500,
+                response_time_ms=100 + i * 10,
+                is_up=i % 2 == 0,
+                error_message=None if i % 2 == 0 else "Server error",
+                checked_at=datetime.utcnow(),
+            )
+            insert_check(db_conn, check)
+            time.sleep(0.01)  # Ensure different timestamps
+
+        status, body = self._get(running_server, "/history/HISTORY_TEST")
+
+        assert status == 200
+        assert body["name"] == "HISTORY_TEST"
+        assert body["count"] == 3
+        assert len(body["checks"]) == 3
+        # Should be ordered newest first
+        assert body["checks"][0]["response_time_ms"] == 120
+
+    def test_history_not_found(self, running_server: ApiServer) -> None:
+        """GET /history/<name> returns 404 for unknown URL."""
+        status, body = self._get(running_server, "/history/UNKNOWN_URL")
+
+        assert status == 404
+        assert "error" in body
+        assert "UNKNOWN_URL" in body["error"]
+
+    def test_history_empty(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """GET /history/<name> returns empty list if no recent checks."""
+        # Insert a check with old timestamp (outside 24h window)
+        from datetime import timedelta
+        old_time = datetime.utcnow() - timedelta(hours=25)
+        check = CheckResult(
+            url_name="OLD_URL",
+            url="https://old.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=old_time,
+        )
+        insert_check(db_conn, check)
+
+        status, body = self._get(running_server, "/history/OLD_URL")
+
+        assert status == 200
+        assert body["name"] == "OLD_URL"
+        assert body["count"] == 0
+        assert body["checks"] == []
+
+    def test_history_check_fields(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """GET /history/<name> returns correct fields in each check."""
+        check = CheckResult(
+            url_name="FIELDS_TEST",
+            url="https://fields.example.com",
+            status_code=503,
+            response_time_ms=250,
+            is_up=False,
+            error_message="Service unavailable",
+            checked_at=datetime.utcnow(),
+        )
+        insert_check(db_conn, check)
+
+        status, body = self._get(running_server, "/history/FIELDS_TEST")
+
+        assert status == 200
+        assert len(body["checks"]) == 1
+
+        check_data = body["checks"][0]
+        assert "checked_at" in check_data
+        assert check_data["checked_at"].endswith("Z")
+        assert check_data["is_up"] is False
+        assert check_data["status_code"] == 503
+        assert check_data["response_time_ms"] == 250
+        assert check_data["error"] == "Service unavailable"
+
+    def test_history_limits_to_100(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """GET /history/<name> limits results to 100 checks."""
+        # Insert 110 checks
+        for i in range(110):
+            check = CheckResult(
+                url_name="LIMIT_TEST",
+                url="https://limit.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=datetime.utcnow(),
+            )
+            insert_check(db_conn, check)
+
+        status, body = self._get(running_server, "/history/LIMIT_TEST")
+
+        assert status == 200
+        assert body["count"] == 100
+        assert len(body["checks"]) == 100

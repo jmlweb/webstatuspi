@@ -4,23 +4,26 @@
 
 ## Quick Stats
 
-- **Pending**: 0 tasks
+- **Pending**: 2 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 9 tasks
+- **Completed**: 10 tasks
 
 ## Current Focus
 
-> No active task.
+> No active task. Next up: Task #010
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
+| 010 | Create command to clean the database | Core | P3 |
+| 012 | Reset data button with confirmation modal | API | P3 |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 011 | Evaluate dashboard templates vs embedded HTML | API | ✓ |
 | 009 | Unit tests for config module | Testing | ✓ |
 | 007 | NO INTERNET detection | Core | ✓ |
 | 005 | Main orchestration & shutdown | Core | ✓ |

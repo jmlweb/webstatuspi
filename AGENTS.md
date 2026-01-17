@@ -56,6 +56,69 @@ from config import load_config
 - Names must be **≤ 10 characters** (optimized for OLED display)
 - Use **uppercase and underscores** for readability (e.g., `APP_ES`, `API_PROD`)
 
+## Dashboard Code Style
+
+The HTML dashboard is embedded in `api.py` as `HTML_DASHBOARD`. Follow these guidelines when modifying it.
+
+### CSS Guidelines
+
+- **Use CSS custom properties**: All colors defined in `:root` (e.g., `--cyan`, `--red`, `--bg-dark`)
+- **No external stylesheets**: All CSS must be inline in `<style>` tag
+- **Font stack**: `'JetBrains Mono', 'Fira Code', 'Consolas', monospace`
+- **Color palette** (cyberpunk theme):
+  - `--cyan: #00fff9` - Primary accent, headers, success indicators
+  - `--magenta: #ff00ff` - Secondary accent (reserved)
+  - `--green: #00ff66` - Online/success status
+  - `--red: #ff0040` - Offline/error status
+  - `--yellow: #f0ff00` - Warning states
+  - `--orange: #ff8800` - Degraded states
+
+### CSS Naming
+
+- **BEM-like classes**: `.card`, `.card-header`, `.card-name`
+- **State modifiers**: `.card.down`, `.status-indicator.up`
+- **Utility classes**: `.count-dimmed`, `.progress-fill.warning`
+
+### Animation Guidelines
+
+- **Performance**: Use `transform` and `opacity` for animations (GPU-accelerated)
+- **Subtlety**: Keep CRT effects subtle (`opacity: 0.04` for scanlines)
+- **Duration**: Long pauses between effect cycles (32s for scanline, 36s for flicker)
+- **Purpose**: Animations should enhance UX, not distract
+  - `pulse` - Live indicator heartbeat
+  - `errorFlicker` - Attention on failures
+  - `latencyPulse` - Data update feedback
+  - `glitch` - Hover microinteraction
+
+### JavaScript Guidelines
+
+- **Vanilla JS only**: No frameworks or libraries
+- **Polling interval**: 10 seconds (`POLL_INTERVAL = 10000`)
+- **Data source**: Fetch from `/status` endpoint only
+- **Error handling**: Display connection errors in `updatedTime` element
+- **XSS prevention**: Always use `escapeHtml()` for user-generated content
+
+### JavaScript Naming
+
+- `UPPER_SNAKE_CASE` for constants (`POLL_INTERVAL`)
+- `camelCase` for functions and variables (`formatTime`, `isUpdating`)
+- Descriptive function names: `renderCard`, `getLatencyClass`, `fetchStatus`
+
+### Adding New Features
+
+1. **Colors**: Add to `:root` custom properties, never hardcode
+2. **Cards**: Follow existing `.card` structure (header → metrics → footer)
+3. **Metrics**: Use `.metric` grid layout with `.progress-bar` for visual indicators
+4. **States**: Add modifier classes (`.card.warning`) rather than inline styles
+
+### Do NOT
+
+- Add external dependencies (CDN scripts, external CSS)
+- Use `document.write()` or `innerHTML` with unescaped user input
+- Create CPU-intensive animations (respect Pi 1B+ constraints)
+- Add images or assets (keep dashboard self-contained)
+- Use modern JS features not supported in older browsers (target ES6)
+
 ## Dependencies
 
 ### Minimal Dependencies (Pi 1B+ constraint)
@@ -228,6 +291,27 @@ Record of key architectural decisions made during development. Add new entries a
 **Consequences**:
 - One external dependency
 - Must validate schema manually
+
+### ADR-004: Embedded HTML Dashboard (Updated)
+
+**Date**: 2026-01-18 (Updated: 2026-01-18)
+**Status**: Accepted
+**Context**: Need a visual dashboard for monitoring status without external dependencies
+**Decision**: Embed HTML/CSS/JS as a Python string constant in `_dashboard.py`, imported by `api.py`
+**Rationale**:
+- Zero external files or static asset management
+- No template engine dependency (Jinja2 would add ~5MB)
+- Dashboard auto-refreshes via JavaScript fetch to `/status`
+- CRT/cyberpunk aesthetic provides clear visual hierarchy
+- Separate module improves maintainability without adding dependencies
+**Consequences**:
+- HTML changes isolated in dedicated `_dashboard.py` module
+- Cleaner git diffs (HTML changes separate from Python logic)
+- No hot-reload for frontend development
+- Must follow embedded dashboard guidelines (see Dashboard Code Style section)
+**Update (2026-01-18)**: Evaluated template engines (Jinja2, string.Template, str.format).
+Finding: Dashboard uses client-side rendering, no server-side templating needed.
+Separated HTML to `_dashboard.py` for better maintainability while keeping zero dependencies.
 
 <!-- Add new ADRs above this line -->
 

@@ -143,6 +143,23 @@ When running, you'll see real-time results:
 [2026-01-16 22:30:45] UB_APP (https://app.unobravo.com) - ✗ 503 Service Unavailable (123ms)
 ```
 
+### Web Dashboard
+
+Access the real-time monitoring dashboard in your browser:
+
+```
+http://<pi-ip>:8080/
+```
+
+**Features:**
+- **Auto-refresh**: Updates every 10 seconds
+- **Status cards**: One card per monitored URL showing status, latency, and 24h uptime
+- **Visual indicators**: Color-coded status (green=online, red=offline)
+- **Summary bar**: Quick overview of online/offline counts
+- **CRT aesthetic**: Cyberpunk-inspired design with scanline effects
+
+The dashboard fetches data from `/status` endpoint and requires no additional configuration.
+
 ### API Endpoints
 
 **Get all stats:**
