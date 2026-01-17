@@ -134,25 +134,31 @@ curl http://<pi-ip>:8080/status/Google
 
 ```
 webstatuspi/
-├── main.py           # Entry point
-├── monitor.py        # URL monitoring logic
-├── db.py            # Database operations
-├── api.py           # JSON API server
-├── config.py        # Configuration loader
-├── config.yaml      # User configuration
-├── requirements.txt # Python dependencies
-├── README.md        # This file
-├── AGENTS.md        # Development rules
+├── webstatuspi/          # Python package
+│   ├── __init__.py       # Entry point (main function)
+│   ├── __main__.py       # Module runner (python -m webstatuspi)
+│   ├── api.py            # JSON API server
+│   ├── config.py         # Configuration loader
+│   ├── database.py       # Database operations
+│   ├── models.py         # Data models (dataclasses)
+│   └── monitor.py        # URL monitoring logic
+├── tests/                # Unit tests
+│   ├── test_api.py
+│   ├── test_database.py
+│   └── test_monitor.py
 ├── docs/
-│   ├── ARCHITECTURE.md  # System architecture
-│   ├── HARDWARE.md      # Hardware specifications
-│   └── testing/         # Testing documentation
-│       ├── INDEX.md     # Testing overview
-│       ├── MOCKING.md   # Mock implementations
-│       ├── UNIT-TESTS.md  # Unit test examples
-│       └── DOCKER-QEMU.md # ARM emulation
-└── data/
-    └── monitoring.db # SQLite database (auto-created)
+│   ├── ARCHITECTURE.md   # System architecture
+│   ├── HARDWARE.md       # Hardware specifications
+│   ├── dev/              # Development workflow
+│   └── testing/          # Testing documentation
+├── data/                 # Runtime data (auto-created)
+│   └── monitoring.db     # SQLite database
+├── config.yaml           # User configuration
+├── pyproject.toml        # Python packaging
+├── requirements.txt      # Production dependencies
+├── requirements-dev.txt  # Development dependencies
+├── AGENTS.md             # Development rules
+└── README.md             # This file
 ```
 
 ## API Reference

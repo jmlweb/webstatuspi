@@ -41,11 +41,13 @@ If you cannot proceed:
 
 | Command | Description |
 |---------|-------------|
-| `task:start #XXX` | Mark task as in_progress, update INDEX |
-| `task:complete #XXX` | Move to done/, update INDEX |
-| `task:block #XXX [reason]` | Mark blocked, document reason |
-| `learning:add [content]` | Add to LEARNINGS.md |
-| `status:update` | Recalculate stats in INDEX.md |
+| `/start-task XXX` | Mark task as in_progress, update INDEX |
+| `/complete-task XXX` | Move to done/, update INDEX |
+| `/block-task XXX [reason]` | Mark blocked, document reason |
+| `/add-learning` | Add to LEARNINGS.md |
+| `/dev-status` | Show current status from INDEX.md |
+| `/check-task XXX` | Verify task status matches reality |
+| `/next-task` | Suggest next priority task |
 
 ## Priority Levels
 
