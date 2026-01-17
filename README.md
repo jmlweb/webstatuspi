@@ -479,7 +479,7 @@ For detailed technical documentation:
 
 ## Contributing
 
-Contributions are welcome! Please read [AGENTS.md](AGENTS.md) for development guidelines and architecture decisions.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute.
 
 ## License
 
