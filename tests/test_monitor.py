@@ -94,6 +94,59 @@ class TestCheckUrl:
             assert result.is_up is True
             assert result.status_code == 301
 
+    @pytest.mark.parametrize("redirect_code", [301, 302, 303, 307, 308])
+    def test_all_redirect_codes_are_up(
+        self, url_config: UrlConfig, redirect_code: int
+    ) -> None:
+        """All 3xx redirect codes are treated as up."""
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = redirect_code
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True, f"Redirect {redirect_code} should be up"
+            assert result.status_code == redirect_code
+
+    def test_redirect_followed_returns_final_status(
+        self, url_config: UrlConfig
+    ) -> None:
+        """When redirect is followed, final status code is returned.
+
+        urllib.request.urlopen follows redirects by default,
+        so the final status (e.g., 200) is what we receive.
+        """
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            # Simulate urllib following redirect and returning final 200
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.status_code == 200
+
+    def test_redirect_does_not_cause_exception(self, url_config: UrlConfig) -> None:
+        """Redirects don't raise exceptions or cause failures."""
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            # Simulate redirect being followed successfully
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.error_message is None
+            assert result.is_up is True
+
     def test_client_error_is_down(self, url_config: UrlConfig) -> None:
         """4xx client error marks URL as down."""
         import urllib.error
