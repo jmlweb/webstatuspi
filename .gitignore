@@ -67,3 +67,6 @@ data/
 *.db
 config.yaml
 .claude/settings.local.json
+
+# Playwright MCP screenshots
+.playwright-mcp/
