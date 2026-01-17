@@ -9,13 +9,19 @@ monitor:
   interval: 60  # seconds between check cycles (default: 60)
 
 urls:
-  - name: "EXAMPLE_SITE"
-    url: "https://example.com"
-    timeout: 10   # request timeout in seconds (default: 10)
+  - name: "UB_APP"
+    url: "https://app.unobravo.com"
+    timeout: 5   # request timeout in seconds (default: 10)
 
-  - name: "EXAMPLE_API"
-    url: "https://api.example.com/health"
+  - name: "UB_WEB"
+    url: "https://www.unobravo.com"
     timeout: 5
+
+  - name: "JML"
+    url: "https://jmlweb.es"
+  
+  - name "PLAYAS":
+    url: "https://playasmurcia.com"
 
   # Add more URLs as needed:
   # - name: "MY_SERVICE"
