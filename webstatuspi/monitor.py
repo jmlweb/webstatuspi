@@ -1,6 +1,7 @@
 """URL monitoring loop with threaded health checks."""
 
 import logging
+import socket
 import sqlite3
 import time
 import urllib.error
@@ -20,6 +21,27 @@ logger = logging.getLogger(__name__)
 MAX_WORKERS = 3
 # Run cleanup every N check cycles to minimize SD card writes
 CLEANUP_INTERVAL_CYCLES = 100
+# Default timeout for internet connectivity check
+INTERNET_CHECK_TIMEOUT = 5
+
+
+def check_internet_connectivity(timeout: int = INTERNET_CHECK_TIMEOUT) -> bool:
+    """Check if internet connectivity is available via DNS lookup.
+
+    Uses socket (stdlib) to avoid additional dependencies.
+    Attempts TCP connection to Google's DNS server (8.8.8.8) on port 53.
+
+    Args:
+        timeout: Timeout in seconds for connectivity check.
+
+    Returns:
+        True if internet connectivity is available, False otherwise.
+    """
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=timeout)
+        return True
+    except (socket.timeout, OSError):
+        return False
 
 
 def check_url(url_config: UrlConfig) -> CheckResult:
@@ -127,6 +149,9 @@ class Monitor:
         self._thread: Optional[Thread] = None
         self._cycle_count = 0
 
+        # Internet connectivity status: None (unknown), True (available), False (no internet)
+        self._internet_status: Optional[bool] = None
+
         # Track next check time for each URL (staggered start)
         self._next_check: Dict[str, float] = {}
         now = time.monotonic()
@@ -167,6 +192,16 @@ class Monitor:
         """Check if the monitor loop is currently running."""
         return self._thread is not None and self._thread.is_alive()
 
+    @property
+    def internet_status(self) -> Optional[bool]:
+        """Get the current internet connectivity status.
+
+        Returns:
+            None if not yet checked, True if internet is available,
+            False if no internet connectivity detected.
+        """
+        return self._internet_status
+
     def _run_loop(self) -> None:
         """Main monitor loop - runs in background thread."""
         logger.debug("Monitor loop started")
@@ -199,7 +234,16 @@ class Monitor:
         return due
 
     def _check_urls(self, urls: List[UrlConfig]) -> None:
-        """Check multiple URLs concurrently and store results."""
+        """Check multiple URLs concurrently and store results.
+
+        When all URLs fail, performs an internet connectivity check.
+        If no internet, logs a single "NO INTERNET" warning instead of
+        individual failure alerts.
+        """
+        results: List[CheckResult] = []
+        url_configs: List[UrlConfig] = []
+
+        # Collect all results first
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(check_url, url): url for url in urls}
 
@@ -207,27 +251,49 @@ class Monitor:
                 url_config = futures[future]
                 try:
                     result = future.result()
-                    self._store_result(result)
-
+                    results.append(result)
+                    url_configs.append(url_config)
+                except Exception as e:
+                    logger.error("Failed to check %s: %s", url_config.name, e)
+                finally:
                     # Schedule next check for this URL using global interval
                     self._next_check[url_config.name] = (
                         time.monotonic() + self._config.monitor.interval
                     )
 
-                    status = "UP" if result.is_up else "DOWN"
-                    logger.debug(
-                        "%s: %s (%dms)",
-                        result.url_name,
-                        status,
-                        result.response_time_ms,
-                    )
+        if not results:
+            return
 
-                except Exception as e:
-                    logger.error("Failed to check %s: %s", url_config.name, e)
-                    # Still schedule next check even on error
-                    self._next_check[url_config.name] = (
-                        time.monotonic() + self._config.monitor.interval
-                    )
+        # Check if all URLs failed
+        all_failed = all(not r.is_up for r in results)
+        no_internet = False
+
+        if all_failed and len(results) > 0:
+            # All URLs failed - check internet connectivity
+            no_internet = not check_internet_connectivity()
+            self._internet_status = not no_internet
+
+            if no_internet:
+                logger.warning("NO INTERNET - All URLs unavailable")
+        else:
+            # At least one URL is up, internet is available
+            self._internet_status = True
+
+        # Store results and log status
+        for result in results:
+            self._store_result(result)
+
+            # Skip individual failure logging when no internet detected
+            if no_internet and not result.is_up:
+                continue
+
+            status = "UP" if result.is_up else "DOWN"
+            logger.debug(
+                "%s: %s (%dms)",
+                result.url_name,
+                status,
+                result.response_time_ms,
+            )
 
     def _store_result(self, result: CheckResult) -> None:
         """Store a check result in the database and invoke callback."""

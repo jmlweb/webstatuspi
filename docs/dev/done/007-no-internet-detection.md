@@ -1,23 +1,24 @@
 # Task #007: NO INTERNET Detection
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core
 - **Created**: 2026-01-17
-- **Started**: -
+- **Started**: 2026-01-17
+- **Completed**: 2026-01-17
 
 ## Vertical Slice Definition
 
 **User Story**: As a monitoring system, when all configured URLs fail, I want to detect if the issue is internet connectivity loss and display a single "NO INTERNET" alert instead of multiple individual URL failure alerts.
 
 **Acceptance Criteria**:
-- [ ] Detect when all URLs fail in a single check round
-- [ ] Verify internet connectivity via DNS lookup when all URLs fail
-- [ ] Display "NO INTERNET" message in console when connectivity is lost
-- [ ] Skip individual URL failure alerts when "NO INTERNET" is detected
-- [ ] Store internet connectivity status for future display/API use
-- [ ] Handle connectivity check timeouts gracefully (default 5 seconds)
+- [x] Detect when all URLs fail in a single check round
+- [x] Verify internet connectivity via DNS lookup when all URLs fail
+- [x] Display "NO INTERNET" message in console when connectivity is lost
+- [x] Skip individual URL failure alerts when "NO INTERNET" is detected
+- [x] Store internet connectivity status for future display/API use
+- [x] Handle connectivity check timeouts gracefully (default 5 seconds)
 
 ## Implementation Notes
 
@@ -101,7 +102,11 @@ This state can be queried by:
 None - all prerequisites completed.
 
 ## Progress Log
-(No progress yet)
+- [2026-01-17 00:00] Started task
+- [2026-01-17 00:01] Implemented `check_internet_connectivity()` function using socket stdlib
+- [2026-01-17 00:01] Added `_internet_status` tracking and `internet_status` property to Monitor class
+- [2026-01-17 00:01] Modified `_check_urls()` to detect all-fail scenario and check internet connectivity
+- [2026-01-17 00:02] Task completed - all acceptance criteria met
 
 ## Learnings
 (None yet)

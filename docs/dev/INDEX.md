@@ -4,24 +4,25 @@
 
 ## Quick Stats
 
-- **Pending**: 1 task
+- **Pending**: 0 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 7 tasks
+- **Completed**: 9 tasks
 
 ## Current Focus
 
-> No active task. Next up: Task #007 (NO INTERNET detection)
+> No active task.
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| 007 | NO INTERNET detection | Core | P3 |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 009 | Unit tests for config module | Testing | ✓ |
+| 007 | NO INTERNET detection | Core | ✓ |
 | 005 | Main orchestration & shutdown | Core | ✓ |
 | 004 | API server for JSON stats | API | ✓ |
 | 008 | Global check interval | Config | ✓ |
