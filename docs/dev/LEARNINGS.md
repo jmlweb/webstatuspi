@@ -99,7 +99,33 @@ This file captures lessons learned during development. Each learning has a uniqu
 
 ## API
 
-(No learnings yet)
+### L011: Factory pattern to inject dependencies into BaseHTTPRequestHandler
+**Date**: 2026-01-17
+**Task**: #004 API server for JSON stats
+**Context**: Needed to pass database connection to the HTTP request handler, but `BaseHTTPRequestHandler.__init__` doesn't accept custom arguments.
+**Learning**: Create a factory function that returns a subclass with dependencies bound as class attributes. This pattern (`_create_handler_class(db_conn)`) creates a new class with `db_conn` set, allowing each request to access shared resources without modifying the handler's constructor signature.
+**Action**: Implemented `_create_handler_class()` that returns `BoundStatusHandler` with `db_conn` as class attribute
+
+### L012: Use handle_request() instead of serve_forever() for graceful shutdown
+**Date**: 2026-01-17
+**Task**: #004 API server for JSON stats
+**Context**: Implementing graceful shutdown for the API server thread
+**Learning**: `HTTPServer.serve_forever()` blocks indefinitely and is difficult to interrupt cleanly. Using `handle_request()` in a loop with `server.timeout = 1.0` allows periodic checking of a shutdown event. This enables the server to respond to shutdown signals within 1 second while still handling requests normally.
+**Action**: Implemented `_serve_forever()` loop with `handle_request()` and `_shutdown_event` check
+
+### L013: Override log_message() to integrate with Python logging
+**Date**: 2026-01-17
+**Task**: #004 API server for JSON stats
+**Context**: BaseHTTPRequestHandler writes access logs directly to stderr, bypassing application logging
+**Learning**: Override `log_message(self, format, *args)` to redirect HTTP access logs to Python's logging module. This integrates all application logs in a consistent format and respects log levels (e.g., only show in debug mode).
+**Action**: Overrode `log_message()` to use `logger.debug()` instead of stderr
+
+### L014: Connection: close header simplifies single-threaded HTTP servers
+**Date**: 2026-01-17
+**Task**: #004 API server for JSON stats
+**Context**: Implementing lightweight HTTP server on resource-constrained Pi 1B+
+**Learning**: Adding `Connection: close` header tells clients not to reuse the connection. This avoids HTTP keep-alive complexity in single-threaded servers, prevents connection accumulation, and simplifies resource management. The minor overhead of new connections is negligible for low-traffic monitoring APIs.
+**Action**: Added `Connection: close` header in `_send_json()` method
 
 ---
 
