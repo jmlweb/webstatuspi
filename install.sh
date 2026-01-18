@@ -30,6 +30,9 @@ DEFAULT_PORT=8080
 DEFAULT_INTERVAL=60
 SERVICE_NAME="webstatuspi"
 
+# File descriptor for user input (handles curl | bash case)
+INPUT_FD=0
+
 # ==============================================================================
 # Colors and Formatting
 # ==============================================================================
@@ -85,6 +88,31 @@ step() {
 # Interactive Prompts
 # ==============================================================================
 
+# Setup input for interactive prompts (handles curl | bash case)
+setup_input() {
+    if [[ ! -t 0 ]]; then
+        # stdin is not a terminal (likely piped from curl)
+        if [[ -e /dev/tty ]]; then
+            # Open /dev/tty for reading user input
+            exec 3</dev/tty
+            INPUT_FD=3
+        else
+            # No tty available, force non-interactive mode
+            warn "No terminal available, switching to non-interactive mode"
+            NON_INTERACTIVE=true
+        fi
+    fi
+}
+
+# Read a line from user (handles curl | bash case)
+read_input() {
+    if [[ "$INPUT_FD" -eq 3 ]]; then
+        read "$@" <&3
+    else
+        read "$@"
+    fi
+}
+
 ask_yes_no() {
     local prompt="$1"
     local default="${2:-y}"
@@ -101,7 +129,8 @@ ask_yes_no() {
         prompt="$prompt [y/N]: "
     fi
 
-    read -r -p "$prompt" response
+    printf "%s" "$prompt"
+    read_input -r response
     response="${response:-$default}"
     [[ "$response" =~ ^[Yy] ]]
 }
@@ -116,7 +145,8 @@ ask_input() {
         return
     fi
 
-    read -r -p "$prompt [$default]: " response
+    printf "%s [%s]: " "$prompt" "$default"
+    read_input -r response
     echo "${response:-$default}"
 }
 
@@ -356,7 +386,8 @@ select_install_dir() {
     echo "  3) Custom directory"
     echo ""
 
-    read -r -p "Select option [1]: " choice
+    printf "Select option [1]: "
+    read_input -r choice
     choice="${choice:-1}"
 
     case "$choice" in
@@ -372,7 +403,8 @@ select_install_dir() {
             fi
             ;;
         3)
-            read -r -p "Enter installation directory: " INSTALL_DIR
+            printf "Enter installation directory: "
+            read_input -r INSTALL_DIR
             if [[ -z "$INSTALL_DIR" ]]; then
                 error "Installation directory cannot be empty"
                 exit 1
@@ -515,7 +547,8 @@ configure_webstatuspi() {
 
         local count=0
         while true; do
-            read -r -p "URL $((count + 1)): " line
+            printf "URL %d: " "$((count + 1))"
+            read_input -r line
 
             [[ -z "$line" ]] && break
 
@@ -912,6 +945,9 @@ main() {
                 ;;
         esac
     done
+
+    # Setup input handling (for curl | bash case)
+    setup_input
 
     # Execute action
     case "$ACTION" in
