@@ -1,365 +1,295 @@
-# WebStatusPi
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Raspberry%20Pi-C51A4A?style=for-the-badge&logo=raspberry-pi" alt="Raspberry Pi">
+  <img src="https://img.shields.io/badge/python-3.7+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.7+">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+</p>
 
-Ultra-lightweight web monitoring system designed for **Raspberry Pi 1B+**. Monitor your websites, track uptime statistics, and access data via a simple JSON API.
+<h1 align="center">🖥️ WebStatusPi</h1>
 
-## Quick Start
+<p align="center">
+  <strong>Ultra-lightweight web monitoring for Raspberry Pi</strong><br>
+  <em>Track uptime, response times, and get instant alerts — all from a $35 computer</em>
+</p>
 
-### Requirements
+<p align="center">
+  <img src="dashboard-home.png" alt="Dashboard Preview" width="600">
+</p>
 
-- Raspberry Pi 1B+ (or newer) with Raspberry Pi OS
-- Python 3.7+
-- Network connection
+---
 
-### Installation
+## ✨ Why WebStatusPi?
+
+| Feature | Benefit |
+|---------|---------|
+| **🪶 Ultra-lightweight** | Runs on Raspberry Pi 1B+ (512MB RAM) |
+| **📊 Real-time Dashboard** | CRT-style cyberpunk interface |
+| **🔌 JSON API** | Integrate with anything |
+| **💾 Persistent Storage** | SQLite keeps your history safe |
+| **⚡ Zero Config** | Works out of the box |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/jmlweb/webstatuspi.git
 cd webstatuspi
-
-# 2. Install the package
 pip install .
+```
 
-# 3. Create your configuration file
+### 2. Configure
+
+```bash
 cp config.example.yaml config.yaml
 ```
 
-### Configuration
-
-Edit `config.yaml` with your URLs:
+Edit `config.yaml`:
 
 ```yaml
-monitor:
-  interval: 60  # seconds between checks
-
 urls:
-  - name: "UB_APP"
-    url: "https://app.unobravo.com"
+  - name: "MY_SITE"
+    url: "https://example.com"
     timeout: 5
 
-  - name: "UB_WEB"
-    url: "https://www.unobravo.com"
-    timeout: 5
+monitor:
+  interval: 60  # check every 60 seconds
 
 api:
   enabled: true
   port: 8080
 ```
 
-### Run
+### 3. Run
 
 ```bash
 webstatuspi
 ```
 
-That's it! The monitor will start checking your URLs and the API will be available at `http://<your-pi-ip>:8080`.
-
-### Auto-start on Boot (Optional)
-
-WebStatusPi can install itself as a systemd service automatically:
-
-```bash
-# Preview the service file (no changes made)
-webstatuspi install-service --dry-run
-
-# Install, enable, and start the service
-sudo webstatuspi install-service --enable --start
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--user USER` | User to run the service as (default: current user) |
-| `--working-dir DIR` | Working directory (default: current directory) |
-| `--enable` | Enable auto-start on boot |
-| `--start` | Start the service immediately |
-| `--dry-run` | Preview without installing |
-
-**Useful commands:**
-
-```bash
-sudo systemctl status webstatuspi   # Check status
-sudo journalctl -u webstatuspi -f   # View logs
-sudo systemctl restart webstatuspi  # Restart service
-```
-
-<details>
-<summary>Manual installation (alternative)</summary>
-
-Create `/etc/systemd/system/webstatuspi.service`:
-
-```ini
-[Unit]
-Description=WebStatusPi URL Monitor
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/webstatuspi
-ExecStart=/usr/bin/python3 -m webstatuspi run
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then enable: `sudo systemctl daemon-reload && sudo systemctl enable --now webstatuspi`
-
-</details>
+**That's it!** Open `http://<your-pi-ip>:8080` in your browser.
 
 ---
 
-## Features
+## 📺 Dashboard
 
-- **Ultra-lightweight**: Runs smoothly on Raspberry Pi 1B+ (512MB RAM, single-core)
-- **Continuous monitoring**: Configurable polling intervals
-- **Statistics tracking**: Success rate, failure count, response times
-- **JSON API**: Access monitoring data via HTTP
-- **Console output**: Real-time display of check results
-- **Persistent storage**: SQLite database for historical data
+<table>
+<tr>
+<td width="50%">
 
-### Coming Soon
+### Overview
+<img src="dashboard-home.png" alt="Dashboard Home" width="100%">
 
-- 0.96" OLED display for status visualization
-- Physical button for screen navigation
-- Buzzer alerts on failures
-- Status LEDs (green/red)
+Real-time status cards with latency and 24h uptime metrics.
 
----
+</td>
+<td width="50%">
 
-## Usage
+### Detail View
+<img src="dashboard-detail.png" alt="Dashboard Detail" width="100%">
 
-### Console Output
+Click any card to see full check history with timestamps.
 
-When running, you'll see real-time results:
-
-```
-[2026-01-16 22:30:15] UB_APP (https://app.unobravo.com) - ✓ 200 OK (234ms)
-[2026-01-16 22:30:18] UB_WEB (https://www.unobravo.com) - ✓ 200 OK (456ms)
-[2026-01-16 22:30:45] UB_APP (https://app.unobravo.com) - ✗ 503 Service Unavailable (123ms)
-```
-
-### Web Dashboard
-
-Access the real-time monitoring dashboard in your browser:
-
-```
-http://<pi-ip>:8080/
-```
+</td>
+</tr>
+</table>
 
 **Features:**
-- **Auto-refresh**: Updates every 10 seconds
-- **Status cards**: One card per monitored URL showing status, latency, and 24h uptime
-- **Visual indicators**: Color-coded status (green=online, red=offline)
-- **Summary bar**: Quick overview of online/offline counts
-- **CRT aesthetic**: Cyberpunk-inspired design with scanline effects
+- 🔄 Auto-refresh every 10 seconds
+- 🟢🔴 Color-coded status indicators
+- 📈 Response time graphs
+- 🕹️ Retro CRT aesthetic with scanlines
 
-The dashboard fetches data from `/status` endpoint and requires no additional configuration.
+---
 
-### API Endpoints
+## 🔧 API Reference
 
-**Get all stats:**
+### Endpoints
 
-```bash
-curl http://<pi-ip>:8080/status
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Web dashboard |
+| `GET` | `/status` | All URLs status |
+| `GET` | `/status/{name}` | Specific URL status |
+| `GET` | `/health` | Health check |
 
-**Get specific URL stats:**
-
-```bash
-curl http://<pi-ip>:8080/status/UB_APP
-```
-
-**Health check:**
+### Example Response
 
 ```bash
-curl http://<pi-ip>:8080/health
+curl http://localhost:8080/status
 ```
-
-<details>
-<summary>Example API Response</summary>
 
 ```json
 {
   "urls": [
     {
-      "name": "UB_APP",
-      "url": "https://app.unobravo.com",
-      "total_requests": 150,
-      "total_failures": 2,
-      "success_rate": 98.67,
-      "last_check": "2026-01-16T22:30:15",
+      "name": "MY_SITE",
+      "url": "https://example.com",
+      "success_rate": 99.5,
       "last_status": "success",
       "last_status_code": 200
     }
   ],
   "summary": {
-    "total_urls": 2,
-    "total_requests": 300,
-    "total_failures": 3,
-    "overall_success_rate": 99.0
+    "total_urls": 1,
+    "overall_success_rate": 99.5
   }
 }
 ```
 
+---
+
+## 🔄 Auto-Start on Boot
+
+Install as a systemd service:
+
+```bash
+# Preview what will be installed
+webstatuspi install-service --dry-run
+
+# Install and start
+sudo webstatuspi install-service --enable --start
+```
+
+<details>
+<summary>📋 Service management commands</summary>
+
+```bash
+sudo systemctl status webstatuspi   # Check status
+sudo journalctl -u webstatuspi -f   # View live logs
+sudo systemctl restart webstatuspi  # Restart
+sudo systemctl stop webstatuspi     # Stop
+```
+
 </details>
 
 ---
 
-## Configuration Reference
+## ⚙️ Configuration
 
-### Monitor Settings
+### Full Example
 
 ```yaml
 monitor:
-  interval: 60  # seconds between check cycles (default: 60, min: 1)
-```
+  interval: 60              # seconds between checks
 
-### URL Configuration
-
-```yaml
 urls:
-  - name: "APP_ES"              # unique identifier (max 10 chars)
-    url: "https://example.com"  # full URL with protocol
-    timeout: 10                 # request timeout in seconds (default: 10)
-```
+  - name: "PROD_API"        # max 10 characters
+    url: "https://api.example.com"
+    timeout: 10
 
-### Server Settings
+  - name: "STAGING"
+    url: "https://staging.example.com"
+    timeout: 5
 
-```yaml
 server:
-  port: 8080      # API server port
-  host: 0.0.0.0   # listen on all interfaces
-```
+  port: 8080
+  host: 0.0.0.0             # listen on all interfaces
 
-### Database Settings
-
-```yaml
 database:
-  path: "./data/monitoring.db"  # database file path
-  retention_days: 7             # days to keep check history
+  path: "./data/monitoring.db"
+  retention_days: 7         # auto-cleanup old data
 ```
 
----
+### Performance Tips
 
-## Troubleshooting
+For Raspberry Pi 1B+:
 
-<details>
-<summary>API not accessible from other devices</summary>
-
-1. Check firewall: `sudo ufw allow 8080`
-2. Verify Pi IP: `ip addr show`
-3. Ensure server listens on `0.0.0.0` in config
-
-</details>
-
-<details>
-<summary>High CPU usage</summary>
-
-- Increase polling interval (e.g., 60+ seconds)
-- Reduce number of monitored URLs
-- Check for network timeouts
-
-</details>
-
-<details>
-<summary>Connection timeouts</summary>
-
-- Increase `timeout` value in config
-- Check network: `ping google.com`
-- Test URL manually: `curl -I <url>`
-
-</details>
-
-<details>
-<summary>Monitoring not starting</summary>
-
-1. Verify `config.yaml` exists and is valid
-2. Check Python version: `python3 --version` (must be 3.7+)
-3. Ensure dependencies installed: `pip install -r requirements.txt`
-
-</details>
-
-For detailed troubleshooting with commands and examples, see [Troubleshooting Guide](docs/TROUBLESHOOTING.md).
+| Setting | Recommendation |
+|---------|----------------|
+| URLs | 5-10 max |
+| Interval | 30+ seconds |
+| Timeout | 10s or less |
 
 ---
 
-## Performance Notes
-
-Optimized for Raspberry Pi 1B+ constraints:
-
-| Metric | Target |
-|--------|--------|
-| RAM usage | < 200MB |
-| CPU usage | < 20% (with 5 URLs) |
-| API response | < 100ms |
-
-**Recommendations:**
-- Monitor 5-10 URLs maximum
-- Use intervals of 30+ seconds
-- Set timeout to 10 seconds or less
-
----
-
-## Development
-
-### Setup
+## 🛠️ Development
 
 ```bash
-# Create virtual environment
+# Setup
 python3 -m venv venv
 source venv/bin/activate
-
-# Install with dev dependencies
 pip install .[dev]
 
 # Run tests
-python3 -m pytest tests/ -v
+pytest tests/ -v
 ```
 
 ### Project Structure
 
 ```
 webstatuspi/
-├── webstatuspi/          # Python package
-│   ├── __init__.py       # Entry point and CLI
-│   ├── api.py            # JSON API server
-│   ├── config.py         # Configuration loader
-│   ├── database.py       # Database operations
-│   ├── monitor.py        # URL monitoring logic
-│   └── service.py        # Systemd service installer
-├── tests/                # Unit tests
-├── docs/                 # Documentation
-│   ├── ARCHITECTURE.md   # System architecture
-│   ├── HARDWARE.md       # Hardware specs
-│   └── testing/          # Testing guides
-└── config.yaml           # Your configuration
+├── webstatuspi/        # Core package
+│   ├── __init__.py     # CLI entry point
+│   ├── api.py          # HTTP server
+│   ├── database.py     # SQLite operations
+│   └── monitor.py      # URL checker
+├── tests/              # Test suite
+└── docs/               # Documentation
 ```
 
 ---
 
-## Documentation
+## 🔮 Roadmap
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and database schema
-- [Hardware](docs/HARDWARE.md) - GPIO pins, OLED display setup
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Detailed problem solving guide
-- [Testing](docs/testing/) - Mocking guides for development without hardware
-- [Development Rules](AGENTS.md) - Code style and conventions
-
----
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+- [ ] 0.96" OLED display support
+- [ ] Physical button navigation
+- [ ] Buzzer alerts on failures
+- [ ] Status LEDs (green/red)
 
 ---
 
-Built for Raspberry Pi enthusiasts who want lightweight, reliable web monitoring.
+## 🐛 Troubleshooting
+
+<details>
+<summary><strong>API not accessible from other devices</strong></summary>
+
+1. Check firewall: `sudo ufw allow 8080`
+2. Verify config has `host: 0.0.0.0`
+3. Check Pi IP: `ip addr show`
+
+</details>
+
+<details>
+<summary><strong>High CPU usage</strong></summary>
+
+- Increase polling interval to 60+ seconds
+- Reduce number of monitored URLs
+- Check for slow/timing out URLs
+
+</details>
+
+<details>
+<summary><strong>Connection timeouts</strong></summary>
+
+- Increase `timeout` value in config
+- Test network: `ping google.com`
+- Test URL manually: `curl -I <url>`
+
+</details>
+
+See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for more.
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System design & database schema |
+| [Hardware](docs/HARDWARE.md) | GPIO pins & OLED setup |
+| [Contributing](CONTRIBUTING.md) | How to contribute |
+| [Development Rules](AGENTS.md) | Code style & conventions |
+
+---
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ for Raspberry Pi enthusiasts</strong><br>
+  <em>Lightweight. Reliable. Open Source.</em>
+</p>
