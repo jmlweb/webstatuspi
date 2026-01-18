@@ -1216,7 +1216,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     cancelReset();
                     confirmBtn.textContent = 'Confirm Reset';
                     // Refresh the dashboard data
-                    updateDashboard();
+                    fetchStatus();
                 })
                 .catch(error => {
                     confirmBtn.disabled = false;
