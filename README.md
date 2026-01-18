@@ -31,43 +31,63 @@
 
 ## 🚀 Quick Start
 
-### 1. Install
+### One-Line Install (Recommended)
+
+Run this on your Raspberry Pi:
 
 ```bash
+curl -sSL https://raw.githubusercontent.com/jmlweb/webstatuspi/main/install.sh | bash
+```
+
+The interactive installer will:
+- Install dependencies and create a virtual environment
+- Guide you through URL configuration
+- Optionally set up auto-start on boot
+
+**That's it!** Open `http://<your-pi-ip>:8080` in your browser.
+
+<details>
+<summary>📦 Manual Installation</summary>
+
+```bash
+# Clone and install
 git clone https://github.com/jmlweb/webstatuspi.git
 cd webstatuspi
+python3 -m venv venv
+source venv/bin/activate
 pip install .
-```
 
-### 2. Configure
-
-```bash
+# Configure
 cp config.example.yaml config.yaml
-```
+# Edit config.yaml with your URLs
 
-Edit `config.yaml`:
-
-```yaml
-urls:
-  - name: "MY_SITE"
-    url: "https://example.com"
-    timeout: 5
-
-monitor:
-  interval: 60  # check every 60 seconds
-
-api:
-  enabled: true
-  port: 8080
-```
-
-### 3. Run
-
-```bash
+# Run
 webstatuspi
 ```
 
-**That's it!** Open `http://<your-pi-ip>:8080` in your browser.
+</details>
+
+<details>
+<summary>⚙️ Installer Options</summary>
+
+```bash
+# Interactive installation
+./install.sh
+
+# Non-interactive with defaults
+./install.sh --non-interactive
+
+# System-wide installation (with systemd service)
+sudo ./install.sh --install-dir /opt/webstatuspi
+
+# Update existing installation
+./install.sh --update
+
+# Uninstall
+./install.sh --uninstall
+```
+
+</details>
 
 ---
 
