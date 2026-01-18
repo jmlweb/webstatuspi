@@ -556,3 +556,106 @@ class TestHistoryEndpoint:
         assert status == 200
         assert body["count"] == 100
         assert len(body["checks"]) == 100
+
+
+class TestResetEndpoint:
+    """Tests for DELETE /reset endpoint."""
+
+    @pytest.fixture
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
+        """Create a running API server with database."""
+        port = get_free_port()
+        config = ApiConfig(enabled=True, port=port)
+        server = ApiServer(config, db_conn)
+        server.start()
+        # Give server time to start
+        time.sleep(0.1)
+        yield server
+        server.stop()
+
+    def _delete(self, server: ApiServer, path: str) -> tuple:
+        """Make a DELETE request and return (status_code, json_body)."""
+        port = server.config.port
+        url = f"http://localhost:{port}{path}"
+        try:
+            request = urllib.request.Request(url, method="DELETE")
+            with urllib.request.urlopen(request, timeout=5) as response:
+                body = json.loads(response.read().decode("utf-8"))
+                return response.status, body
+        except urllib.error.HTTPError as e:
+            body = json.loads(e.read().decode("utf-8"))
+            return e.code, body
+
+    def test_reset_deletes_all_checks(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """DELETE /reset deletes all check records."""
+        # Insert some checks
+        for i in range(5):
+            check = CheckResult(
+                url_name="RESET_TEST",
+                url="https://reset.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=datetime.utcnow(),
+            )
+            insert_check(db_conn, check)
+
+        # Verify checks exist
+        cursor = db_conn.execute("SELECT COUNT(*) FROM checks")
+        count_before = cursor.fetchone()[0]
+        assert count_before == 5
+
+        # Call reset endpoint
+        status, body = self._delete(running_server, "/reset")
+
+        # Verify success response
+        assert status == 200
+        assert body["success"] is True
+        assert body["deleted"] == 5
+
+        # Verify checks are deleted
+        cursor = db_conn.execute("SELECT COUNT(*) FROM checks")
+        count_after = cursor.fetchone()[0]
+        assert count_after == 0
+
+    def test_reset_with_no_checks(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """DELETE /reset returns 0 deleted when database is empty."""
+        status, body = self._delete(running_server, "/reset")
+
+        assert status == 200
+        assert body["success"] is True
+        assert body["deleted"] == 0
+
+    def test_reset_returns_deleted_count(
+        self, running_server: ApiServer, db_conn: sqlite3.Connection
+    ) -> None:
+        """DELETE /reset returns correct count of deleted records."""
+        # Insert checks
+        for i in range(3):
+            check = CheckResult(
+                url_name="COUNT_TEST",
+                url="https://count.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=datetime.utcnow(),
+            )
+            insert_check(db_conn, check)
+
+        status, body = self._delete(running_server, "/reset")
+
+        assert status == 200
+        assert body["deleted"] == 3
+
+    def test_reset_nonexistent_endpoint_404(self, running_server: ApiServer) -> None:
+        """DELETE to nonexistent endpoint returns 404."""
+        status, body = self._delete(running_server, "/nonexistent")
+
+        assert status == 404
+        assert "error" in body

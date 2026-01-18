@@ -1,12 +1,12 @@
 # Task #010: Create Command to Clean the Database
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core
 - **Created**: 2026-01-17
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-18
+- **Completed**: 2026-01-18
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,15 +14,15 @@
 **User Story**: As a user, I want to manually clean old check records from the database to free up space on the SD card.
 
 **Acceptance Criteria**:
-- [ ] Add `clean` subcommand to CLI
-- [ ] Command reads database path from config file
-- [ ] Command uses `retention_days` from config by default
-- [ ] Command accepts optional `--retention-days` flag to override config
-- [ ] Command accepts optional `--all` flag to delete all check records
-- [ ] Command displays how many records were deleted
-- [ ] Command validates database exists before attempting cleanup
-- [ ] Command handles errors gracefully with clear messages
-- [ ] Command uses existing `cleanup_old_checks()` function from database module
+- [x] Add `clean` subcommand to CLI
+- [x] Command reads database path from config file
+- [x] Command uses `retention_days` from config by default
+- [x] Command accepts optional `--retention-days` flag to override config
+- [x] Command accepts optional `--all` flag to delete all check records
+- [x] Command displays how many records were deleted
+- [x] Command validates database exists before attempting cleanup
+- [x] Command handles errors gracefully with clear messages
+- [x] Command uses existing `cleanup_old_checks()` function from database module
 
 ## Implementation Notes
 
@@ -64,8 +64,14 @@ webstatuspi clean [--config CONFIG] [--retention-days DAYS] [--all]
 
 ## Progress Log
 
-(To be filled during implementation)
+- [2026-01-18 00:00] Started task
+- [2026-01-18 00:15] Added `delete_all_checks()` function to database.py
+- [2026-01-18 00:20] Added `_cmd_clean()` function to __init__.py
+- [2026-01-18 00:25] Added clean subparser to main()
+- [2026-01-18 00:30] Tested all scenarios: config errors, database errors, retention-days, --all flag
+- [2026-01-18 00:35] All 143 existing tests pass
+- [2026-01-18 00:40] Task completed
 
 ## Learnings
 
-(To be filled during implementation)
+- Transferred to LEARNINGS.md as L017

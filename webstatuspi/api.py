@@ -9,7 +9,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional
 
 from .config import ApiConfig
-from .database import get_history, get_latest_status, DatabaseError
+from .database import get_history, get_latest_status, delete_all_checks, DatabaseError
 from .models import UrlStatus
 from ._dashboard import HTML_DASHBOARD
 
@@ -113,6 +113,17 @@ class StatusHandler(BaseHTTPRequestHandler):
             logger.exception("Error handling request: %s", e)
             self._send_error_json(500, "Internal server error")
 
+    def do_DELETE(self) -> None:
+        """Handle DELETE requests."""
+        try:
+            if self.path == "/reset":
+                self._handle_reset()
+            else:
+                self._send_error_json(404, "Not found")
+        except Exception as e:
+            logger.exception("Error handling DELETE request: %s", e)
+            self._send_error_json(500, "Internal server error")
+
     def _handle_dashboard(self) -> None:
         """Handle GET / endpoint - serve HTML dashboard."""
         self._send_html(200, HTML_DASHBOARD)
@@ -191,6 +202,20 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_json(200, response)
         except DatabaseError as e:
             logger.error("Database error in /history/%s: %s", name, e)
+            self._send_error_json(500, "Database error")
+
+    def _handle_reset(self) -> None:
+        """Handle DELETE /reset endpoint - delete all check records."""
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            deleted = delete_all_checks(self.db_conn)
+            logger.info("Reset data: deleted %d check records", deleted)
+            self._send_json(200, {"success": True, "deleted": deleted})
+        except DatabaseError as e:
+            logger.error("Database error in /reset: %s", e)
             self._send_error_json(500, "Database error")
 
 

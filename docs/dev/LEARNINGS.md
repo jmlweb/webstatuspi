@@ -70,6 +70,13 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Learning**: Python's `__post_init__` method works perfectly with `frozen=True` dataclasses. Validation runs after initialization but before the object is frozen, allowing us to enforce constraints while maintaining immutability.
 **Action**: Added validation logic in `__post_init__` methods for all config dataclasses
 
+### L017: CLI command pattern standardizes error handling
+**Date**: 2026-01-18
+**Task**: #010 Create command to clean the database
+**Context**: Implementing a new CLI subcommand to clean old database records
+**Learning**: All CLI commands in the project follow a consistent pattern: load config, validate preconditions (file exists, valid values), execute operation, handle errors gracefully with clear messages. This pattern makes commands predictable, testable, and user-friendly. Reusing existing functions (load_config, cleanup_old_checks) keeps commands simple.
+**Action**: Implemented _cmd_clean() following the established pattern from _cmd_run() and _cmd_install_service()
+
 ---
 
 ## Database
@@ -140,6 +147,20 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Context**: Addressing maintainability concerns with 35KB HTML embedded in api.py (78% of file)
 **Learning**: Extracting embedded content to a separate Python module (`_dashboard.py`) provides the maintainability benefits of file separation while preserving all runtime advantages of embedded strings: zero dependencies, zero I/O overhead, single import at module load. This gives cleaner git diffs (HTML changes isolated from Python logic) and better code organization without any performance or deployment cost. The underscore prefix signals it's an internal implementation detail.
 **Action**: Created `webstatuspi/_dashboard.py` with `HTML_DASHBOARD` constant. Reduced `api.py` from 44KB to 10KB (Python only). All 27 tests pass.
+
+### L018: Modal UX patterns require multiple interaction handlers
+**Date**: 2026-01-18
+**Task**: #012 Reset data button with confirmation modal
+**Context**: Implementing a confirmation modal for destructive reset operation in the dashboard
+**Learning**: Good modal UX requires multiple ways to dismiss: explicit close button, ESC key handler, and backdrop click (clicking outside the modal). Button state management during async operations (disabling button, changing text to "PROCESSING...") prevents double-clicks and provides clear feedback. Reusing existing dashboard functions (like `updateDashboard()`) after destructive operations ensures UI consistency.
+**Action**: Added backdrop click handlers to all modals, ESC key dismissal, and implemented button state management in `confirmReset()`. Reused `updateDashboard()` to refresh data after reset.
+
+### L019: Python urllib DELETE requests require explicit method parameter
+**Date**: 2026-01-18
+**Task**: #012 Reset data button with confirmation modal
+**Context**: Writing tests for DELETE /reset API endpoint using urllib
+**Learning**: Unlike GET/POST which have dedicated `urlopen()` and `Request()` shortcuts, DELETE requests in Python's urllib require creating a custom Request object with `method='DELETE'` parameter explicitly set. This is because DELETE is less commonly used and doesn't have a convenience method.
+**Action**: Created helper `_delete()` method in tests: `urllib.request.Request(url, method='DELETE')` for testing DELETE endpoints.
 
 ---
 

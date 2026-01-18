@@ -705,6 +705,125 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             color: var(--text-dim);
         }
 
+        /* Reset button in summary bar */
+        .reset-button {
+            background: none;
+            border: 1px solid var(--text-dim);
+            color: var(--text-dim);
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 1rem;
+        }
+
+        .reset-button:hover {
+            border-color: var(--orange);
+            color: var(--orange);
+            box-shadow: 0 0 10px var(--orange);
+        }
+
+        /* Reset confirmation modal */
+        .reset-modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            max-width: 500px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .reset-modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .reset-modal-title {
+            font-size: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--orange);
+            text-shadow: 0 0 10px var(--orange);
+        }
+
+        .reset-modal-body {
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .reset-warning {
+            background: rgba(255, 0, 64, 0.1);
+            border-left: 3px solid var(--red);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: var(--red);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .reset-warning::before {
+            content: '⚠ ';
+            font-weight: 700;
+        }
+
+        .reset-modal-actions {
+            padding: 1.25rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .reset-button-cancel,
+        .reset-button-confirm {
+            padding: 0.5rem 1.25rem;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: 1px solid;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .reset-button-cancel {
+            background: none;
+            border-color: var(--text-dim);
+            color: var(--text-dim);
+        }
+
+        .reset-button-cancel:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+
+        .reset-button-confirm {
+            background: none;
+            border-color: var(--red);
+            color: var(--red);
+            text-shadow: 0 0 8px var(--red);
+        }
+
+        .reset-button-confirm:hover {
+            box-shadow: 0 0 10px var(--red);
+        }
+
+        .reset-button-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
         @media (max-width: 600px) {
             .modal-summary {
                 grid-template-columns: repeat(2, 1fr);
@@ -712,6 +831,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             .history-table th:nth-child(5),
             .history-table td:nth-child(5) {
                 display: none;
+            }
+            .summary-bar {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            .reset-button {
+                margin-left: 0;
+                flex: 1;
             }
         }
     </style>
@@ -730,7 +857,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <span class="count-up" id="countUp">[0] ONLINE</span>
             <span class="count-down" id="countDown">[0] OFFLINE</span>
         </div>
-        <span class="updated-time" id="updatedTime">// INITIALIZING...</span>
+        <div>
+            <span class="updated-time" id="updatedTime">// INITIALIZING...</span>
+            <button class="reset-button" onclick="showResetModal()" title="Reset all monitoring data">// RESET DATA</button>
+        </div>
     </div>
     <main id="cardsContainer">
         <div class="no-data">LOADING_SYSTEM_STATUS...</div>
@@ -776,6 +906,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                         <tr><td colspan="5" class="history-loading">LOADING_HISTORY...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div class="modal" id="resetModal">
+        <div class="reset-modal-content">
+            <div class="reset-modal-header">
+                <span class="reset-modal-title">Confirm Reset</span>
+                <button class="modal-close" onclick="cancelReset()" title="Close">&times;</button>
+            </div>
+            <div class="reset-modal-body">
+                <div class="reset-warning">This will delete all monitoring data. This action cannot be undone.</div>
+                <p>Are you sure you want to reset all check records from the database?</p>
+            </div>
+            <div class="reset-modal-actions">
+                <button class="reset-button-cancel" onclick="cancelReset()">Cancel</button>
+                <button class="reset-button-confirm" id="confirmResetBtn" onclick="confirmReset()">Confirm Reset</button>
             </div>
         </div>
     </div>
@@ -1041,6 +1189,42 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             return `${month}-${day} ${hours}:${mins}:${secs}`;
         }
 
+        function showResetModal() {
+            const resetModal = document.getElementById('resetModal');
+            resetModal.classList.add('active');
+            document.getElementById('confirmResetBtn').disabled = false;
+        }
+
+        function cancelReset() {
+            const resetModal = document.getElementById('resetModal');
+            resetModal.classList.remove('active');
+        }
+
+        function confirmReset() {
+            const confirmBtn = document.getElementById('confirmResetBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'RESETTING...';
+
+            fetch('/reset', { method: 'DELETE' })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('Failed to reset data');
+                })
+                .then(data => {
+                    cancelReset();
+                    confirmBtn.textContent = 'Confirm Reset';
+                    // Refresh the dashboard data
+                    updateDashboard();
+                })
+                .catch(error => {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Confirm Reset';
+                    alert('Error: Failed to reset data. ' + error.message);
+                });
+        }
+
         // Close modal on backdrop click
         document.getElementById('historyModal').addEventListener('click', function(e) {
             if (e.target === this) {
@@ -1048,10 +1232,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             }
         });
 
+        document.getElementById('resetModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                cancelReset();
+            }
+        });
+
         // Close modal on ESC key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeModal();
+                cancelReset();
             }
         });
     </script>

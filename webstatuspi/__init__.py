@@ -134,6 +134,60 @@ def _cmd_install_service(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_clean(args: argparse.Namespace) -> None:
+    """Execute the clean command - remove old check records from the database."""
+    from pathlib import Path
+
+    from .config import load_config, ConfigError
+    from .database import cleanup_old_checks, delete_all_checks, DatabaseError
+
+    # 1. Load configuration
+    try:
+        config = load_config(args.config)
+    except ConfigError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # 2. Validate database exists
+    db_path = Path(config.database.path)
+    if not db_path.exists():
+        print(f"Error: Database not found at {config.database.path}")
+        sys.exit(1)
+
+    # 3. Determine retention days
+    if args.all:
+        retention_days = None  # Delete all
+    elif args.retention_days is not None:
+        if args.retention_days < 0:
+            print("Error: retention-days must be a non-negative integer")
+            sys.exit(1)
+        retention_days = args.retention_days
+    else:
+        retention_days = config.database.retention_days
+
+    # 4. Connect to database and perform cleanup
+    import sqlite3
+    try:
+        conn = sqlite3.connect(config.database.path)
+        conn.row_factory = sqlite3.Row
+
+        if retention_days is None:
+            deleted = delete_all_checks(conn)
+            print(f"Deleted all {deleted} check records from database.")
+        else:
+            deleted = cleanup_old_checks(conn, retention_days)
+            print(f"Deleted {deleted} check records older than {retention_days} days.")
+
+        conn.close()
+
+    except sqlite3.Error as e:
+        print(f"Error: Database error - {e}")
+        sys.exit(1)
+    except DatabaseError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the webstatuspi package."""
     parser = argparse.ArgumentParser(
@@ -193,6 +247,28 @@ def main() -> None:
         help="Show the service file without installing",
     )
     install_parser.set_defaults(func=_cmd_install_service)
+
+    # Clean subcommand
+    clean_parser = subparsers.add_parser(
+        "clean",
+        help="Remove old check records from the database",
+    )
+    clean_parser.add_argument(
+        "-c", "--config",
+        default="config.yaml",
+        help="Path to configuration file (default: config.yaml)",
+    )
+    clean_parser.add_argument(
+        "--retention-days",
+        type=int,
+        help="Delete records older than this many days (overrides config)",
+    )
+    clean_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Delete all check records (ignores retention_days)",
+    )
+    clean_parser.set_defaults(func=_cmd_clean)
 
     args = parser.parse_args()
 

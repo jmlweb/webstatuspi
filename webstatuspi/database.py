@@ -285,3 +285,25 @@ def get_url_names(conn: sqlite3.Connection) -> List[str]:
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to get URL names: {e}")
+
+
+def delete_all_checks(conn: sqlite3.Connection) -> int:
+    """Delete all check records from the database.
+
+    Args:
+        conn: Database connection.
+
+    Returns:
+        Number of deleted records.
+
+    Raises:
+        DatabaseError: If the deletion fails.
+    """
+    try:
+        cursor = conn.execute("DELETE FROM checks")
+        deleted = cursor.rowcount
+        conn.commit()
+        return deleted
+
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to delete all checks: {e}")

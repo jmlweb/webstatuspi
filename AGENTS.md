@@ -235,8 +235,11 @@ Real-time monitoring output:
 ## Documentation References
 
 - **[README.md](README.md)** - User guide, API reference, configuration
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for human contributors
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture, design decisions, database schema
 - **[docs/HARDWARE.md](docs/HARDWARE.md)** - Hardware specifications, GPIO pin assignments
+- **[docs/RESOURCES.md](docs/RESOURCES.md)** - Learning resources for hardware concepts (GPIO, I2C, etc.)
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[docs/testing/](docs/testing/)** - Testing strategies and mocking guidelines
 - **[docs/dev/](docs/dev/)** - Task management and development workflow
 
