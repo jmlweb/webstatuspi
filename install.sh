@@ -30,8 +30,6 @@ DEFAULT_PORT=8080
 DEFAULT_INTERVAL=60
 SERVICE_NAME="webstatuspi"
 
-# Flag for piped input detection (handles curl | bash case)
-PIPED_INPUT=false
 
 # ==============================================================================
 # Colors and Formatting
@@ -91,24 +89,14 @@ step() {
 # Setup input for interactive prompts (handles curl | bash case)
 setup_input() {
     if [[ ! -t 0 ]]; then
-        # stdin is not a terminal (likely piped from curl)
-        if [[ -r /dev/tty ]]; then
-            PIPED_INPUT=true
-        else
-            # No tty available, force non-interactive mode
-            warn "No terminal available, switching to non-interactive mode"
-            NON_INTERACTIVE=true
-        fi
+        # stdin is not a terminal (piped from curl), use non-interactive mode
+        NON_INTERACTIVE=true
     fi
 }
 
-# Read a line from user (handles curl | bash case)
+# Read a line from user
 read_input() {
-    if [[ "$PIPED_INPUT" == "true" ]]; then
-        read "$@" </dev/tty
-    else
-        read "$@"
-    fi
+    read "$@"
 }
 
 ask_yes_no() {
