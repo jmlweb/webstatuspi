@@ -930,7 +930,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     <script>
         const POLL_INTERVAL = 10000;
+        const FETCH_TIMEOUT_MS = 10000;  // 10 second timeout for API requests
         let isUpdating = false;
+
+        // Helper function to fetch with timeout
+        async function fetchWithTimeout(url, options = {}) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                return response;
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
 
         function formatTime(isoString) {
             const date = new Date(isoString);
@@ -1054,7 +1067,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             isUpdating = true;
 
             try {
-                const response = await fetch('/status');
+                const response = await fetchWithTimeout('/status');
                 if (!response.ok) throw new Error('Failed to fetch status');
 
                 const data = await response.json();
@@ -1120,14 +1133,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         async function fetchHistory(urlName) {
             try {
                 // Fetch current status for summary
-                const statusResponse = await fetch('/status/' + encodeURIComponent(urlName));
+                const statusResponse = await fetchWithTimeout('/status/' + encodeURIComponent(urlName));
                 if (statusResponse.ok) {
                     const statusData = await statusResponse.json();
                     updateModalSummary(statusData);
                 }
 
                 // Fetch history
-                const historyResponse = await fetch('/history/' + encodeURIComponent(urlName));
+                const historyResponse = await fetchWithTimeout('/history/' + encodeURIComponent(urlName));
                 if (!historyResponse.ok) {
                     throw new Error('Failed to fetch history');
                 }
@@ -1205,7 +1218,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'RESETTING...';
 
-            fetch('/reset', { method: 'DELETE' })
+            fetchWithTimeout('/reset', { method: 'DELETE' })
                 .then(response => {
                     if (response.ok) {
                         return response.json();

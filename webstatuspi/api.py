@@ -4,16 +4,89 @@ import json
 import logging
 import sqlite3
 import threading
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional
 
 from .config import ApiConfig
-from .database import get_history, get_latest_status, delete_all_checks, DatabaseError
+from .database import (
+    get_history,
+    get_latest_status,
+    get_latest_status_by_name,
+    delete_all_checks,
+    DatabaseError,
+)
 from .models import UrlStatus
 from ._dashboard import HTML_DASHBOARD
 
 logger = logging.getLogger(__name__)
+
+# Rate limiting configuration.
+# Allows 60 requests per minute per IP, sufficient for normal dashboard
+# refresh cycles while protecting against DoS attacks.
+RATE_LIMIT_MAX_REQUESTS = 60
+RATE_LIMIT_WINDOW_SECONDS = 60
+
+# Maximum number of history records to return per request.
+# Balances memory usage vs useful data for 24-hour view at typical intervals.
+HISTORY_LIMIT = 100
+
+
+class RateLimiter:
+    """Simple sliding window rate limiter by IP address.
+
+    Allows up to max_requests requests per IP within the time window.
+    Thread-safe for use in multi-threaded HTTP server.
+    """
+
+    def __init__(
+        self,
+        max_requests: int = RATE_LIMIT_MAX_REQUESTS,
+        window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+    ) -> None:
+        self._max_requests = max_requests
+        self._window_seconds = window_seconds
+        self._requests: Dict[str, List[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def is_allowed(self, client_ip: str) -> bool:
+        """Check if a request from the given IP is allowed.
+
+        Args:
+            client_ip: The client's IP address.
+
+        Returns:
+            True if the request is allowed, False if rate limited.
+        """
+        now = time.monotonic()
+        cutoff = now - self._window_seconds
+
+        with self._lock:
+            # Clean old entries and get current request timestamps
+            timestamps = self._requests[client_ip]
+            timestamps[:] = [ts for ts in timestamps if ts > cutoff]
+
+            if len(timestamps) >= self._max_requests:
+                return False
+
+            timestamps.append(now)
+            return True
+
+    def cleanup(self) -> None:
+        """Remove stale entries from the rate limiter."""
+        now = time.monotonic()
+        cutoff = now - self._window_seconds
+
+        with self._lock:
+            empty_ips = []
+            for ip, timestamps in self._requests.items():
+                timestamps[:] = [ts for ts in timestamps if ts > cutoff]
+                if not timestamps:
+                    empty_ips.append(ip)
+            for ip in empty_ips:
+                del self._requests[ip]
 
 
 class ApiError(Exception):
@@ -54,12 +127,31 @@ def _build_status_response(statuses: List[UrlStatus]) -> Dict[str, Any]:
 class StatusHandler(BaseHTTPRequestHandler):
     """HTTP request handler for status API endpoints."""
 
-    # Class-level reference to database connection (set by factory)
+    # Class-level references set by factory
     db_conn: Optional[sqlite3.Connection] = None
+    reset_token: Optional[str] = None  # Required for DELETE /reset when set
+    rate_limiter: Optional[RateLimiter] = None
 
     def log_message(self, format: str, *args: Any) -> None:
         """Override to use Python logging instead of stderr."""
         logger.debug("API %s - %s", self.address_string(), format % args)
+
+    def _check_rate_limit(self) -> bool:
+        """Check if the request should be rate limited.
+
+        Returns:
+            True if request is allowed, False if rate limited.
+            Sends 429 response automatically if rate limited.
+        """
+        if self.rate_limiter is None:
+            return True
+
+        client_ip = self.client_address[0]
+        if not self.rate_limiter.is_allowed(client_ip):
+            logger.warning("Rate limit exceeded for %s", client_ip)
+            self._send_error_json(429, "Rate limit exceeded. Try again later.")
+            return False
+        return True
 
     def _send_json(self, code: int, data: Dict[str, Any]) -> None:
         """Send a JSON response with the given status code."""
@@ -88,6 +180,9 @@ class StatusHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Handle GET requests."""
+        if not self._check_rate_limit():
+            return
+
         try:
             if self.path == "/":
                 self._handle_dashboard()
@@ -115,6 +210,9 @@ class StatusHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         """Handle DELETE requests."""
+        if not self._check_rate_limit():
+            return
+
         try:
             if self.path == "/reset":
                 self._handle_reset()
@@ -153,14 +251,14 @@ class StatusHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            statuses = get_latest_status(self.db_conn)
-            matching = [s for s in statuses if s.url_name == name]
+            # Use efficient single-URL query instead of fetching all
+            status = get_latest_status_by_name(self.db_conn, name)
 
-            if not matching:
+            if status is None:
                 self._send_error_json(404, f"URL '{name}' not found")
                 return
 
-            response = _url_status_to_dict(matching[0])
+            response = _url_status_to_dict(status)
             self._send_json(200, response)
         except DatabaseError as e:
             logger.error("Database error in /status/%s: %s", name, e)
@@ -173,17 +271,16 @@ class StatusHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            # First check if the URL exists
-            statuses = get_latest_status(self.db_conn)
-            matching = [s for s in statuses if s.url_name == name]
+            # First check if the URL exists using efficient single-URL query
+            status = get_latest_status_by_name(self.db_conn, name)
 
-            if not matching:
+            if status is None:
                 self._send_error_json(404, f"URL '{name}' not found")
                 return
 
-            # Get history for the last 24 hours, limited to 100 checks
+            # Get history for the last 24 hours
             since = datetime.utcnow() - timedelta(hours=24)
-            checks = get_history(self.db_conn, name, since, limit=100)
+            checks = get_history(self.db_conn, name, since, limit=HISTORY_LIMIT)
 
             response = {
                 "name": name,
@@ -205,10 +302,26 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_error_json(500, "Database error")
 
     def _handle_reset(self) -> None:
-        """Handle DELETE /reset endpoint - delete all check records."""
+        """Handle DELETE /reset endpoint - delete all check records.
+
+        If reset_token is configured, requires Authorization header with
+        'Bearer <token>' format.
+        """
         if self.db_conn is None:
             self._send_error_json(503, "Database not available")
             return
+
+        # Check authentication if reset_token is configured
+        if self.reset_token is not None:
+            auth_header = self.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                self._send_error_json(401, "Authorization required: Bearer token expected")
+                return
+            provided_token = auth_header[7:]  # Strip "Bearer "
+            if provided_token != self.reset_token:
+                logger.warning("Invalid reset token attempt from %s", self.address_string())
+                self._send_error_json(403, "Invalid reset token")
+                return
 
         try:
             deleted = delete_all_checks(self.db_conn)
@@ -219,13 +332,19 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_error_json(500, "Database error")
 
 
-def _create_handler_class(db_conn: sqlite3.Connection) -> type:
-    """Create a handler class with the database connection bound."""
+def _create_handler_class(
+    db_conn: sqlite3.Connection,
+    reset_token: Optional[str] = None,
+    rate_limiter: Optional[RateLimiter] = None,
+) -> type:
+    """Create a handler class with the database connection and config bound."""
 
     class BoundStatusHandler(StatusHandler):
         pass
 
     BoundStatusHandler.db_conn = db_conn
+    BoundStatusHandler.reset_token = reset_token
+    BoundStatusHandler.rate_limiter = rate_limiter
     return BoundStatusHandler
 
 
@@ -248,6 +367,7 @@ class ApiServer:
         self._server: Optional[HTTPServer] = None
         self._thread: Optional[threading.Thread] = None
         self._shutdown_event = threading.Event()
+        self._rate_limiter = RateLimiter()
 
     def start(self) -> None:
         """Start the API server in a background thread.
@@ -260,7 +380,11 @@ class ApiServer:
             return
 
         try:
-            handler_class = _create_handler_class(self.db_conn)
+            handler_class = _create_handler_class(
+                self.db_conn,
+                self.config.reset_token,
+                self._rate_limiter,
+            )
             self._server = HTTPServer(("", self.config.port), handler_class)
             self._server.timeout = 1.0  # Allow periodic shutdown checks
 
@@ -275,7 +399,20 @@ class ApiServer:
             logger.info("API server started on port %d", self.config.port)
 
         except OSError as e:
-            raise ApiError(f"Failed to start API server: {e}")
+            # Provide specific guidance based on error type
+            if e.errno == 98 or e.errno == 48:  # EADDRINUSE (Linux=98, macOS=48)
+                raise ApiError(
+                    f"Port {self.config.port} is already in use. "
+                    f"Another process may be using this port, or webstatuspi is already running."
+                )
+            elif e.errno == 13:  # EACCES - Permission denied
+                raise ApiError(
+                    f"Permission denied for port {self.config.port}. "
+                    f"Ports below 1024 require root privileges. "
+                    f"Use a port >= 1024 or run with elevated permissions."
+                )
+            else:
+                raise ApiError(f"Failed to start API server on port {self.config.port}: {e}")
 
     def _serve_forever(self) -> None:
         """Server loop that checks for shutdown."""

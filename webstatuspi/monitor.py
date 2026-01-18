@@ -45,31 +45,94 @@ class _RedirectHandler(urllib.request.HTTPRedirectHandler):
 # Create opener with custom redirect handler
 _opener = urllib.request.build_opener(_RedirectHandler())
 
-# Pi 1B+ optimized: limit concurrent checks
+# Pi 1B+ optimized: limit concurrent checks to avoid resource contention.
+# Three workers balances parallel checks vs memory/CPU on constrained hardware.
 MAX_WORKERS = 3
-# Run cleanup every N check cycles to minimize SD card writes
+
+# Run cleanup every N check cycles to minimize SD card writes.
+# At 60s interval, this means cleanup runs roughly every ~100 minutes.
 CLEANUP_INTERVAL_CYCLES = 100
-# Default timeout for internet connectivity check
-INTERNET_CHECK_TIMEOUT = 5
+
+# Timeout for internet connectivity check in seconds.
+# Reduced from 5s to avoid blocking the check cycle too long on Pi 1B+.
+INTERNET_CHECK_TIMEOUT = 3
+
+# Cache duration for internet connectivity status in seconds.
+# Prevents repeated blocking DNS checks when internet is down.
+CONNECTIVITY_CACHE_SECONDS = 30
 
 
-def check_internet_connectivity(timeout: int = INTERNET_CHECK_TIMEOUT) -> bool:
+class _ConnectivityCache:
+    """Simple cache for internet connectivity status.
+
+    Avoids repeated blocking DNS checks when internet is down.
+    """
+
+    def __init__(self, cache_seconds: int = CONNECTIVITY_CACHE_SECONDS):
+        self._cache_seconds = cache_seconds
+        self._last_check_time: Optional[float] = None
+        self._cached_result: Optional[bool] = None
+
+    def get_cached(self) -> Optional[bool]:
+        """Get cached connectivity status if still valid.
+
+        Returns:
+            Cached bool result if cache is valid, None if cache expired or empty.
+        """
+        if self._last_check_time is None:
+            return None
+        if time.monotonic() - self._last_check_time > self._cache_seconds:
+            return None
+        return self._cached_result
+
+    def update(self, is_connected: bool) -> None:
+        """Update the cached connectivity status."""
+        self._last_check_time = time.monotonic()
+        self._cached_result = is_connected
+
+    def invalidate(self) -> None:
+        """Invalidate the cache when at least one URL succeeds."""
+        self._last_check_time = None
+        self._cached_result = None
+
+
+# Global connectivity cache instance
+_connectivity_cache = _ConnectivityCache()
+
+
+def check_internet_connectivity(
+    timeout: int = INTERNET_CHECK_TIMEOUT,
+    use_cache: bool = True,
+) -> bool:
     """Check if internet connectivity is available via DNS lookup.
 
     Uses socket (stdlib) to avoid additional dependencies.
     Attempts TCP connection to Google's DNS server (8.8.8.8) on port 53.
 
+    Results are cached for CONNECTIVITY_CACHE_SECONDS to avoid repeated
+    blocking checks when internet is down.
+
     Args:
         timeout: Timeout in seconds for connectivity check.
+        use_cache: Whether to use cached result if available.
 
     Returns:
         True if internet connectivity is available, False otherwise.
     """
+    # Check cache first
+    if use_cache:
+        cached = _connectivity_cache.get_cached()
+        if cached is not None:
+            return cached
+
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=timeout)
-        return True
+        result = True
     except (socket.timeout, OSError):
-        return False
+        result = False
+
+    _connectivity_cache.update(result)
+    return result
 
 
 def check_url(url_config: UrlConfig) -> CheckResult:
@@ -308,6 +371,8 @@ class Monitor:
         else:
             # At least one URL is up, internet is available
             self._internet_status = True
+            # Invalidate connectivity cache since we have confirmation internet works
+            _connectivity_cache.invalidate()
 
         # Store results and log status
         for result in results:

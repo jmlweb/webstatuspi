@@ -319,10 +319,10 @@ class TestMonitor:
         def callback(result: CheckResult) -> None:
             results.append(result)
 
-        # Create config with immediate checks
+        # Create config with minimum allowed interval
         quick_config = Config(
             urls=[UrlConfig(name="QUICK", url="https://example.com", timeout=2)],
-            monitor=MonitorConfig(interval=1),
+            monitor=MonitorConfig(interval=10),
             database=config.database,
         )
 

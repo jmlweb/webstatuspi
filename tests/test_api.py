@@ -387,8 +387,8 @@ class TestApiEndpoints:
             assert 'id="updatedTime"' in body
             # Cards container
             assert 'id="cardsContainer"' in body
-            # JavaScript polling
-            assert "fetch('/status')" in body
+            # JavaScript polling (uses fetchWithTimeout wrapper)
+            assert "fetchWithTimeout('/status')" in body
             assert "setInterval" in body
 
     def test_dashboard_has_cache_header(self, running_server: ApiServer) -> None:

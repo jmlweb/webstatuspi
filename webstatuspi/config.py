@@ -13,14 +13,22 @@ class ConfigError(Exception):
     pass
 
 
+# Minimum interval between checks in seconds.
+# Lower values cause excessive CPU/IO on resource-constrained devices like Pi 1B+.
+MIN_MONITOR_INTERVAL = 10
+
+
 @dataclass(frozen=True)
 class MonitorConfig:
     """Configuration for the monitor loop."""
     interval: int = 60  # seconds between check cycles
 
     def __post_init__(self) -> None:
-        if self.interval < 1:
-            raise ConfigError("Monitor interval must be at least 1 second")
+        if self.interval < MIN_MONITOR_INTERVAL:
+            raise ConfigError(
+                f"Monitor interval must be at least {MIN_MONITOR_INTERVAL} seconds "
+                f"(got {self.interval}). Lower values cause CPU thrashing on Pi 1B+."
+            )
 
 
 @dataclass(frozen=True)
@@ -43,10 +51,24 @@ class UrlConfig:
             raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
 
 
+def _get_default_db_path() -> str:
+    """Get the default database path using XDG-compliant directory.
+
+    Returns ~/.local/share/webstatuspi/status.db which is the standard
+    location for user-specific data files on Linux/macOS.
+    """
+    home = Path.home()
+    return str(home / ".local" / "share" / "webstatuspi" / "status.db")
+
+
+# Default database path (XDG-compliant user data directory)
+DEFAULT_DB_PATH = _get_default_db_path()
+
+
 @dataclass(frozen=True)
 class DatabaseConfig:
     """Configuration for SQLite database."""
-    path: str = "./data/status.db"
+    path: str = DEFAULT_DB_PATH
     retention_days: int = 7
 
     def __post_init__(self) -> None:
@@ -70,6 +92,7 @@ class ApiConfig:
     """Configuration for JSON API server."""
     enabled: bool = True
     port: int = 8080
+    reset_token: Optional[str] = None  # Required for DELETE /reset when set
 
     def __post_init__(self) -> None:
         if self.port < 1 or self.port > 65535:
@@ -134,7 +157,7 @@ def _parse_database_config(data: Optional[dict]) -> DatabaseConfig:
         raise ConfigError("'database' section must be a dictionary")
 
     return DatabaseConfig(
-        path=str(data.get("path", "./data/status.db")),
+        path=str(data.get("path", DEFAULT_DB_PATH)),
         retention_days=int(data.get("retention_days", 7)),
     )
 
@@ -159,9 +182,14 @@ def _parse_api_config(data: Optional[dict]) -> ApiConfig:
     if not isinstance(data, dict):
         raise ConfigError("'api' section must be a dictionary")
 
+    reset_token = data.get("reset_token")
+    if reset_token is not None:
+        reset_token = str(reset_token)
+
     return ApiConfig(
         enabled=bool(data.get("enabled", True)),
         port=int(data.get("port", 8080)),
+        reset_token=reset_token,
     )
 
 
@@ -172,6 +200,7 @@ def _apply_env_overrides(config_data: dict) -> dict:
     - WEBSTATUSPI_MONITOR_INTERVAL: Override monitor.interval
     - WEBSTATUSPI_API_PORT: Override api.port
     - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
+    - WEBSTATUSPI_API_RESET_TOKEN: Override api.reset_token
     - WEBSTATUSPI_DB_PATH: Override database.path
     - WEBSTATUSPI_DB_RETENTION_DAYS: Override database.retention_days
     """
@@ -193,6 +222,10 @@ def _apply_env_overrides(config_data: dict) -> dict:
     api_enabled = os.environ.get("WEBSTATUSPI_API_ENABLED")
     if api_enabled is not None:
         config_data["api"]["enabled"] = api_enabled.lower() in ("true", "1", "yes")
+
+    api_reset_token = os.environ.get("WEBSTATUSPI_API_RESET_TOKEN")
+    if api_reset_token is not None:
+        config_data["api"]["reset_token"] = api_reset_token
 
     db_path = os.environ.get("WEBSTATUSPI_DB_PATH")
     if db_path is not None:

@@ -150,24 +150,27 @@ class TestMonitorConfig:
         monitor = MonitorConfig(interval=30)
         assert monitor.interval == 30
 
-    def test_rejects_interval_less_than_1(self) -> None:
-        """Interval less than 1 second is rejected."""
-        with pytest.raises(ConfigError, match="Monitor interval must be at least 1 second"):
-            MonitorConfig(interval=0)
+    def test_rejects_interval_less_than_10(self) -> None:
+        """Interval less than 10 seconds is rejected (Pi 1B+ optimization)."""
+        with pytest.raises(ConfigError, match="Monitor interval must be at least 10 seconds"):
+            MonitorConfig(interval=5)
 
-    def test_accepts_interval_of_1(self) -> None:
-        """Interval of 1 second is accepted."""
-        monitor = MonitorConfig(interval=1)
-        assert monitor.interval == 1
+    def test_accepts_interval_of_10(self) -> None:
+        """Interval of 10 seconds is accepted (minimum for Pi 1B+)."""
+        monitor = MonitorConfig(interval=10)
+        assert monitor.interval == 10
 
 
 class TestDatabaseConfig:
     """Tests for DatabaseConfig dataclass."""
 
     def test_creates_database_config_with_defaults(self) -> None:
-        """DatabaseConfig uses default path and retention."""
+        """DatabaseConfig uses XDG-compliant default path and retention."""
+        from pathlib import Path
         db = DatabaseConfig()
-        assert db.path == "./data/status.db"
+        # Default path is ~/.local/share/webstatuspi/status.db
+        expected_path = str(Path.home() / ".local" / "share" / "webstatuspi" / "status.db")
+        assert db.path == expected_path
         assert db.retention_days == 7
 
     def test_creates_database_config_with_custom_values(self) -> None:
