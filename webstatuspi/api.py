@@ -132,6 +132,20 @@ class StatusHandler(BaseHTTPRequestHandler):
     reset_token: Optional[str] = None  # Required for DELETE /reset when set
     rate_limiter: Optional[RateLimiter] = None
 
+    # Headers that indicate traffic is coming through Cloudflare
+    CLOUDFLARE_HEADERS = ("CF-Connecting-IP", "CF-Ray", "CF-IPCountry")
+
+    def _is_cloudflare_request(self) -> bool:
+        """Check if the request is coming through Cloudflare.
+
+        Cloudflare adds specific headers to all proxied requests.
+        If any of these headers are present, the request is from Cloudflare.
+        """
+        for header in self.CLOUDFLARE_HEADERS:
+            if self.headers.get(header):
+                return True
+        return False
+
     def log_message(self, format: str, *args: Any) -> None:
         """Override to use Python logging instead of stderr."""
         logger.debug("API %s - %s", self.address_string(), format % args)
@@ -304,9 +318,16 @@ class StatusHandler(BaseHTTPRequestHandler):
     def _handle_reset(self) -> None:
         """Handle DELETE /reset endpoint - delete all check records.
 
+        Only allowed from local network (not through Cloudflare).
         If reset_token is configured, requires Authorization header with
         'Bearer <token>' format.
         """
+        # Block requests coming through Cloudflare (external access)
+        if self._is_cloudflare_request():
+            logger.warning("Reset attempt blocked from Cloudflare: %s", self.address_string())
+            self._send_error_json(403, "Nice try, Diddy! You are not allowed to perform this action")
+            return
+
         if self.db_conn is None:
             self._send_error_json(503, "Database not available")
             return

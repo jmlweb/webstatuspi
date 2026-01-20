@@ -573,12 +573,17 @@ class TestResetEndpoint:
         yield server
         server.stop()
 
-    def _delete(self, server: ApiServer, path: str) -> tuple:
+    def _delete(
+        self, server: ApiServer, path: str, headers: dict = None
+    ) -> tuple:
         """Make a DELETE request and return (status_code, json_body)."""
         port = server.config.port
         url = f"http://localhost:{port}{path}"
         try:
             request = urllib.request.Request(url, method="DELETE")
+            if headers:
+                for key, value in headers.items():
+                    request.add_header(key, value)
             with urllib.request.urlopen(request, timeout=5) as response:
                 body = json.loads(response.read().decode("utf-8"))
                 return response.status, body
@@ -659,3 +664,26 @@ class TestResetEndpoint:
 
         assert status == 404
         assert "error" in body
+
+    def test_reset_blocked_from_cloudflare(self, running_server: ApiServer) -> None:
+        """DELETE /reset is blocked when request comes through Cloudflare."""
+        # Test with CF-Connecting-IP header
+        status, body = self._delete(
+            running_server, "/reset", headers={"CF-Connecting-IP": "1.2.3.4"}
+        )
+        assert status == 403
+        assert "Nice try, Diddy!" in body["error"]
+
+        # Test with CF-Ray header
+        status, body = self._delete(
+            running_server, "/reset", headers={"CF-Ray": "abc123"}
+        )
+        assert status == 403
+        assert "not allowed" in body["error"]
+
+        # Test with CF-IPCountry header
+        status, body = self._delete(
+            running_server, "/reset", headers={"CF-IPCountry": "US"}
+        )
+        assert status == 403
+        assert "not allowed" in body["error"]

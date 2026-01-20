@@ -6,7 +6,7 @@
 
 - **Pending**: 0 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 12 tasks
+- **Completed**: 13 tasks
 
 ## Current Focus
 
@@ -16,12 +16,12 @@
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| - | No pending tasks | - | - |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 013 | Locale-aware date/time formatting | API | ✓ |
 | 012 | Reset data button with confirmation modal | API | ✓ |
 | 010 | Create command to clean the database | Core | ✓ |
 | 011 | Evaluate dashboard templates vs embedded HTML | API | ✓ |

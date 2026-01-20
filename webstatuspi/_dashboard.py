@@ -947,7 +947,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         function formatTime(isoString) {
             const date = new Date(isoString);
-            return date.toLocaleTimeString('en-US', { hour12: false });
+            return date.toLocaleTimeString(navigator.language);
         }
 
         function formatResponseTime(ms) {
@@ -1194,12 +1194,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         function formatDateTime(isoString) {
             const date = new Date(isoString);
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const mins = String(date.getMinutes()).padStart(2, '0');
-            const secs = String(date.getSeconds()).padStart(2, '0');
-            return `${month}-${day} ${hours}:${mins}:${secs}`;
+            return date.toLocaleString(navigator.language, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
         }
 
         function showResetModal() {
@@ -1219,11 +1220,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             confirmBtn.textContent = 'RESETTING...';
 
             fetchWithTimeout('/reset', { method: 'DELETE' })
-                .then(response => {
+                .then(async response => {
+                    const data = await response.json();
                     if (response.ok) {
-                        return response.json();
+                        return data;
                     }
-                    throw new Error('Failed to reset data');
+                    // Use server error message if available
+                    throw new Error(data.error || 'Failed to reset data');
                 })
                 .then(data => {
                     cancelReset();
@@ -1232,9 +1235,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     fetchStatus();
                 })
                 .catch(error => {
-                    confirmBtn.disabled = false;
+                    cancelReset();
                     confirmBtn.textContent = 'Confirm Reset';
-                    alert('Error: Failed to reset data. ' + error.message);
+                    alert(error.message);
                 });
         }
 
