@@ -210,7 +210,7 @@ alerts:
 |---------|--------------|-------|
 | **Slack** | Incoming Webhook | Configure in Apps & integrations |
 | **Discord** | Webhook URL | Copy webhook URL from channel settings |
-| **Telegram** | Bot API Webhook | Use with telegram-to-webhook bridge |
+| **Telegram** | Bot API | [Setup guide](docs/TELEGRAM_SETUP.md) - requires relay service |
 | **PagerDuty** | Events API v2 | Sends to incidents/events endpoint |
 | **Custom HTTP** | Any endpoint | Receives JSON payload |
 
@@ -475,6 +475,7 @@ See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for more.
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design & database schema |
 | [Hardware](docs/HARDWARE.md) | GPIO pins & OLED setup |
+| [Telegram Setup](docs/TELEGRAM_SETUP.md) | Push notifications via Telegram |
 | [Contributing](CONTRIBUTING.md) | How to contribute |
 | [Development Rules](AGENTS.md) | Code style & conventions |
 

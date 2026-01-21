@@ -437,6 +437,56 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now webstatuspi
 ```
 
+## Telegram Notifications Not Working
+
+**Symptoms**: Telegram alerts not arriving despite webhook being configured.
+
+**Solutions**:
+
+### 1. Verify Bot Token
+
+```bash
+# Test if your bot token is valid
+curl "https://api.telegram.org/botYOUR_TOKEN/getMe"
+```
+
+Expected: JSON with your bot info. If you get `{"ok":false}`, the token is invalid.
+
+### 2. Verify Chat ID
+
+```bash
+# Send a test message directly
+curl -X POST "https://api.telegram.org/botYOUR_TOKEN/sendMessage" \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id": "YOUR_CHAT_ID", "text": "Test"}'
+```
+
+Common chat ID issues:
+- Personal IDs are positive numbers (e.g., `123456789`)
+- Group IDs are negative (e.g., `-123456789`)
+- Supergroups start with `-100` (e.g., `-1001234567890`)
+
+### 3. Check Relay Service
+
+WebStatusPi sends generic webhooks that need transformation for Telegram. Verify your relay service (Pipedream, n8n, etc.) is:
+- Running and receiving webhooks
+- Properly configured with your bot token and chat ID
+- Not hitting rate limits
+
+```bash
+# Test WebStatusPi webhook delivery
+webstatuspi test-alert --verbose
+```
+
+### 4. Bot Not in Group
+
+If using group notifications:
+1. Ensure the bot is still in the group
+2. The bot must have permission to send messages
+3. Re-add the bot and get new chat ID if needed
+
+For detailed setup instructions, see [Telegram Setup Guide](TELEGRAM_SETUP.md).
+
 ## Getting Help
 
 If none of these solutions work:
@@ -449,4 +499,5 @@ If none of these solutions work:
 
 - [Architecture](ARCHITECTURE.md) - System design and error handling strategies
 - [Hardware](HARDWARE.md) - Hardware-specific troubleshooting
+- [Telegram Setup](TELEGRAM_SETUP.md) - Telegram bot configuration guide
 - [Testing](testing/) - Development and debugging tools
