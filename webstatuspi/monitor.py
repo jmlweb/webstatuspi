@@ -175,6 +175,10 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             status_code = response.status
             is_up = 200 <= status_code < 400
 
+            # Extract Content-Length header if present
+            content_length_str = response.headers.get("Content-Length")
+            content_length = int(content_length_str) if content_length_str else None
+
             return CheckResult(
                 url_name=url_config.name,
                 url=url_config.url,
@@ -183,12 +187,18 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
                 is_up=is_up,
                 error_message=None,
                 checked_at=checked_at,
+                content_length=content_length,
             )
 
     except urllib.error.HTTPError as e:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         # Treat 3xx redirects as "up" - server is responding
         is_up = 300 <= e.code < 400
+
+        # Extract Content-Length header if present
+        content_length_str = e.headers.get("Content-Length") if e.headers else None
+        content_length = int(content_length_str) if content_length_str else None
+
         return CheckResult(
             url_name=url_config.name,
             url=url_config.url,
@@ -197,6 +207,7 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             is_up=is_up,
             error_message=None if is_up else f"HTTP {e.code}: {e.reason}",
             checked_at=checked_at,
+            content_length=content_length,
         )
 
     except urllib.error.URLError as e:

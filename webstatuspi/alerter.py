@@ -3,7 +3,7 @@
 import logging
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import requests
@@ -19,14 +19,8 @@ logger = logging.getLogger(__name__)
 class StateTracker:
     """Track URL state changes and alert cooldowns."""
 
-    last_state: dict[str, bool] = None  # {url_name: is_up}
-    last_alert_time: dict[str, float] = None  # {url_name: timestamp}
-
-    def __post_init__(self) -> None:
-        if self.last_state is None:
-            self.last_state = {}
-        if self.last_alert_time is None:
-            self.last_alert_time = {}
+    last_state: dict[str, bool] = field(default_factory=dict)  # {url_name: is_up}
+    last_alert_time: dict[str, float] = field(default_factory=dict)  # {url_name: timestamp}
 
 
 class Alerter:

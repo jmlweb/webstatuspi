@@ -84,7 +84,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
         if config.api.enabled:
             try:
-                api_server = ApiServer(config.api, db_conn)
+                # Pass monitor's internet_status as a lambda to avoid tight coupling
+                # Note: lambda takes self because it's assigned to a class attribute
+                # and Python passes self when called via self.method()
+                api_server = ApiServer(config.api, db_conn, lambda _: monitor.internet_status)
                 api_server.start()
             except ApiError as e:
                 logger.error("Failed to start API server: %s", e)

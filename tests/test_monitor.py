@@ -239,6 +239,87 @@ class TestCheckUrl:
 
             assert before <= result.checked_at <= after
 
+    def test_captures_content_length_from_response(self, url_config: UrlConfig) -> None:
+        """Content-Length header is captured from HTTP response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {"Content-Length": "1024"}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_length == 1024
+
+    def test_content_length_none_when_header_missing(self, url_config: UrlConfig) -> None:
+        """Content-Length is None when header not present in response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_length is None
+
+    def test_captures_content_length_from_http_error(self, url_config: UrlConfig) -> None:
+        """Content-Length is captured from HTTPError responses."""
+        import urllib.error
+        from unittest.mock import Mock
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_headers = Mock()
+            mock_headers.get = MagicMock(return_value="512")
+            mock_error = urllib.error.HTTPError(
+                url_config.url,
+                404,
+                "Not Found",
+                mock_headers,  # type: ignore[arg-type]
+                None,
+            )
+            mock_urlopen.side_effect = mock_error
+
+            result = check_url(url_config)
+
+            assert result.content_length == 512
+
+    def test_content_length_none_for_http_error_without_header(self, url_config: UrlConfig) -> None:
+        """Content-Length is None for HTTPError without the header."""
+        import urllib.error
+        from unittest.mock import Mock
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_headers = Mock()
+            mock_headers.get = MagicMock(return_value=None)
+            mock_error = urllib.error.HTTPError(
+                url_config.url,
+                500,
+                "Internal Server Error",
+                mock_headers,  # type: ignore[arg-type]
+                None,
+            )
+            mock_urlopen.side_effect = mock_error
+
+            result = check_url(url_config)
+
+            assert result.content_length is None
+
+    def test_content_length_none_for_connection_errors(self, url_config: UrlConfig) -> None:
+        """Content-Length is None for connection errors."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+            result = check_url(url_config)
+
+            assert result.content_length is None
+
 
 class TestMonitor:
     """Tests for Monitor class."""

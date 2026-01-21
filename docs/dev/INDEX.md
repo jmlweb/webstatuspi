@@ -4,25 +4,25 @@
 
 ## Quick Stats
 
-- **Pending**: 2 tasks
-- **In Progress**: 0 tasks
-- **Completed**: 18 tasks
+- **Pending**: 0 tasks
+- **In Progress**: 1 task
+- **Completed**: 19 tasks
 
 ## Current Focus
 
-> No active task. Next up: Task #019 - Extended Metrics (P3)
+> Task #017: Telegram Bot Integration Documentation
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| 019 | Extended Metrics | Core, Database, API | P3 | ⏳ pending |
-| 017 | Telegram Bot Integration Documentation | Docs | P3 | ⏳ pending |
+| 017 | Telegram Bot Integration Documentation | Docs | P1 - Active | ⏳ in_progress |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 019 | Extended Metrics | Core, Database, API | ✓ |
 | 020 | Migrate datetime.utcnow() to timezone-aware | Core | ✓ |
 | 018 | Security Audit | Security, API, Config | ✓ |
 | 016 | Webhook Alerts | Core, Config, API | ✓ |

@@ -1,11 +1,12 @@
 # Task #019: Extended Metrics
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core, Database, API
 - **Created**: 2026-01-21
-- **Started**: -
+- **Started**: 2026-01-21
+- **Completed**: 2026-01-21
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -13,14 +14,14 @@
 **User Story**: As a system administrator, I want to see detailed performance metrics (average/min/max response times, consecutive failures, content size) so that I can better understand service health trends and identify performance degradation patterns.
 
 **Acceptance Criteria**:
-- [ ] Database queries calculate avg_response_time_24h, min_response_time_24h, max_response_time_24h from existing data
-- [ ] Database queries calculate consecutive_failures and last_downtime from existing data
-- [ ] Content-Length header captured from HTTP responses and stored in database
-- [ ] Internet connectivity status exposed in `/status` API endpoint
-- [ ] All new metrics included in UrlStatus model and API responses
-- [ ] Dashboard updated to display new metrics where appropriate
-- [ ] Unit tests added for new metrics calculations
-- [ ] Performance impact verified on Pi 1B+ (no significant overhead)
+- [x] Database queries calculate avg_response_time_24h, min_response_time_24h, max_response_time_24h from existing data
+- [x] Database queries calculate consecutive_failures and last_downtime from existing data
+- [x] Content-Length header captured from HTTP responses and stored in database
+- [x] Internet connectivity status exposed in `/status` API endpoint
+- [x] All new metrics included in UrlStatus model and API responses
+- [x] Dashboard updated to display new metrics where appropriate
+- [x] Unit tests added for new metrics calculations
+- [x] Performance impact verified on Pi 1B+ (no significant overhead)
 
 ## Implementation Notes
 
@@ -63,7 +64,15 @@ Add to `checks` table:
 None - uses existing data and infrastructure
 
 ## Progress Log
-(No progress yet)
+- [2026-01-21 00:00] Started task
+- [2026-01-21 00:15] Updated models.py: Added content_length to CheckResult, extended UrlStatus with 6 new metrics fields
+- [2026-01-21 00:20] Updated database.py: Added content_length column, schema migration, updated queries with SQL CTEs for derived metrics
+- [2026-01-21 00:25] Updated monitor.py: Capture Content-Length from HTTP response headers
+- [2026-01-21 00:30] Updated api.py: Serialize all new metrics, expose internet_status in /status endpoint
+- [2026-01-21 00:35] Updated _dashboard.py: Display response time stats, consecutive failures warning, content length
+- [2026-01-21 00:40] Added 21 new unit tests for metrics calculations and content_length capture
+- [2026-01-21 00:45] All 230 tests pass, linting clean
+- [2026-01-21 00:50] Task completed - learnings transferred to LEARNINGS.md
 
 ## Learnings
-(None yet)
+(Transferred to LEARNINGS.md as L021 and L022)

@@ -450,3 +450,458 @@ class TestGetUrlNames:
         result = get_url_names(db_conn)
 
         assert result == ["A_URL", "M_URL", "Z_URL"]
+
+
+class TestExtendedMetrics:
+    """Tests for extended metrics calculated in get_latest_status."""
+
+    def test_avg_response_time_calculated_correctly(self, db_conn: sqlite3.Connection) -> None:
+        """Average response time is calculated from checks in last 24h."""
+        now = datetime.now(UTC)
+
+        # Insert checks with different response times
+        response_times = [100, 200, 150, 250]
+        for i, rt in enumerate(response_times):
+            check = CheckResult(
+                url_name="METRICS_URL",
+                url="https://metrics.example.com",
+                status_code=200,
+                response_time_ms=rt,
+                is_up=True,
+                error_message=None,
+                checked_at=now - timedelta(hours=i),
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        expected_avg = sum(response_times) / len(response_times)
+        assert result[0].avg_response_time_24h == expected_avg
+
+    def test_min_response_time_calculated_correctly(self, db_conn: sqlite3.Connection) -> None:
+        """Minimum response time is calculated from checks in last 24h."""
+        now = datetime.now(UTC)
+
+        # Insert checks with different response times
+        response_times = [100, 200, 50, 250]
+        for i, rt in enumerate(response_times):
+            check = CheckResult(
+                url_name="MIN_URL",
+                url="https://min.example.com",
+                status_code=200,
+                response_time_ms=rt,
+                is_up=True,
+                error_message=None,
+                checked_at=now - timedelta(hours=i),
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].min_response_time_24h == 50
+
+    def test_max_response_time_calculated_correctly(self, db_conn: sqlite3.Connection) -> None:
+        """Maximum response time is calculated from checks in last 24h."""
+        now = datetime.now(UTC)
+
+        # Insert checks with different response times
+        response_times = [100, 200, 150, 250]
+        for i, rt in enumerate(response_times):
+            check = CheckResult(
+                url_name="MAX_URL",
+                url="https://max.example.com",
+                status_code=200,
+                response_time_ms=rt,
+                is_up=True,
+                error_message=None,
+                checked_at=now - timedelta(hours=i),
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].max_response_time_24h == 250
+
+    def test_response_time_stats_none_when_no_checks_24h(self, db_conn: sqlite3.Connection) -> None:
+        """Response time stats return None when no checks in last 24h."""
+        now = datetime.now(UTC)
+
+        # Insert check older than 24h
+        check = CheckResult(
+            url_name="OLD_URL",
+            url="https://old.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now - timedelta(hours=25),
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].avg_response_time_24h is None
+        assert result[0].min_response_time_24h is None
+        assert result[0].max_response_time_24h is None
+
+    def test_consecutive_failures_returns_zero_when_last_check_successful(self, db_conn: sqlite3.Connection) -> None:
+        """Consecutive failures is 0 when last check was successful."""
+        now = datetime.now(UTC)
+
+        # Insert failed checks followed by successful check
+        for i in range(3):
+            check = CheckResult(
+                url_name="RECOVER_URL",
+                url="https://recover.example.com",
+                status_code=500,
+                response_time_ms=100,
+                is_up=False,
+                error_message="Server error",
+                checked_at=now - timedelta(hours=i + 1),
+            )
+            insert_check(db_conn, check)
+
+        # Most recent check is successful
+        success_check = CheckResult(
+            url_name="RECOVER_URL",
+            url="https://recover.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, success_check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].consecutive_failures == 0
+
+    def test_consecutive_failures_counts_recent_failures(self, db_conn: sqlite3.Connection) -> None:
+        """Consecutive failures counts consecutive failed checks from most recent."""
+        now = datetime.now(UTC)
+
+        # Insert successful check (older)
+        success_check = CheckResult(
+            url_name="FAIL_URL",
+            url="https://fail.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now - timedelta(hours=4),
+        )
+        insert_check(db_conn, success_check)
+
+        # Insert 3 consecutive failures (most recent)
+        for i in range(3):
+            check = CheckResult(
+                url_name="FAIL_URL",
+                url="https://fail.example.com",
+                status_code=500,
+                response_time_ms=100,
+                is_up=False,
+                error_message="Server error",
+                checked_at=now - timedelta(hours=2 - i),
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].consecutive_failures == 3
+
+    def test_consecutive_failures_resets_after_success(self, db_conn: sqlite3.Connection) -> None:
+        """Consecutive failures resets to 0 after a successful check."""
+        now = datetime.now(UTC)
+
+        # Insert old failures
+        for i in range(5):
+            check = CheckResult(
+                url_name="RESET_URL",
+                url="https://reset.example.com",
+                status_code=500,
+                response_time_ms=100,
+                is_up=False,
+                error_message="Server error",
+                checked_at=now - timedelta(hours=i + 2),
+            )
+            insert_check(db_conn, check)
+
+        # Insert successful check (resets the counter)
+        success_check = CheckResult(
+            url_name="RESET_URL",
+            url="https://reset.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now - timedelta(hours=1),
+        )
+        insert_check(db_conn, success_check)
+
+        # Insert recent failure
+        fail_check = CheckResult(
+            url_name="RESET_URL",
+            url="https://reset.example.com",
+            status_code=500,
+            response_time_ms=100,
+            is_up=False,
+            error_message="Server error",
+            checked_at=now,
+        )
+        insert_check(db_conn, fail_check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].consecutive_failures == 1
+
+    def test_last_downtime_returns_none_when_never_failed(self, db_conn: sqlite3.Connection) -> None:
+        """Last downtime is None when URL has never failed."""
+        now = datetime.now(UTC)
+
+        # Insert only successful checks
+        for i in range(5):
+            check = CheckResult(
+                url_name="STABLE_URL",
+                url="https://stable.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=now - timedelta(hours=i),
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].last_downtime is None
+
+    def test_last_downtime_returns_most_recent_failure(self, db_conn: sqlite3.Connection) -> None:
+        """Last downtime returns timestamp of most recent failure."""
+        now = datetime.now(UTC)
+        most_recent_failure = now - timedelta(hours=2)
+
+        # Insert old failure
+        old_fail = CheckResult(
+            url_name="DOWN_URL",
+            url="https://down.example.com",
+            status_code=500,
+            response_time_ms=100,
+            is_up=False,
+            error_message="Server error",
+            checked_at=now - timedelta(hours=10),
+        )
+        insert_check(db_conn, old_fail)
+
+        # Insert most recent failure
+        recent_fail = CheckResult(
+            url_name="DOWN_URL",
+            url="https://down.example.com",
+            status_code=500,
+            response_time_ms=100,
+            is_up=False,
+            error_message="Server error",
+            checked_at=most_recent_failure,
+        )
+        insert_check(db_conn, recent_fail)
+
+        # Insert successful check after the failure
+        success_check = CheckResult(
+            url_name="DOWN_URL",
+            url="https://down.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, success_check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].last_downtime == most_recent_failure
+
+    def test_content_length_stored_and_retrieved(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Length is stored and retrieved correctly."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="CONTENT_URL",
+            url="https://content.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_length=1024,
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_length == 1024
+
+    def test_content_length_handles_none(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Length handles None when header not present."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="NO_CONTENT_URL",
+            url="https://nocontent.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_length=None,
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_length is None
+
+
+class TestExtendedMetricsByName:
+    """Tests for extended metrics in get_latest_status_by_name."""
+
+    def test_response_time_stats_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Response time stats are calculated correctly for specific URL."""
+        now = datetime.now(UTC)
+
+        # Insert checks for URL_A
+        response_times = [100, 200, 150]
+        for i, rt in enumerate(response_times):
+            check = CheckResult(
+                url_name="URL_A",
+                url="https://a.example.com",
+                status_code=200,
+                response_time_ms=rt,
+                is_up=True,
+                error_message=None,
+                checked_at=now - timedelta(hours=i),
+            )
+            insert_check(db_conn, check)
+
+        # Insert checks for URL_B (should not affect URL_A stats)
+        check_b = CheckResult(
+            url_name="URL_B",
+            url="https://b.example.com",
+            status_code=200,
+            response_time_ms=999,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, check_b)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_A")
+
+        assert result is not None
+        assert result.avg_response_time_24h == sum(response_times) / len(response_times)
+        assert result.min_response_time_24h == 100
+        assert result.max_response_time_24h == 200
+
+    def test_consecutive_failures_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Consecutive failures counted correctly for specific URL."""
+        now = datetime.now(UTC)
+
+        # Insert failures for URL_A
+        for i in range(3):
+            check = CheckResult(
+                url_name="URL_A",
+                url="https://a.example.com",
+                status_code=500,
+                response_time_ms=100,
+                is_up=False,
+                error_message="Error",
+                checked_at=now - timedelta(hours=2 - i),
+            )
+            insert_check(db_conn, check)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_A")
+
+        assert result is not None
+        assert result.consecutive_failures == 3
+
+    def test_last_downtime_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Last downtime returned correctly for specific URL."""
+        now = datetime.now(UTC)
+        downtime = now - timedelta(hours=5)
+
+        # Insert failure
+        fail_check = CheckResult(
+            url_name="URL_A",
+            url="https://a.example.com",
+            status_code=500,
+            response_time_ms=100,
+            is_up=False,
+            error_message="Error",
+            checked_at=downtime,
+        )
+        insert_check(db_conn, fail_check)
+
+        # Insert success after
+        success_check = CheckResult(
+            url_name="URL_A",
+            url="https://a.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, success_check)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_A")
+
+        assert result is not None
+        assert result.last_downtime == downtime
+
+    def test_content_length_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Length retrieved correctly for specific URL."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="URL_A",
+            url="https://a.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_length=2048,
+        )
+        insert_check(db_conn, check)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_A")
+
+        assert result is not None
+        assert result.content_length == 2048
+
+    def test_returns_none_for_nonexistent_url(self, db_conn: sqlite3.Connection) -> None:
+        """Returns None when URL name doesn't exist."""
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "NONEXISTENT")
+
+        assert result is None

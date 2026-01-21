@@ -113,15 +113,29 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         "last_check": status.last_check.isoformat() + "Z",
         "checks_24h": status.checks_24h,
         "uptime_24h": round(status.uptime_24h, 2),
+        "avg_response_time_24h": round(status.avg_response_time_24h, 2)
+        if status.avg_response_time_24h is not None
+        else None,
+        "min_response_time_24h": status.min_response_time_24h,
+        "max_response_time_24h": status.max_response_time_24h,
+        "consecutive_failures": status.consecutive_failures,
+        "last_downtime": status.last_downtime.isoformat() + "Z" if status.last_downtime is not None else None,
+        "content_length": status.content_length,
     }
 
 
-def _build_status_response(statuses: list[UrlStatus]) -> dict[str, Any]:
-    """Build the full status response with summary."""
+def _build_status_response(statuses: list[UrlStatus], internet_status: bool | None = None) -> dict[str, Any]:
+    """Build the full status response with summary.
+
+    Args:
+        statuses: List of URL statuses to include in the response.
+        internet_status: Current internet connectivity status (None if unknown,
+                        True if available, False if no internet detected).
+    """
     urls_data = [_url_status_to_dict(s) for s in statuses]
     up_count = sum(1 for s in statuses if s.is_up)
 
-    return {
+    response: dict[str, Any] = {
         "urls": urls_data,
         "summary": {
             "total": len(statuses),
@@ -129,6 +143,11 @@ def _build_status_response(statuses: list[UrlStatus]) -> dict[str, Any]:
             "down": len(statuses) - up_count,
         },
     }
+
+    if internet_status is not None:
+        response["internet_status"] = internet_status
+
+    return response
 
 
 class StatusHandler(BaseHTTPRequestHandler):
@@ -138,6 +157,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     db_conn: sqlite3.Connection | None = None
     reset_token: str | None = None  # Required for DELETE /reset when set
     rate_limiter: RateLimiter | None = None
+    internet_status_getter: Any | None = None  # Callable that returns bool | None
     _request_count: int = 0  # Counter for periodic rate limiter cleanup
     _cleanup_lock = threading.Lock()  # Lock for thread-safe cleanup counter
 
@@ -393,7 +413,8 @@ class StatusHandler(BaseHTTPRequestHandler):
         if self.db_conn is not None:
             try:
                 statuses = get_latest_status(self.db_conn)
-                response = _build_status_response(statuses)
+                internet_status = self.internet_status_getter() if self.internet_status_getter else None
+                response = _build_status_response(statuses, internet_status)
                 initial_data = json.dumps(response)
             except DatabaseError:
                 initial_data = "null"
@@ -420,7 +441,8 @@ class StatusHandler(BaseHTTPRequestHandler):
 
         try:
             statuses = get_latest_status(self.db_conn)
-            response = _build_status_response(statuses)
+            internet_status = self.internet_status_getter() if self.internet_status_getter else None
+            response = _build_status_response(statuses, internet_status)
             self._send_json(200, response)
         except DatabaseError as e:
             logger.error("Database error in /status: %s", e)
@@ -525,8 +547,16 @@ def _create_handler_class(
     db_conn: sqlite3.Connection,
     reset_token: str | None = None,
     rate_limiter: RateLimiter | None = None,
+    internet_status_getter: Any | None = None,
 ) -> type:
-    """Create a handler class with the database connection and config bound."""
+    """Create a handler class with the database connection and config bound.
+
+    Args:
+        db_conn: Database connection for querying status.
+        reset_token: Optional token for authenticating DELETE /reset requests.
+        rate_limiter: Optional rate limiter for protecting against DoS.
+        internet_status_getter: Optional callable that returns current internet status.
+    """
 
     class BoundStatusHandler(StatusHandler):
         pass
@@ -534,6 +564,7 @@ def _create_handler_class(
     BoundStatusHandler.db_conn = db_conn
     BoundStatusHandler.reset_token = reset_token
     BoundStatusHandler.rate_limiter = rate_limiter
+    BoundStatusHandler.internet_status_getter = internet_status_getter
     return BoundStatusHandler
 
 
@@ -544,15 +575,18 @@ class ApiServer:
         self,
         config: ApiConfig,
         db_conn: sqlite3.Connection,
+        internet_status_getter: Any | None = None,
     ) -> None:
         """Initialize the API server.
 
         Args:
             config: API configuration.
             db_conn: Database connection for querying status.
+            internet_status_getter: Optional callable that returns current internet status.
         """
         self.config = config
         self.db_conn = db_conn
+        self.internet_status_getter = internet_status_getter
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
@@ -573,6 +607,7 @@ class ApiServer:
                 self.db_conn,
                 self.config.reset_token,
                 self._rate_limiter,
+                self.internet_status_getter,
             )
             self._server = HTTPServer(("", self.config.port), handler_class)
             self._server.timeout = 1.0  # Allow periodic shutdown checks

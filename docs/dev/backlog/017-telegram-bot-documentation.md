@@ -1,12 +1,12 @@
 # Task #017: Telegram Bot Integration Documentation
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P3
+- **Status**: in_progress
+- **Priority**: P1 - Active
 - **Slice**: Docs
 - **Created**: 2026-01-21
-- **Started**: -
-- **Blocked by**: #016 (Webhook Alerts)
+- **Started**: 2026-01-21
+- **Blocked by**: -
 
 ## Vertical Slice Definition
 
@@ -147,7 +147,7 @@ This would be a separate enhancement, not part of this documentation task.
 
 ## Progress Log
 
-(No progress yet)
+- [2026-01-21 15:30] Started task - Ready to create Telegram setup documentation
 
 ## Learnings
 

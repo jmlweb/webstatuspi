@@ -460,6 +460,54 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             animation: latencyPulse 0.2s ease-out;
         }
 
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.65rem;
+            text-align: center;
+        }
+
+        .mini-stat {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.4rem 0.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .mini-stat-value {
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.15rem;
+            font-size: 0.75rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mini-stat-label {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.6rem;
+        }
+
+        .warning-banner {
+            margin-top: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255, 136, 0, 0.1);
+            border-left: 2px solid var(--orange);
+            font-size: 0.7rem;
+            color: var(--orange);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-shadow: 0 0 6px var(--orange);
+        }
+
+        .warning-banner::before {
+            content: '⚠';
+            font-size: 0.9rem;
+        }
+
         .card-footer {
             margin-top: 0.75rem;
             padding-top: 0.75rem;
@@ -1088,6 +1136,29 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             return uptime.toFixed(1) + '%';
         }
 
+        function formatBytes(bytes) {
+            if (bytes === null || bytes === undefined) return '---';
+            if (bytes < 1024) return bytes + 'B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+        }
+
+        function formatRelativeTime(isoString) {
+            if (!isoString) return '---';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSec = Math.floor(diffMs / 1000);
+            const diffMin = Math.floor(diffSec / 60);
+            const diffHr = Math.floor(diffMin / 60);
+            const diffDay = Math.floor(diffHr / 24);
+
+            if (diffSec < 60) return diffSec + 's ago';
+            if (diffMin < 60) return diffMin + 'm ago';
+            if (diffHr < 24) return diffHr + 'h ago';
+            return diffDay + 'd ago';
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -1156,6 +1227,38 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             const uptimePercent = url.uptime_24h !== null ? url.uptime_24h : 0;
             const uptimeColor = getUptimeColor(url.uptime_24h);
 
+            // Build stats row HTML (avg/min/max response times)
+            const hasResponseStats = url.avg_response_time_24h !== null ||
+                                     url.min_response_time_24h !== null ||
+                                     url.max_response_time_24h !== null;
+            const statsRowHtml = hasResponseStats ? `
+                <div class="stats-row" aria-hidden="true">
+                    <div class="mini-stat">
+                        <div class="mini-stat-value">${formatResponseTime(url.avg_response_time_24h)}</div>
+                        <div class="mini-stat-label">Avg</div>
+                    </div>
+                    <div class="mini-stat">
+                        <div class="mini-stat-value">${formatResponseTime(url.min_response_time_24h)}</div>
+                        <div class="mini-stat-label">Min</div>
+                    </div>
+                    <div class="mini-stat">
+                        <div class="mini-stat-value">${formatResponseTime(url.max_response_time_24h)}</div>
+                        <div class="mini-stat-label">Max</div>
+                    </div>
+                </div>
+            ` : '';
+
+            // Build warning banner for consecutive failures
+            const warningHtml = url.consecutive_failures > 0 ? `
+                <div class="warning-banner" role="alert">
+                    ${url.consecutive_failures} consecutive failure${url.consecutive_failures > 1 ? 's' : ''}
+                    ${url.last_downtime ? ' • Last down: ' + formatRelativeTime(url.last_downtime) : ''}
+                </div>
+            ` : '';
+
+            // Build footer with last check and content length
+            const contentInfo = url.content_length !== null ? ` • Size: ${formatBytes(url.content_length)}` : '';
+
             const statusText = url.is_up ? 'online' : 'offline';
             const latencyText = url.response_time_ms ? url.response_time_ms + ' milliseconds' : 'unknown';
             const uptimeText = url.uptime_24h !== null ? url.uptime_24h.toFixed(1) + ' percent' : 'unknown';
@@ -1202,9 +1305,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                             </div>
                         </div>
                     </div>
+                    ${statsRowHtml}
+                    ${warningHtml}
                     ${errorHtml}
                     <footer class="card-footer">
-                        LAST_SCAN: ${formatTime(url.last_check)}
+                        LAST_SCAN: ${formatTime(url.last_check)}${contentInfo}
                     </footer>
                 </article>
             `;

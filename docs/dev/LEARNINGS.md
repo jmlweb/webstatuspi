@@ -103,6 +103,20 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Learning**: Adding a composite index on `(url_name, checked_at)` significantly improves performance for queries that filter by URL and time range, which is the most common query pattern for this application.
 **Action**: Created `idx_checks_url_name_checked_at` composite index in addition to individual indexes
 
+### L021: SQL window functions enable efficient consecutive failure counting
+**Date**: 2026-01-21
+**Task**: #019 Extended Metrics
+**Context**: Implementing consecutive failure tracking to identify ongoing service degradation patterns
+**Learning**: SQL window functions with `SUM() OVER (ORDER BY checked_at DESC)` enable efficient consecutive failure counting entirely in the database without application logic. By creating a cumulative sum of successes ordered by most recent check first, we can filter where `success_count = 0 AND is_up = 0` to count consecutive failures from the present. This approach is more efficient than iterating through records in application code and leverages indexed columns.
+**Action**: Implemented consecutive failures calculation in `get_latest_status()` using window functions in a CTE
+
+### L022: SQLite schema migrations via PRAGMA table_info
+**Date**: 2026-01-21
+**Task**: #019 Extended Metrics
+**Context**: Adding `content_length` column to existing databases without breaking deployments
+**Learning**: SQLite schema migrations can be handled inline during `init_db()` by querying `PRAGMA table_info(table_name)` to check if columns exist before adding them with `ALTER TABLE`. This approach is simple, requires no migration framework, and ensures new columns are added automatically when the application starts with updated code. It's ideal for small projects where complex migration tracking is unnecessary.
+**Action**: Added migration check in `init_db()` that detects missing `content_length` column and adds it via ALTER TABLE if absent
+
 ---
 
 ## API
