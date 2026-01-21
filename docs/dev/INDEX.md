@@ -6,7 +6,7 @@
 
 - **Pending**: 0 tasks
 - **In Progress**: 1 task
-- **Completed**: 19 tasks
+- **Completed**: 21 tasks
 
 ## Current Focus
 
@@ -22,6 +22,8 @@
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 021 | HTTP Headers Capture (Server, Status Text) | Core, Database, API | ✓ |
+| 020 | Response Time Percentiles and Standard Deviation | Core, Database, API | ✓ |
 | 019 | Extended Metrics | Core, Database, API | ✓ |
 | 020 | Migrate datetime.utcnow() to timezone-aware | Core | ✓ |
 | 018 | Security Audit | Security, API, Config | ✓ |
