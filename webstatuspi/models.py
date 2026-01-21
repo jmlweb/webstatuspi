@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -18,12 +17,13 @@ class CheckResult:
         error_message: Error description if the check failed, None otherwise.
         checked_at: Timestamp when the check was performed.
     """
+
     url_name: str
     url: str
-    status_code: Optional[int]
+    status_code: int | None
     response_time_ms: int
     is_up: bool
-    error_message: Optional[str]
+    error_message: str | None
     checked_at: datetime
 
 
@@ -42,12 +42,13 @@ class UrlStatus:
         checks_24h: Total number of checks in last 24 hours.
         uptime_24h: Uptime percentage in last 24 hours (0.0-100.0).
     """
+
     url_name: str
     url: str
     is_up: bool
-    last_status_code: Optional[int]
+    last_status_code: int | None
     last_response_time_ms: int
-    last_error: Optional[str]
+    last_error: str | None
     last_check: datetime
     checks_24h: int
     uptime_24h: float

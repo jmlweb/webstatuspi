@@ -167,6 +167,7 @@ class TestDatabaseConfig:
     def test_creates_database_config_with_defaults(self) -> None:
         """DatabaseConfig uses XDG-compliant default path and retention."""
         from pathlib import Path
+
         db = DatabaseConfig()
         # Default path is ~/.local/share/webstatuspi/status.db
         expected_path = str(Path.home() / ".local" / "share" / "webstatuspi" / "status.db")
@@ -437,11 +438,7 @@ class TestLoadConfig:
     ) -> None:
         """ConfigError is raised for invalid URL in loaded configuration."""
         config_file = config_dir / "invalid_url.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Invalid\n"
-            "    url: not-a-url"
-        )
+        config_file.write_text("urls:\n  - name: Invalid\n    url: not-a-url")
 
         with pytest.raises(ConfigError, match="must start with http"):
             load_config(str(config_file))
@@ -452,11 +449,7 @@ class TestLoadConfig:
     ) -> None:
         """ConfigError is raised for invalid URL name in loaded configuration."""
         config_file = config_dir / "invalid_name.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: TooLongNameExceedsLimit\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: TooLongNameExceedsLimit\n    url: https://example.com")
 
         with pytest.raises(ConfigError, match="exceeds 10 characters"):
             load_config(str(config_file))
@@ -468,13 +461,7 @@ class TestEnvironmentVariableOverrides:
     def test_overrides_monitor_interval(self, config_dir: Path, monkeypatch) -> None:
         """WEBSTATUSPI_MONITOR_INTERVAL env var overrides interval."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com\n"
-            "monitor:\n"
-            "  interval: 60"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com\nmonitor:\n  interval: 60")
 
         monkeypatch.setenv("WEBSTATUSPI_MONITOR_INTERVAL", "30")
         config = load_config(str(config_file))
@@ -484,11 +471,7 @@ class TestEnvironmentVariableOverrides:
     def test_overrides_api_port(self, config_dir: Path, monkeypatch) -> None:
         """WEBSTATUSPI_API_PORT env var overrides port."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         monkeypatch.setenv("WEBSTATUSPI_API_PORT", "9000")
         config = load_config(str(config_file))
@@ -498,13 +481,7 @@ class TestEnvironmentVariableOverrides:
     def test_overrides_api_enabled(self, config_dir: Path, monkeypatch) -> None:
         """WEBSTATUSPI_API_ENABLED env var overrides enabled flag."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com\n"
-            "api:\n"
-            "  enabled: true"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com\napi:\n  enabled: true")
 
         monkeypatch.setenv("WEBSTATUSPI_API_ENABLED", "false")
         config = load_config(str(config_file))
@@ -518,11 +495,7 @@ class TestEnvironmentVariableOverrides:
     ) -> None:
         """WEBSTATUSPI_API_ENABLED accepts various true values."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         for true_value in ["true", "True", "TRUE", "1", "yes", "YES"]:
             monkeypatch.setenv("WEBSTATUSPI_API_ENABLED", true_value)
@@ -536,11 +509,7 @@ class TestEnvironmentVariableOverrides:
     ) -> None:
         """WEBSTATUSPI_API_ENABLED treats other values as false."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         for false_value in ["false", "False", "0", "no", "anything"]:
             monkeypatch.setenv("WEBSTATUSPI_API_ENABLED", false_value)
@@ -550,11 +519,7 @@ class TestEnvironmentVariableOverrides:
     def test_overrides_database_path(self, config_dir: Path, monkeypatch) -> None:
         """WEBSTATUSPI_DB_PATH env var overrides database path."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         monkeypatch.setenv("WEBSTATUSPI_DB_PATH", "/custom/db.sqlite")
         config = load_config(str(config_file))
@@ -568,11 +533,7 @@ class TestEnvironmentVariableOverrides:
     ) -> None:
         """WEBSTATUSPI_DB_RETENTION_DAYS env var overrides retention days."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         monkeypatch.setenv("WEBSTATUSPI_DB_RETENTION_DAYS", "14")
         config = load_config(str(config_file))
@@ -586,11 +547,7 @@ class TestEnvironmentVariableOverrides:
     ) -> None:
         """Multiple environment variable overrides are applied together."""
         config_file = config_dir / "config.yaml"
-        config_file.write_text(
-            "urls:\n"
-            "  - name: Test\n"
-            "    url: https://example.com"
-        )
+        config_file.write_text("urls:\n  - name: Test\n    url: https://example.com")
 
         monkeypatch.setenv("WEBSTATUSPI_MONITOR_INTERVAL", "45")
         monkeypatch.setenv("WEBSTATUSPI_API_PORT", "8888")

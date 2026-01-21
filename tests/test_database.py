@@ -1,7 +1,7 @@
 """Tests for the database module."""
 
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -41,7 +41,7 @@ def sample_check() -> CheckResult:
         response_time_ms=150,
         is_up=True,
         error_message=None,
-        checked_at=datetime.utcnow(),
+        checked_at=datetime.now(UTC),
     )
 
 
@@ -113,7 +113,7 @@ class TestInsertCheck:
             response_time_ms=0,
             is_up=False,
             error_message="Connection timeout",
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
         insert_check(db_conn, check)
 
@@ -145,7 +145,7 @@ class TestGetLatestStatus:
 
     def test_returns_latest_check_per_url(self, db_conn: sqlite3.Connection) -> None:
         """Only the latest check per URL is returned."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert older check
         old_check = CheckResult(
@@ -179,7 +179,7 @@ class TestGetLatestStatus:
 
     def test_calculates_24h_statistics(self, db_conn: sqlite3.Connection) -> None:
         """24-hour check count and uptime percentage are calculated."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert 4 checks: 3 up, 1 down (75% uptime)
         for i, is_up in enumerate([True, True, True, False]):
@@ -202,7 +202,7 @@ class TestGetLatestStatus:
 
     def test_excludes_old_checks_from_stats(self, db_conn: sqlite3.Connection) -> None:
         """Checks older than 24h are excluded from statistics."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert check within 24h
         recent = CheckResult(
@@ -234,7 +234,7 @@ class TestGetLatestStatus:
 
     def test_returns_multiple_urls(self, db_conn: sqlite3.Connection) -> None:
         """Status for all URLs is returned."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for name in ["URL_A", "URL_B", "URL_C"]:
             check = CheckResult(
@@ -260,12 +260,12 @@ class TestGetHistory:
 
     def test_returns_empty_list_for_no_matches(self, db_conn: sqlite3.Connection) -> None:
         """Empty list returned when no history exists."""
-        result = get_history(db_conn, "NONEXISTENT", datetime.utcnow() - timedelta(days=1))
+        result = get_history(db_conn, "NONEXISTENT", datetime.now(UTC) - timedelta(days=1))
         assert result == []
 
     def test_filters_by_url_name(self, db_conn: sqlite3.Connection) -> None:
         """Only returns history for specified URL."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for name in ["URL_A", "URL_B"]:
             check = CheckResult(
@@ -286,7 +286,7 @@ class TestGetHistory:
 
     def test_filters_by_time_range(self, db_conn: sqlite3.Connection) -> None:
         """Only returns checks after the since timestamp."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert checks at different times
         for hours_ago in [1, 5, 10, 25]:
@@ -308,7 +308,7 @@ class TestGetHistory:
 
     def test_orders_by_newest_first(self, db_conn: sqlite3.Connection) -> None:
         """Results are ordered by checked_at descending."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for hours_ago in [1, 2, 3]:
             check = CheckResult(
@@ -329,7 +329,7 @@ class TestGetHistory:
 
     def test_respects_limit(self, db_conn: sqlite3.Connection) -> None:
         """Limit parameter restricts number of results."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for i in range(10):
             check = CheckResult(
@@ -353,7 +353,7 @@ class TestCleanupOldChecks:
 
     def test_deletes_old_checks(self, db_conn: sqlite3.Connection) -> None:
         """Checks older than retention period are deleted."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert checks at different ages
         for days_ago in [1, 5, 10, 15]:
@@ -378,7 +378,7 @@ class TestCleanupOldChecks:
 
     def test_returns_deleted_count(self, db_conn: sqlite3.Connection) -> None:
         """Returns number of deleted records."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for i in range(5):
             check = CheckResult(
@@ -412,7 +412,7 @@ class TestGetUrlNames:
 
     def test_returns_unique_names(self, db_conn: sqlite3.Connection) -> None:
         """Returns unique URL names."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Insert multiple checks for same URLs
         for name in ["URL_A", "URL_B", "URL_A", "URL_C", "URL_B"]:
@@ -433,7 +433,7 @@ class TestGetUrlNames:
 
     def test_returns_sorted_names(self, db_conn: sqlite3.Connection) -> None:
         """Names are returned in alphabetical order."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for name in ["Z_URL", "A_URL", "M_URL"]:
             check = CheckResult(

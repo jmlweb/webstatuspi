@@ -1,6 +1,6 @@
 """Tests for the webhook alerter module."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -65,7 +65,7 @@ class TestAlerter:
             response_time_ms=100,
             is_up=True,
             error_message=None,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -78,7 +78,7 @@ class TestAlerter:
             response_time_ms=5000,
             is_up=False,
             error_message="Service Unavailable",
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
 
     def test_initialization(self, alerter: Alerter) -> None:

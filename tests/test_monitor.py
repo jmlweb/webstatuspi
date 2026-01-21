@@ -308,7 +308,7 @@ class TestMonitor:
                 response_time_ms=50,
                 is_up=True,
                 error_message=None,
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
 
             monitor = Monitor(quick_config, db_conn, on_check=callback)
@@ -329,7 +329,7 @@ class TestMonitor:
                 response_time_ms=50,
                 is_up=True,
                 error_message=None,
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
 
             monitor = Monitor(config, db_conn)
@@ -399,7 +399,7 @@ class TestMonitorCleanup:
                     response_time_ms=50,
                     is_up=True,
                     error_message=None,
-                    checked_at=datetime.utcnow(),
+                    checked_at=datetime.now(UTC),
                 )
 
                 monitor._next_check["URL_A"] = 0

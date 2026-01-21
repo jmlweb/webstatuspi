@@ -8,6 +8,7 @@ This file captures lessons learned during development. Each learning has a uniqu
 - [Configuration](#configuration)
 - [Database](#database)
 - [API](#api)
+- [Testing](#testing)
 
 ---
 
@@ -161,6 +162,17 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Context**: Writing tests for DELETE /reset API endpoint using urllib
 **Learning**: Unlike GET/POST which have dedicated `urlopen()` and `Request()` shortcuts, DELETE requests in Python's urllib require creating a custom Request object with `method='DELETE'` parameter explicitly set. This is because DELETE is less commonly used and doesn't have a convenience method.
 **Action**: Created helper `_delete()` method in tests: `urllib.request.Request(url, method='DELETE')` for testing DELETE endpoints.
+
+---
+
+## Testing
+
+### L020: Test files need deprecation migration too
+**Date**: 2026-01-21
+**Task**: #020 Migrate datetime.utcnow() to datetime.now(timezone.utc)
+**Context**: Migrating deprecated `datetime.utcnow()` to modern `datetime.now(timezone.utc)` pattern across codebase
+**Learning**: When migrating away from deprecated APIs, test files must be updated along with application code to completely eliminate deprecation warnings. Initial migration only covered main application code (monitor.py, database.py, api.py), but left 30+ instances in test files. This means tests would still generate deprecation warnings on Python 3.12+. Complete migration requires updating test fixtures and helper functions that create test data.
+**Action**: Migrated all test files (test_database.py, test_api.py, test_monitor.py, test_alerter.py) and utility scripts (generate_screenshots.py) to use timezone-aware datetimes. All 209 tests passing with zero deprecation warnings.
 
 ---
 

@@ -6,7 +6,7 @@ import sqlite3
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -57,7 +57,7 @@ def sample_check() -> CheckResult:
         response_time_ms=150,
         is_up=True,
         error_message=None,
-        checked_at=datetime.utcnow(),
+        checked_at=datetime.now(UTC),
     )
 
 
@@ -289,7 +289,7 @@ class TestApiEndpoints:
             response_time_ms=100,
             is_up=True,
             error_message=None,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
         insert_check(db_conn, check)
 
@@ -311,7 +311,7 @@ class TestApiEndpoints:
             response_time_ms=100,
             is_up=True,
             error_message=None,
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
         insert_check(db_conn, check)
 
@@ -472,7 +472,7 @@ class TestHistoryEndpoint:
                 response_time_ms=100 + i * 10,
                 is_up=i % 2 == 0,
                 error_message=None if i % 2 == 0 else "Server error",
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
             insert_check(db_conn, check)
             time.sleep(0.01)  # Ensure different timestamps
@@ -497,9 +497,7 @@ class TestHistoryEndpoint:
     def test_history_empty(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /history/<name> returns empty list if no recent checks."""
         # Insert a check with old timestamp (outside 24h window)
-        from datetime import timedelta
-
-        old_time = datetime.utcnow() - timedelta(hours=25)
+        old_time = datetime.now(UTC) - timedelta(hours=25)
         check = CheckResult(
             url_name="OLD_URL",
             url="https://old.example.com",
@@ -527,7 +525,7 @@ class TestHistoryEndpoint:
             response_time_ms=250,
             is_up=False,
             error_message="Service unavailable",
-            checked_at=datetime.utcnow(),
+            checked_at=datetime.now(UTC),
         )
         insert_check(db_conn, check)
 
@@ -555,7 +553,7 @@ class TestHistoryEndpoint:
                 response_time_ms=100,
                 is_up=True,
                 error_message=None,
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
             insert_check(db_conn, check)
 
@@ -608,7 +606,7 @@ class TestResetEndpoint:
                 response_time_ms=100,
                 is_up=True,
                 error_message=None,
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
             insert_check(db_conn, check)
 
@@ -649,7 +647,7 @@ class TestResetEndpoint:
                 response_time_ms=100,
                 is_up=True,
                 error_message=None,
-                checked_at=datetime.utcnow(),
+                checked_at=datetime.now(UTC),
             )
             insert_check(db_conn, check)
 

@@ -5,12 +5,11 @@ import logging
 import signal
 import sys
 from threading import Event
-from typing import Optional
 
 __version__ = "0.1.0"
 
 # Global shutdown event for signal handlers
-_shutdown_event: Optional[Event] = None
+_shutdown_event: Event | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +42,11 @@ def _cmd_run(args: argparse.Namespace) -> None:
     logger.info("WebStatusPi %s starting...", __version__)
 
     # Import here to avoid circular imports and allow logging setup first
-    from .config import load_config, ConfigError
-    from .database import init_db, DatabaseError
-    from .monitor import Monitor
-    from .api import ApiServer, ApiError
     from .alerter import Alerter
+    from .api import ApiError, ApiServer
+    from .config import ConfigError, load_config
+    from .database import DatabaseError, init_db
+    from .monitor import Monitor
 
     # 1. Load configuration
     try:
@@ -78,7 +77,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     # 5. Start components
     monitor = Monitor(config, db_conn, on_check=alerter.process_check_result)
-    api_server: Optional[ApiServer] = None
+    api_server: ApiServer | None = None
 
     try:
         monitor.start()
@@ -144,8 +143,8 @@ def _cmd_clean(args: argparse.Namespace) -> None:
     """Execute the clean command - remove old check records from the database."""
     from pathlib import Path
 
-    from .config import load_config, ConfigError
-    from .database import cleanup_old_checks, delete_all_checks, DatabaseError
+    from .config import ConfigError, load_config
+    from .database import DatabaseError, cleanup_old_checks, delete_all_checks
 
     # 1. Load configuration
     try:
@@ -173,6 +172,7 @@ def _cmd_clean(args: argparse.Namespace) -> None:
 
     # 4. Connect to database and perform cleanup
     import sqlite3
+
     try:
         conn = sqlite3.connect(config.database.path)
         conn.row_factory = sqlite3.Row
@@ -196,8 +196,8 @@ def _cmd_clean(args: argparse.Namespace) -> None:
 
 def _cmd_test_alert(args: argparse.Namespace) -> None:
     """Execute the test-alert command - verify webhook configuration."""
-    from .config import load_config, ConfigError
     from .alerter import Alerter
+    from .config import ConfigError, load_config
 
     # 1. Load configuration
     try:
@@ -233,9 +233,7 @@ def _cmd_test_alert(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main entry point for the webstatuspi package."""
-    parser = argparse.ArgumentParser(
-        description="WebStatusPi - Lightweight web monitoring for Raspberry Pi"
-    )
+    parser = argparse.ArgumentParser(description="WebStatusPi - Lightweight web monitoring for Raspberry Pi")
     parser.add_argument(
         "--version",
         action="version",
@@ -250,12 +248,14 @@ def main() -> None:
         help="Start the monitoring service (default)",
     )
     run_parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         default="config.yaml",
         help="Path to configuration file (default: config.yaml)",
     )
     run_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose (debug) logging",
     )
@@ -297,7 +297,8 @@ def main() -> None:
         help="Remove old check records from the database",
     )
     clean_parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         default="config.yaml",
         help="Path to configuration file (default: config.yaml)",
     )
@@ -319,7 +320,8 @@ def main() -> None:
         help="Test webhook alert configuration",
     )
     test_alert_parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         default="config.yaml",
         help="Path to configuration file (default: config.yaml)",
     )

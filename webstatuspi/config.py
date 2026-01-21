@@ -3,13 +3,13 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
 
 class ConfigError(Exception):
     """Raised when configuration is invalid or cannot be loaded."""
+
     pass
 
 
@@ -21,6 +21,7 @@ MIN_MONITOR_INTERVAL = 10
 @dataclass(frozen=True)
 class MonitorConfig:
     """Configuration for the monitor loop."""
+
     interval: int = 60  # seconds between check cycles
 
     def __post_init__(self) -> None:
@@ -34,6 +35,7 @@ class MonitorConfig:
 @dataclass(frozen=True)
 class UrlConfig:
     """Configuration for a single URL to monitor."""
+
     name: str
     url: str
     timeout: int = 10
@@ -68,6 +70,7 @@ DEFAULT_DB_PATH = _get_default_db_path()
 @dataclass(frozen=True)
 class DatabaseConfig:
     """Configuration for SQLite database."""
+
     path: str = DEFAULT_DB_PATH
     retention_days: int = 7
 
@@ -79,6 +82,7 @@ class DatabaseConfig:
 @dataclass(frozen=True)
 class DisplayConfig:
     """Configuration for OLED display (future feature)."""
+
     enabled: bool = True
     cycle_interval: int = 5
 
@@ -90,9 +94,10 @@ class DisplayConfig:
 @dataclass(frozen=True)
 class ApiConfig:
     """Configuration for JSON API server."""
+
     enabled: bool = True
     port: int = 8080
-    reset_token: Optional[str] = None  # Required for DELETE /reset when set
+    reset_token: str | None = None  # Required for DELETE /reset when set
 
     def __post_init__(self) -> None:
         if self.port < 1 or self.port > 65535:
@@ -102,6 +107,7 @@ class ApiConfig:
 @dataclass(frozen=True)
 class WebhookConfig:
     """Configuration for a single webhook alert."""
+
     url: str
     enabled: bool = True
     on_failure: bool = True  # Send alert when URL goes DOWN
@@ -122,7 +128,8 @@ class WebhookConfig:
 @dataclass(frozen=True)
 class AlertsConfig:
     """Configuration for alert mechanisms."""
-    webhooks: List[WebhookConfig] = field(default_factory=list)
+
+    webhooks: list[WebhookConfig] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not isinstance(self.webhooks, list):
@@ -132,7 +139,8 @@ class AlertsConfig:
 @dataclass(frozen=True)
 class Config:
     """Main configuration container."""
-    urls: List[UrlConfig]
+
+    urls: list[UrlConfig]
     monitor: MonitorConfig = field(default_factory=MonitorConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
@@ -168,7 +176,7 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
     )
 
 
-def _parse_monitor_config(data: Optional[dict]) -> MonitorConfig:
+def _parse_monitor_config(data: dict | None) -> MonitorConfig:
     """Parse monitor configuration section."""
     if data is None:
         return MonitorConfig()
@@ -180,7 +188,7 @@ def _parse_monitor_config(data: Optional[dict]) -> MonitorConfig:
     )
 
 
-def _parse_database_config(data: Optional[dict]) -> DatabaseConfig:
+def _parse_database_config(data: dict | None) -> DatabaseConfig:
     """Parse database configuration section."""
     if data is None:
         return DatabaseConfig()
@@ -193,7 +201,7 @@ def _parse_database_config(data: Optional[dict]) -> DatabaseConfig:
     )
 
 
-def _parse_display_config(data: Optional[dict]) -> DisplayConfig:
+def _parse_display_config(data: dict | None) -> DisplayConfig:
     """Parse display configuration section."""
     if data is None:
         return DisplayConfig()
@@ -206,7 +214,7 @@ def _parse_display_config(data: Optional[dict]) -> DisplayConfig:
     )
 
 
-def _parse_api_config(data: Optional[dict]) -> ApiConfig:
+def _parse_api_config(data: dict | None) -> ApiConfig:
     """Parse API configuration section."""
     if data is None:
         return ApiConfig()
@@ -242,7 +250,7 @@ def _parse_webhook_config(data: dict, index: int) -> WebhookConfig:
     )
 
 
-def _parse_alerts_config(data: Optional[dict]) -> AlertsConfig:
+def _parse_alerts_config(data: dict | None) -> AlertsConfig:
     """Parse alerts configuration section."""
     if data is None:
         return AlertsConfig()
@@ -321,7 +329,7 @@ def load_config(config_path: str) -> Config:
         raise ConfigError(f"Configuration file not found: {config_path}")
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise ConfigError(f"Failed to parse YAML configuration: {e}")
