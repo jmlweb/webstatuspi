@@ -53,15 +53,21 @@ def init_db(db_path: str) -> sqlite3.Connection:
                 is_up INTEGER NOT NULL,
                 error_message TEXT,
                 checked_at TEXT NOT NULL,
-                content_length INTEGER
+                content_length INTEGER,
+                server_header TEXT,
+                status_text TEXT
             )
         """)
 
-        # Migration: add content_length column if it doesn't exist (for existing databases)
+        # Migrations: add columns if they don't exist (for existing databases)
         cursor = conn.execute("PRAGMA table_info(checks)")
         columns = {row[1] for row in cursor.fetchall()}
         if "content_length" not in columns:
             conn.execute("ALTER TABLE checks ADD COLUMN content_length INTEGER")
+        if "server_header" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN server_header TEXT")
+        if "status_text" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN status_text TEXT")
 
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_checks_url_name
@@ -102,8 +108,8 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
             conn.execute(
                 """
                 INSERT INTO checks
-                (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length, server_header, status_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     result.url_name,
@@ -114,6 +120,8 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                     result.error_message,
                     result.checked_at.isoformat(),
                     result.content_length,
+                    result.server_header,
+                    result.status_text,
                 ),
             )
             conn.commit()
@@ -152,6 +160,8 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                         error_message,
                         checked_at,
                         content_length,
+                        server_header,
+                        status_text,
                         ROW_NUMBER() OVER (PARTITION BY url_name ORDER BY checked_at DESC) as rn
                     FROM checks
                 ),
@@ -166,6 +176,40 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                     FROM checks
                     WHERE checked_at >= ?
                     GROUP BY url_name
+                ),
+                percentiles_24h AS (
+                    SELECT
+                        url_name,
+                        MAX(CASE WHEN rn = CAST(total * 0.50 AS INTEGER) THEN response_time_ms END) as p50,
+                        MAX(CASE WHEN rn = CAST(total * 0.95 AS INTEGER) THEN response_time_ms END) as p95,
+                        MAX(CASE WHEN rn = CAST(total * 0.99 AS INTEGER) THEN response_time_ms END) as p99
+                    FROM (
+                        SELECT
+                            url_name,
+                            response_time_ms,
+                            ROW_NUMBER() OVER (PARTITION BY url_name ORDER BY response_time_ms) as rn,
+                            COUNT(*) OVER (PARTITION BY url_name) as total
+                        FROM checks
+                        WHERE checked_at >= ? AND response_time_ms IS NOT NULL
+                    )
+                    GROUP BY url_name
+                ),
+                stddev_24h AS (
+                    SELECT
+                        url_name,
+                        AVG(response_time_ms) as mean_rt
+                    FROM checks
+                    WHERE checked_at >= ?
+                    GROUP BY url_name
+                ),
+                variance_24h AS (
+                    SELECT
+                        c.url_name,
+                        AVG((c.response_time_ms - s.mean_rt) * (c.response_time_ms - s.mean_rt)) as variance
+                    FROM checks c
+                    INNER JOIN stddev_24h s ON c.url_name = s.url_name
+                    WHERE c.checked_at >= ?
+                    GROUP BY c.url_name
                 ),
                 last_downtime AS (
                     SELECT
@@ -199,21 +243,29 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                     l.error_message,
                     l.checked_at,
                     l.content_length,
+                    l.server_header,
+                    l.status_text,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
                     s.min_response_time as min_response_time_24h,
                     s.max_response_time as max_response_time_24h,
+                    p.p50 as p50_response_time_24h,
+                    p.p95 as p95_response_time_24h,
+                    p.p99 as p99_response_time_24h,
+                    v.variance as variance_24h,
                     d.downtime as last_downtime,
                     COALESCE(cf.failures, 0) as consecutive_failures
                 FROM latest_checks l
                 LEFT JOIN stats_24h s ON l.url_name = s.url_name
+                LEFT JOIN percentiles_24h p ON l.url_name = p.url_name
+                LEFT JOIN variance_24h v ON l.url_name = v.url_name
                 LEFT JOIN last_downtime d ON l.url_name = d.url_name
                 LEFT JOIN consecutive_failures cf ON l.url_name = cf.url_name
                 WHERE l.rn = 1
                 ORDER BY l.url_name
                 """,
-                (since_24h,),
+                (since_24h, since_24h, since_24h, since_24h),
             ).fetchall()
 
         return [
@@ -233,6 +285,12 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                 consecutive_failures=row["consecutive_failures"],
                 last_downtime=(datetime.fromisoformat(row["last_downtime"]) if row["last_downtime"] else None),
                 content_length=row["content_length"],
+                server_header=row["server_header"],
+                status_text=row["status_text"],
+                p50_response_time_24h=row["p50_response_time_24h"],
+                p95_response_time_24h=row["p95_response_time_24h"],
+                p99_response_time_24h=row["p99_response_time_24h"],
+                stddev_response_time_24h=(row["variance_24h"] ** 0.5) if row["variance_24h"] is not None else None,
             )
             for row in rows
         ]
@@ -273,7 +331,9 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                         is_up,
                         error_message,
                         checked_at,
-                        content_length
+                        content_length,
+                        server_header,
+                        status_text
                     FROM checks
                     WHERE url_name = ?
                     ORDER BY checked_at DESC
@@ -288,6 +348,30 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                         MAX(response_time_ms) as max_response_time
                     FROM checks
                     WHERE url_name = ? AND checked_at >= ?
+                ),
+                percentiles_24h AS (
+                    SELECT
+                        MAX(CASE WHEN rn = CAST(total * 0.50 AS INTEGER) THEN response_time_ms END) as p50,
+                        MAX(CASE WHEN rn = CAST(total * 0.95 AS INTEGER) THEN response_time_ms END) as p95,
+                        MAX(CASE WHEN rn = CAST(total * 0.99 AS INTEGER) THEN response_time_ms END) as p99
+                    FROM (
+                        SELECT
+                            response_time_ms,
+                            ROW_NUMBER() OVER (ORDER BY response_time_ms) as rn,
+                            COUNT(*) OVER () as total
+                        FROM checks
+                        WHERE url_name = ? AND checked_at >= ? AND response_time_ms IS NOT NULL
+                    )
+                ),
+                stddev_24h AS (
+                    SELECT AVG(response_time_ms) as mean_rt
+                    FROM checks
+                    WHERE url_name = ? AND checked_at >= ?
+                ),
+                variance_24h AS (
+                    SELECT AVG((c.response_time_ms - s.mean_rt) * (c.response_time_ms - s.mean_rt)) as variance
+                    FROM checks c, stddev_24h s
+                    WHERE c.url_name = ? AND c.checked_at >= ?
                 ),
                 last_downtime AS (
                     SELECT MAX(checked_at) as downtime
@@ -315,16 +399,34 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                     l.error_message,
                     l.checked_at,
                     l.content_length,
+                    l.server_header,
+                    l.status_text,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
                     s.min_response_time as min_response_time_24h,
                     s.max_response_time as max_response_time_24h,
+                    p.p50 as p50_response_time_24h,
+                    p.p95 as p95_response_time_24h,
+                    p.p99 as p99_response_time_24h,
+                    v.variance as variance_24h,
                     d.downtime as last_downtime,
                     COALESCE(cf.failures, 0) as consecutive_failures
-                FROM latest_check l, stats_24h s, last_downtime d, consecutive_failures cf
+                FROM latest_check l, stats_24h s, percentiles_24h p, variance_24h v, last_downtime d, consecutive_failures cf
                 """,
-                (url_name, url_name, since_24h, url_name, url_name),
+                (
+                    url_name,
+                    url_name,
+                    since_24h,
+                    url_name,
+                    since_24h,
+                    url_name,
+                    since_24h,
+                    url_name,
+                    since_24h,
+                    url_name,
+                    url_name,
+                ),
             ).fetchone()
 
         if row is None:
@@ -346,6 +448,12 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
             consecutive_failures=row["consecutive_failures"],
             last_downtime=(datetime.fromisoformat(row["last_downtime"]) if row["last_downtime"] else None),
             content_length=row["content_length"],
+            server_header=row["server_header"],
+            status_text=row["status_text"],
+            p50_response_time_24h=row["p50_response_time_24h"],
+            p95_response_time_24h=row["p95_response_time_24h"],
+            p99_response_time_24h=row["p99_response_time_24h"],
+            stddev_response_time_24h=(row["variance_24h"] ** 0.5) if row["variance_24h"] is not None else None,
         )
 
     except sqlite3.Error as e:
@@ -376,7 +484,7 @@ def get_history(
     """
     try:
         query = """
-            SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length
+            SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length, server_header, status_text
             FROM checks
             WHERE url_name = ? AND checked_at >= ?
             ORDER BY checked_at DESC
@@ -400,6 +508,8 @@ def get_history(
                 error_message=row["error_message"],
                 checked_at=datetime.fromisoformat(row["checked_at"]),
                 content_length=row["content_length"],
+                server_header=row["server_header"],
+                status_text=row["status_text"],
             )
             for row in rows
         ]

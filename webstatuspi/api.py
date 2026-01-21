@@ -121,6 +121,14 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         "consecutive_failures": status.consecutive_failures,
         "last_downtime": status.last_downtime.isoformat() + "Z" if status.last_downtime is not None else None,
         "content_length": status.content_length,
+        "server_header": status.server_header,
+        "status_text": status.status_text,
+        "p50_response_time_24h": status.p50_response_time_24h,
+        "p95_response_time_24h": status.p95_response_time_24h,
+        "p99_response_time_24h": status.p99_response_time_24h,
+        "stddev_response_time_24h": round(status.stddev_response_time_24h, 2)
+        if status.stddev_response_time_24h is not None
+        else None,
     }
 
 

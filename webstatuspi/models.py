@@ -17,6 +17,8 @@ class CheckResult:
         error_message: Error description if the check failed, None otherwise.
         checked_at: Timestamp when the check was performed.
         content_length: Response Content-Length header value, or None if not provided.
+        server_header: Response Server header value, or None if not provided.
+        status_text: HTTP status reason phrase (e.g., "OK", "Not Found"), or None if not available.
     """
 
     url_name: str
@@ -27,6 +29,8 @@ class CheckResult:
     error_message: str | None
     checked_at: datetime
     content_length: int | None = None
+    server_header: str | None = None
+    status_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,12 @@ class UrlStatus:
         consecutive_failures: Count of consecutive failed checks from most recent.
         last_downtime: Timestamp of most recent failed check, or None if never failed.
         content_length: Most recent response Content-Length, or None if not provided.
+        server_header: Most recent response Server header, or None if not provided.
+        status_text: Most recent HTTP status reason phrase, or None if not available.
+        p50_response_time_24h: Median (50th percentile) response time in last 24h (ms).
+        p95_response_time_24h: 95th percentile response time in last 24h (ms).
+        p99_response_time_24h: 99th percentile response time in last 24h (ms).
+        stddev_response_time_24h: Standard deviation of response times in last 24h (ms).
     """
 
     url_name: str
@@ -66,3 +76,9 @@ class UrlStatus:
     consecutive_failures: int = 0
     last_downtime: datetime | None = None
     content_length: int | None = None
+    server_header: str | None = None
+    status_text: str | None = None
+    p50_response_time_24h: int | None = None
+    p95_response_time_24h: int | None = None
+    p99_response_time_24h: int | None = None
+    stddev_response_time_24h: float | None = None
