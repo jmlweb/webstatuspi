@@ -1,7 +1,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Raspberry%20Pi-C51A4A?style=for-the-badge&logo=raspberry-pi" alt="Raspberry Pi">
-  <img src="https://img.shields.io/badge/python-3.7+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.7+">
+  <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+</p>
+
+<p align="center">
+  <a href="https://github.com/jmlweb/webstatuspi/actions/workflows/test.yml"><img src="https://github.com/jmlweb/webstatuspi/actions/workflows/test.yml/badge.svg" alt="Test"></a>
+  <a href="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml"><img src="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
 </p>
 
 <h1 align="center">🖥️ WebStatusPi</h1>
@@ -26,6 +31,28 @@
 | **🔌 JSON API** | Integrate with anything |
 | **💾 Persistent Storage** | SQLite keeps your history safe |
 | **⚡ Zero Config** | Works out of the box |
+
+### Resource Comparison
+
+How does WebStatusPi compare to popular alternatives?
+
+**Runtime Performance** (Docker benchmark: 5 URLs, 60s interval, 10 samples)
+
+| Tool | RAM Usage | CPU Usage | Docker Image |
+|------|-----------|-----------|--------------|
+| **WebStatusPi** | **17 MB** | 0.2% | 61 MB |
+| Statping-ng | 30 MB | 0.5% | 58 MB |
+| Uptime Kuma | 114 MB | 0.2% | 439 MB |
+
+**Installation Size on Raspberry Pi** (native, no Docker)
+
+| Tool | Install Size | Requires |
+|------|--------------|----------|
+| **WebStatusPi** | **~1 MB** | Nothing (uses system Python) |
+| Statping-ng | ~58 MB | Go binary |
+| Uptime Kuma | ~150 MB | Node.js runtime |
+
+*WebStatusPi leverages the Python already installed on Raspberry Pi OS. Run `./benchmark/benchmark.sh` to reproduce the runtime benchmark.*
 
 ---
 
@@ -233,6 +260,9 @@ pip install .[dev]
 
 # Run tests
 pytest tests/ -v
+
+# Run benchmark (Docker required)
+cd benchmark && ./benchmark.sh
 ```
 
 ### Project Structure

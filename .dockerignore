@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+
+# Development
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+.mypy_cache
+.ruff_cache
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.claude
+.cursor
+
+# Tests
+tests/
+pytest.ini
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Benchmark (meta)
+benchmark/
+
+# Data (will be mounted as volume)
+data/
+*.db
+
+# Other
+.env
+.env.*
+*.log
+.DS_Store
+Makefile
+.python-version
+.mcp.json
+.playwright-mcp

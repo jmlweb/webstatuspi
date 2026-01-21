@@ -1,0 +1,63 @@
+# Benchmark: WebStatusPi vs Uptime Kuma vs Statping-ng
+#
+# Usage:
+#   cd benchmark
+#   ./benchmark.sh
+#
+# Or manually:
+#   docker compose up -d
+#   docker stats --no-stream
+
+services:
+  # ============================================
+  # WebStatusPi (Python + stdlib)
+  # ============================================
+  webstatuspi:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: bench-webstatuspi
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./config-webstatuspi.yaml:/app/config.yaml:ro
+      - webstatuspi-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ============================================
+  # Uptime Kuma (Node.js)
+  # https://github.com/louislam/uptime-kuma
+  # ============================================
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: bench-uptime-kuma
+    ports:
+      - "8082:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    restart: unless-stopped
+
+  # ============================================
+  # Statping-ng (Go + Vue)
+  # https://github.com/statping-ng/statping-ng
+  # ============================================
+  statping:
+    image: adamboutcher/statping-ng:latest
+    container_name: bench-statping
+    ports:
+      - "8083:8080"
+    volumes:
+      - statping-data:/app
+    environment:
+      - DB_CONN=sqlite
+    restart: unless-stopped
+
+volumes:
+  webstatuspi-data:
+  uptime-kuma-data:
+  statping-data:

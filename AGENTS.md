@@ -232,6 +232,10 @@ Real-time monitoring output:
 - Success: `✓` (green in terminals that support color)
 - Failure: `✗` (red in terminals that support color)
 
+## Required Reading
+
+**Before starting any task**, consult **[docs/dev/LEARNINGS.md](docs/dev/LEARNINGS.md)** - this file contains critical lessons learned during development, including Pi 1B+ specific constraints, project patterns, and solutions to common problems. Ignoring this file may lead to repeating past mistakes.
+
 ## Documentation References
 
 - **[README.md](README.md)** - User guide, API reference, configuration
@@ -242,6 +246,7 @@ Real-time monitoring output:
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[docs/testing/](docs/testing/)** - Testing strategies and mocking guidelines
 - **[docs/dev/](docs/dev/)** - Task management and development workflow
+- **[docs/dev/LEARNINGS.md](docs/dev/LEARNINGS.md)** - **CRITICAL**: Lessons learned, patterns, and past solutions
 
 ---
 

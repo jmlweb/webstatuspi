@@ -5,8 +5,8 @@ Rules and conventions for AI agents working on WebStatusPi tasks.
 ## Entry Point
 
 1. **Read [INDEX.md](INDEX.md) first** - Shows current status and backlog
-2. **Read the specific task file** from `backlog/` for the task you're working on
-3. **Consult [LEARNINGS.md](LEARNINGS.md)** if relevant to the task's domain
+2. **Read [LEARNINGS.md](LEARNINGS.md)** - **REQUIRED** before any implementation. Contains critical lessons about Pi 1B+ constraints, project patterns, and solutions to problems. Ignoring this file may lead to repeating past mistakes.
+3. **Read the specific task file** from `backlog/` for the task you're working on
 
 ## Task Lifecycle
 

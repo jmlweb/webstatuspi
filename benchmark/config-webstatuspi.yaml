@@ -1,0 +1,34 @@
+# Benchmark configuration for WebStatusPi
+# 5 URLs monitored every 60 seconds (same workload as other tools)
+
+monitor:
+  interval: 60
+
+urls:
+  - name: "GOOGLE"
+    url: "https://www.google.com"
+    timeout: 10
+
+  - name: "GITHUB"
+    url: "https://github.com"
+    timeout: 10
+
+  - name: "HTTPBIN"
+    url: "https://httpbin.org/status/200"
+    timeout: 10
+
+  - name: "EXAMPLE"
+    url: "https://example.com"
+    timeout: 10
+
+  - name: "JSONPH"
+    url: "https://jsonplaceholder.typicode.com/posts/1"
+    timeout: 10
+
+database:
+  path: "/app/data/status.db"
+  retention_days: 1
+
+api:
+  enabled: true
+  port: 8080

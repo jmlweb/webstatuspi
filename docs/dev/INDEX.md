@@ -4,23 +4,27 @@
 
 ## Quick Stats
 
-- **Pending**: 0 tasks
+- **Pending**: 2 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 13 tasks
+- **Completed**: 15 tasks
 
 ## Current Focus
 
-> All tasks completed! 🎉
+> No active task. Use `/start-task 016` to begin Webhook Alerts.
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
+| 016 | Webhook Alerts | Core, Config, API | P2 - Next |
+| 017 | Telegram Bot Integration Documentation | Docs | P3 |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 015 | Dashboard Accessibility | API | ✓ |
+| 014 | CI Workflow with GitHub Actions | DevOps | ✓ |
 | 013 | Locale-aware date/time formatting | API | ✓ |
 | 012 | Reset data button with confirmation modal | API | ✓ |
 | 010 | Create command to clean the database | Core | ✓ |

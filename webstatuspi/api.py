@@ -19,7 +19,7 @@ from .database import (
     DatabaseError,
 )
 from .models import UrlStatus
-from ._dashboard import HTML_DASHBOARD
+from ._dashboard import HTML_DASHBOARD, HTML_DASHBOARD_PREFIX, HTML_DASHBOARD_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,8 @@ class StatusHandler(BaseHTTPRequestHandler):
     db_conn: Optional[sqlite3.Connection] = None
     reset_token: Optional[str] = None  # Required for DELETE /reset when set
     rate_limiter: Optional[RateLimiter] = None
+    _request_count: int = 0  # Counter for periodic rate limiter cleanup
+    _cleanup_lock = threading.Lock()  # Lock for thread-safe cleanup counter
 
     # Headers that indicate traffic is coming through Cloudflare
     CLOUDFLARE_HEADERS = ("CF-Connecting-IP", "CF-Ray", "CF-IPCountry")
@@ -167,9 +169,21 @@ class StatusHandler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _maybe_cleanup_rate_limiter(self) -> None:
+        """Periodically cleanup rate limiter to prevent memory leak."""
+        if self.rate_limiter is None:
+            return
+
+        # Cleanup every 100 requests to prevent unbounded memory growth
+        with self._cleanup_lock:
+            self._request_count += 1
+            if self._request_count >= 100:
+                self.rate_limiter.cleanup()
+                self._request_count = 0
+
     def _send_json(self, code: int, data: Dict[str, Any]) -> None:
         """Send a JSON response with the given status code."""
-        body = json.dumps(data, indent=2).encode("utf-8")
+        body = json.dumps(data).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -187,7 +201,20 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "max-age=3600")
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_html_bytes(self, code: int, body: bytes) -> None:
+        """Send an HTML response with pre-encoded bytes.
+
+        More efficient than _send_html() when the body is already encoded.
+        """
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
         self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
@@ -221,6 +248,8 @@ class StatusHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.exception("Error handling request: %s", e)
             self._send_error_json(500, "Internal server error")
+        finally:
+            self._maybe_cleanup_rate_limiter()
 
     def do_DELETE(self) -> None:
         """Handle DELETE requests."""
@@ -235,10 +264,26 @@ class StatusHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.exception("Error handling DELETE request: %s", e)
             self._send_error_json(500, "Internal server error")
+        finally:
+            self._maybe_cleanup_rate_limiter()
 
     def _handle_dashboard(self) -> None:
-        """Handle GET / endpoint - serve HTML dashboard."""
-        self._send_html(200, HTML_DASHBOARD)
+        """Handle GET / endpoint - serve HTML dashboard with initial data."""
+        # Inject initial data for SSR
+        if self.db_conn is not None:
+            try:
+                statuses = get_latest_status(self.db_conn)
+                response = _build_status_response(statuses)
+                initial_data = json.dumps(response).encode("utf-8")
+            except DatabaseError:
+                initial_data = b"null"
+        else:
+            initial_data = b"null"
+
+        # Use pre-encoded HTML parts and only encode the JSON portion
+        # This avoids creating a new 35KB+ string and re-encoding on every request
+        body = HTML_DASHBOARD_PREFIX + initial_data + HTML_DASHBOARD_SUFFIX
+        self._send_html_bytes(200, body)
 
     def _handle_health(self) -> None:
         """Handle GET /health endpoint."""

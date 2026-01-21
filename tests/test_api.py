@@ -398,7 +398,7 @@ class TestApiEndpoints:
 
         with urllib.request.urlopen(url, timeout=5) as response:
             cache_control = response.headers.get("Cache-Control")
-            assert cache_control == "max-age=3600"
+            assert cache_control == "no-cache, must-revalidate"
 
     def test_dashboard_cyberpunk_styles(self, running_server: ApiServer) -> None:
         """Dashboard includes cyberpunk CSS styles."""

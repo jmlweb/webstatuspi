@@ -1,0 +1,29 @@
+# Benchmark Results - 2026-01-21 19:51:39
+
+## Configuration
+- URLs monitored: 5
+- Check interval: 60 seconds
+- Samples: 10
+- Sample interval: 60s
+
+## Results
+
+| Tool | RAM (avg) | CPU (avg) | Image Size |
+|------|-----------|-----------|------------|
+| WebStatusPi | 17,4 MB | 0,20% |  |
+| Uptime Kuma | 114,3 MB | 0,20% | 439MB |
+| Statping-ng | 29,9 MB | 0,50% | 57.8MB |
+
+## Raw Data
+
+### WebStatusPi
+Memory samples: 17.94MiB 18.53MiB 17.33MiB 18.77MiB 18.8MiB 19.45MiB 17.32MiB 16.98MiB 17.04MiB 17.05MiB
+CPU samples: 0.03 2.14 0.04 0.02 0.53 0.96 0.04 0.04 0.04 0.03
+
+### Uptime Kuma
+Memory samples: 97.11MiB 117.2MiB 130.4MiB 111.7MiB 100.1MiB 139.9MiB 104.7MiB 100.3MiB 141.2MiB 104.2MiB
+CPU samples: 0.84 0.39 0.40 1.66 0.32 0.35 1.32 0.52 0.77 0.50
+
+### Statping-ng
+Memory samples: 16.21MiB 41.75MiB 43.04MiB 23.38MiB 15.35MiB 39.99MiB 23.15MiB 16.62MiB 46.46MiB 37.69MiB
+CPU samples: 0.00 4.23 0.00 0.00 0.00 0.00 0.00 0.03 1.94 0.02
