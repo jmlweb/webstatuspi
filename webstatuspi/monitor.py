@@ -179,6 +179,12 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             content_length_str = response.headers.get("Content-Length")
             content_length = int(content_length_str) if content_length_str else None
 
+            # Extract Server header if present
+            server_header = response.headers.get("Server")
+
+            # Extract status text (reason phrase) if available
+            status_text = getattr(response, "reason", None)
+
             return CheckResult(
                 url_name=url_config.name,
                 url=url_config.url,
@@ -188,6 +194,8 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
                 error_message=None,
                 checked_at=checked_at,
                 content_length=content_length,
+                server_header=server_header,
+                status_text=status_text,
             )
 
     except urllib.error.HTTPError as e:
@@ -199,6 +207,12 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
         content_length_str = e.headers.get("Content-Length") if e.headers else None
         content_length = int(content_length_str) if content_length_str else None
 
+        # Extract Server header if present
+        server_header = e.headers.get("Server") if e.headers else None
+
+        # Extract status text (reason phrase)
+        status_text = getattr(e, "reason", None)
+
         return CheckResult(
             url_name=url_config.name,
             url=url_config.url,
@@ -208,6 +222,8 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             error_message=None if is_up else f"HTTP {e.code}: {e.reason}",
             checked_at=checked_at,
             content_length=content_length,
+            server_header=server_header,
+            status_text=status_text,
         )
 
     except urllib.error.URLError as e:

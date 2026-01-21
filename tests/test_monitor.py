@@ -320,6 +320,157 @@ class TestCheckUrl:
 
             assert result.content_length is None
 
+    def test_captures_server_header_from_response(self, url_config: UrlConfig) -> None:
+        """Server header is captured from HTTP response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {"Server": "nginx/1.18.0"}
+            mock_response.reason = "OK"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.server_header == "nginx/1.18.0"
+
+    def test_server_header_none_when_header_missing(self, url_config: UrlConfig) -> None:
+        """Server header is None when not present in response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.reason = "OK"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.server_header is None
+
+    def test_captures_status_text_from_response(self, url_config: UrlConfig) -> None:
+        """Status text (reason phrase) is captured from HTTP response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.reason = "OK"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.status_text == "OK"
+
+    def test_status_text_captured_for_error_responses(self, url_config: UrlConfig) -> None:
+        """Status text is captured for error responses."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_error = urllib.error.HTTPError(
+                url_config.url,
+                404,
+                "Not Found",
+                {},
+                None,
+            )
+            mock_urlopen.side_effect = mock_error
+
+            result = check_url(url_config)
+
+            assert result.status_text == "Not Found"
+
+    def test_captures_server_header_from_http_error(self, url_config: UrlConfig) -> None:
+        """Server header is captured from HTTPError responses."""
+        import urllib.error
+        from unittest.mock import Mock
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_headers = Mock()
+            mock_headers.get = MagicMock(side_effect=lambda key: "Apache/2.4.41" if key == "Server" else None)
+            mock_error = urllib.error.HTTPError(
+                url_config.url,
+                500,
+                "Internal Server Error",
+                mock_headers,  # type: ignore[arg-type]
+                None,
+            )
+            mock_urlopen.side_effect = mock_error
+
+            result = check_url(url_config)
+
+            assert result.server_header == "Apache/2.4.41"
+
+    def test_server_header_none_for_http_error_without_header(self, url_config: UrlConfig) -> None:
+        """Server header is None for HTTPError without the header."""
+        import urllib.error
+        from unittest.mock import Mock
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_headers = Mock()
+            mock_headers.get = MagicMock(return_value=None)
+            mock_error = urllib.error.HTTPError(
+                url_config.url,
+                503,
+                "Service Unavailable",
+                mock_headers,  # type: ignore[arg-type]
+                None,
+            )
+            mock_urlopen.side_effect = mock_error
+
+            result = check_url(url_config)
+
+            assert result.server_header is None
+
+    def test_server_header_none_for_connection_errors(self, url_config: UrlConfig) -> None:
+        """Server header is None for connection errors."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+            result = check_url(url_config)
+
+            assert result.server_header is None
+
+    def test_status_text_none_for_connection_errors(self, url_config: UrlConfig) -> None:
+        """Status text is None for connection errors."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+            result = check_url(url_config)
+
+            assert result.status_text is None
+
+    @pytest.mark.parametrize(
+        "server_value",
+        [
+            "nginx/1.18.0",
+            "Apache/2.4.41 (Ubuntu)",
+            "cloudflare",
+            "Microsoft-IIS/10.0",
+        ],
+    )
+    def test_various_server_header_values(self, url_config: UrlConfig, server_value: str) -> None:
+        """Different server header values are captured correctly."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {"Server": server_value}
+            mock_response.reason = "OK"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.server_header == server_value
+
 
 class TestMonitor:
     """Tests for Monitor class."""
