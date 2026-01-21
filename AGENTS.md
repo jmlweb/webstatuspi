@@ -19,29 +19,106 @@ WebStatusPi is a lightweight web monitoring system designed for Raspberry Pi 1B+
 
 Follow standard Python conventions and these project-specific rules.
 
+### Linting & Formatting (Ruff)
+
+This project uses **ruff** for linting and formatting. The pre-commit hook runs ruff automatically before each commit.
+
+**Key configuration** (see `pyproject.toml`):
+- **Line length**: 120 characters maximum
+- **Target**: Python 3.11+
+
+**Rules enabled**:
+
+| Code | Description |
+|------|-------------|
+| E, W | pycodestyle (style errors and warnings) |
+| F    | Pyflakes (logical errors) |
+| I    | isort (import sorting) |
+| UP   | pyupgrade (modernize to Python 3.11+ syntax) |
+
+**Run ruff manually**:
+
+```bash
+# Check for errors
+ruff check .
+
+# Auto-fix errors
+ruff check --fix .
+
+# Format code
+ruff format .
+```
+
+> **Tip**: Install the pre-commit hook to run ruff automatically:
+> ```bash
+> pre-commit install
+> ```
+
 ### Python Guidelines
 
-- **Type hints**: All functions must have type hints (Python 3.10+ union syntax `|` supported)
+- **Type hints**: All functions must have type hints (see [Type Hints](#type-hints-python-311) below)
 - **Dataclasses**: Use `dataclasses` for configuration and data transfer objects
 - **No classes for logic**: Use modules with pure functions (classes only for data structures)
 - **Functional approach**: Prefer immutability, avoid side effects where possible
 - **Exception handling**: Only at boundaries (network I/O, file I/O, database operations)
 
-### Module Organization
+### Type Hints (Python 3.11+)
+
+Use modern Python 3.11+ type syntax. The `UP` (pyupgrade) rule in ruff enforces this automatically.
+
+**Use built-in types instead of `typing` module**:
 
 ```python
-# Standard library imports
-import sqlite3
-from datetime import datetime
-from typing import List, Optional, Dict
+# ✓ Correct (Python 3.11+)
+def get_urls(active_only: bool = True) -> list[str]:
+    ...
 
-# Third-party imports
+def fetch(url: str) -> dict[str, str] | None:
+    ...
+
+def process(items: list[int]) -> tuple[int, ...]:
+    ...
+
+# ✗ Incorrect (deprecated, triggers UP006/UP007)
+from typing import List, Optional, Dict, Tuple
+def get_urls(active_only: bool = True) -> List[str]:
+    ...
+```
+
+**Quick reference**:
+
+| Deprecated (`typing`) | Modern (built-in) |
+|-----------------------|-------------------|
+| `List[X]` | `list[X]` |
+| `Dict[K, V]` | `dict[K, V]` |
+| `Tuple[X, ...]` | `tuple[X, ...]` |
+| `Set[X]` | `set[X]` |
+| `Optional[X]` | `X \| None` |
+| `Union[X, Y]` | `X \| Y` |
+
+### Module Organization
+
+Import order enforced by **isort** (ruff rule `I`):
+
+```python
+# Standard library imports (alphabetical, `import` before `from`)
+import sqlite3
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+# Third-party imports (separated by blank line)
 import requests
 import yaml
 
-# Local imports (if any)
-from config import load_config
+# Local imports (use package name for first-party)
+from webstatuspi.config import load_config
 ```
+
+**isort rules**:
+- Groups separated by a single blank line
+- Alphabetical order within each group
+- `import x` comes before `from x import y`
+- First-party imports use `webstatuspi.` prefix
 
 ## Naming Conventions
 

@@ -124,10 +124,19 @@ open htmlcov/index.html
 
 ### Before Submitting
 
-1. **Update tests**: Add or modify tests for your changes
-2. **Run tests**: Ensure all tests pass (`pytest`)
-3. **Check style**: Follow the project's [code style](#code-style)
+1. **Run linters**: Ensure code passes ruff checks
+   ```bash
+   ruff check .
+   ruff format --check .
+   ```
+2. **Update tests**: Add or modify tests for your changes
+3. **Run tests**: Ensure all tests pass (`pytest`)
 4. **Update docs**: If your change affects user-facing behavior, update relevant documentation
+
+> **Tip**: Install the pre-commit hook to run linters automatically before each commit:
+> ```bash
+> pre-commit install
+> ```
 
 ### PR Guidelines
 
@@ -167,26 +176,29 @@ This project follows specific coding conventions optimized for the Raspberry Pi 
 
 ### Quick Reference
 
-- **Type hints**: Required for all functions (Python 3.10+ union syntax `|` supported)
+- **Type hints**: Required for all functions. Use Python 3.11+ syntax: `list[str]` not `List[str]`, `X | None` not `Optional[X]`
 - **Functional approach**: Prefer functions over classes for logic
 - **Naming**: `snake_case` for functions/variables, `PascalCase` for types
-- **Imports**: Standard library first, then third-party, then local
+- **Imports**: Standard library first, then third-party, then local (alphabetically sorted)
+- **Line length**: Maximum 120 characters
 - **Dependencies**: Minimal - avoid adding new dependencies without discussion
+- **Linting**: Code must pass `ruff check` and `ruff format`
 
 ### Example
 
 ```python
-from typing import Optional
 from dataclasses import dataclass
+
 
 @dataclass
 class CheckResult:
     """Result of a URL health check."""
+
     url: str
-    status_code: Optional[int]
+    status_code: int | None
     response_time_ms: int
     is_success: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 def check_url(url: str, timeout: int = 10) -> CheckResult:
