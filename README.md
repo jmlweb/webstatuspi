@@ -186,6 +186,150 @@ curl http://localhost:8080/status
 
 ---
 
+## 🔔 Webhook Alerts
+
+Get instant notifications when URLs go down or recover. Integrate with Slack, Discord, PagerDuty, or any custom webhook endpoint.
+
+### Setup Webhooks
+
+Add to your `config.yaml`:
+
+```yaml
+alerts:
+  webhooks:
+    - url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      enabled: true
+      on_failure: true      # Alert when URL goes DOWN
+      on_recovery: true     # Alert when URL comes back UP
+      cooldown_seconds: 300 # Minimum time between alerts (prevents spam)
+```
+
+### Supported Services
+
+| Service | Webhook Type | Notes |
+|---------|--------------|-------|
+| **Slack** | Incoming Webhook | Configure in Apps & integrations |
+| **Discord** | Webhook URL | Copy webhook URL from channel settings |
+| **Telegram** | Bot API Webhook | Use with telegram-to-webhook bridge |
+| **PagerDuty** | Events API v2 | Sends to incidents/events endpoint |
+| **Custom HTTP** | Any endpoint | Receives JSON payload |
+
+### Webhook Payload
+
+Every alert sends this JSON structure:
+
+```json
+{
+  "event": "url_down",
+  "url": {
+    "name": "API_SERVER",
+    "url": "https://api.example.com"
+  },
+  "status": {
+    "code": 503,
+    "success": false,
+    "response_time_ms": 5000,
+    "error": "Service Unavailable",
+    "timestamp": "2026-01-21T10:30:00Z"
+  },
+  "previous_status": "up"
+}
+```
+
+### Configuration Options
+
+```yaml
+alerts:
+  webhooks:
+    - url: "https://example.com/webhook"
+
+      # Whether this webhook is active (default: true)
+      enabled: true
+
+      # Send alert when URL transitions from UP → DOWN (default: true)
+      on_failure: true
+
+      # Send alert when URL transitions from DOWN → UP (default: true)
+      on_recovery: true
+
+      # Minimum seconds between alerts for the same URL (default: 300)
+      # Prevents alert spam if a service is flaky
+      cooldown_seconds: 300
+```
+
+### Test Your Webhooks
+
+Verify webhook configuration before deployment:
+
+```bash
+webstatuspi test-alert
+```
+
+Output:
+```
+Testing 2 webhook(s)...
+
+✓ SUCCESS: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+✗ FAILED: https://example.com/broken-webhook
+
+Result: 1/2 webhooks successful
+```
+
+### Advanced: Webhook Security
+
+For sensitive webhooks, use these patterns:
+
+**Option 1: Authentication Headers**
+Configure your webhook endpoint to require an auth token, then test with curl:
+
+```bash
+curl -X POST https://example.com/webhook \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"test"}'
+```
+
+**Option 2: HMAC Signature (Future)**
+WebStatusPi may support HMAC-SHA256 signatures in future versions.
+
+### Example: Slack Integration
+
+1. Create Slack Incoming Webhook: https://api.slack.com/apps → Your App → Incoming Webhooks
+2. Copy webhook URL
+3. Add to `config.yaml`:
+
+```yaml
+alerts:
+  webhooks:
+    - url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX"
+      enabled: true
+      on_failure: true
+      on_recovery: true
+      cooldown_seconds: 300
+```
+
+4. Test: `webstatuspi test-alert`
+5. Your Slack channel will receive alerts when services go down
+
+### Example: Discord Integration
+
+1. Enable Developer Mode in Discord (User Settings → Advanced)
+2. Right-click channel → Edit Channel → Webhooks → Create Webhook
+3. Copy webhook URL
+4. Add to `config.yaml`:
+
+```yaml
+alerts:
+  webhooks:
+    - url: "https://discord.com/api/webhooks/123456789/abcdefg"
+      enabled: true
+      on_failure: true
+      on_recovery: false  # Only alert on failures
+      cooldown_seconds: 600
+```
+
+---
+
 ## 🔄 Auto-Start on Boot
 
 Install as a systemd service:
@@ -271,8 +415,11 @@ cd benchmark && ./benchmark.sh
 webstatuspi/
 ├── webstatuspi/        # Core package
 │   ├── __init__.py     # CLI entry point
+│   ├── alerter.py      # Webhook alerts
 │   ├── api.py          # HTTP server
+│   ├── config.py       # Configuration
 │   ├── database.py     # SQLite operations
+│   ├── models.py       # Data models
 │   └── monitor.py      # URL checker
 ├── tests/              # Test suite
 └── docs/               # Documentation

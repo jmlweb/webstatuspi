@@ -47,6 +47,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     from .database import init_db, DatabaseError
     from .monitor import Monitor
     from .api import ApiServer, ApiError
+    from .alerter import Alerter
 
     # 1. Load configuration
     try:
@@ -70,8 +71,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
     signal.signal(signal.SIGTERM, _handle_shutdown)
     signal.signal(signal.SIGINT, _handle_shutdown)
 
-    # 4. Start components
-    monitor = Monitor(config, db_conn)
+    # 4. Initialize alerter
+    alerter = Alerter(config.alerts)
+    if config.alerts.webhooks:
+        logger.info("Alerts configured with %d webhook(s)", len(config.alerts.webhooks))
+
+    # 5. Start components
+    monitor = Monitor(config, db_conn, on_check=alerter.process_check_result)
     api_server: Optional[ApiServer] = None
 
     try:
@@ -88,14 +94,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
         logger.info("All components started, waiting for shutdown signal...")
 
-        # 5. Wait for shutdown signal
+        # 6. Wait for shutdown signal
         _shutdown_event.wait()
 
     except KeyboardInterrupt:
         # Backup handler if signal doesn't work
         logger.info("Keyboard interrupt received")
     finally:
-        # 6. Cleanup - stop all components
+        # 7. Cleanup - stop all components
         logger.info("Shutting down components...")
 
         monitor.stop()
@@ -188,6 +194,43 @@ def _cmd_clean(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_test_alert(args: argparse.Namespace) -> None:
+    """Execute the test-alert command - verify webhook configuration."""
+    from .config import load_config, ConfigError
+    from .alerter import Alerter
+
+    # 1. Load configuration
+    try:
+        config = load_config(args.config)
+    except ConfigError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # 2. Check if any webhooks are configured
+    if not config.alerts.webhooks:
+        print("Error: No webhooks configured in alerts section")
+        sys.exit(1)
+
+    # 3. Create alerter and test webhooks
+    alerter = Alerter(config.alerts)
+    print(f"Testing {len(config.alerts.webhooks)} webhook(s)...\n")
+
+    results = alerter.test_webhooks()
+
+    # 4. Display results
+    success_count = sum(1 for success in results.values() if success)
+    total_count = len(results)
+
+    for url, success in results.items():
+        status = "✓ SUCCESS" if success else "✗ FAILED"
+        print(f"{status}: {url}")
+
+    print(f"\nResult: {success_count}/{total_count} webhooks successful")
+
+    if success_count < total_count:
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the webstatuspi package."""
     parser = argparse.ArgumentParser(
@@ -269,6 +312,18 @@ def main() -> None:
         help="Delete all check records (ignores retention_days)",
     )
     clean_parser.set_defaults(func=_cmd_clean)
+
+    # Test-alert subcommand
+    test_alert_parser = subparsers.add_parser(
+        "test-alert",
+        help="Test webhook alert configuration",
+    )
+    test_alert_parser.add_argument(
+        "-c", "--config",
+        default="config.yaml",
+        help="Path to configuration file (default: config.yaml)",
+    )
+    test_alert_parser.set_defaults(func=_cmd_test_alert)
 
     args = parser.parse_args()
 

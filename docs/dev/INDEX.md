@@ -4,25 +4,25 @@
 
 ## Quick Stats
 
-- **Pending**: 2 tasks
+- **Pending**: 1 task
 - **In Progress**: 0 tasks
-- **Completed**: 15 tasks
+- **Completed**: 16 tasks
 
 ## Current Focus
 
-> No active task. Use `/start-task 016` to begin Webhook Alerts.
+> No active task. Use `/start-task 017` to begin Telegram Bot Integration Documentation.
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| 016 | Webhook Alerts | Core, Config, API | P2 - Next |
 | 017 | Telegram Bot Integration Documentation | Docs | P3 |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 016 | Webhook Alerts | Core, Config, API | ✓ |
 | 015 | Dashboard Accessibility | API | ✓ |
 | 014 | CI Workflow with GitHub Actions | DevOps | ✓ |
 | 013 | Locale-aware date/time formatting | API | ✓ |

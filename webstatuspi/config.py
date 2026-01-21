@@ -100,6 +100,36 @@ class ApiConfig:
 
 
 @dataclass(frozen=True)
+class WebhookConfig:
+    """Configuration for a single webhook alert."""
+    url: str
+    enabled: bool = True
+    on_failure: bool = True  # Send alert when URL goes DOWN
+    on_recovery: bool = True  # Send alert when URL comes back UP
+    cooldown_seconds: int = 300  # Minimum time between alerts for same URL
+
+    def __post_init__(self) -> None:
+        if not self.url:
+            raise ConfigError("Webhook URL cannot be empty")
+        if not self.url.startswith(("http://", "https://")):
+            raise ConfigError(f"Webhook URL must start with http:// or https://, got '{self.url}'")
+        if self.cooldown_seconds < 0:
+            raise ConfigError(f"Webhook cooldown_seconds must be non-negative, got {self.cooldown_seconds}")
+        if not self.on_failure and not self.on_recovery:
+            raise ConfigError("Webhook must have at least one of 'on_failure' or 'on_recovery' enabled")
+
+
+@dataclass(frozen=True)
+class AlertsConfig:
+    """Configuration for alert mechanisms."""
+    webhooks: List[WebhookConfig] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.webhooks, list):
+            raise ConfigError("Webhooks must be a list")
+
+
+@dataclass(frozen=True)
 class Config:
     """Main configuration container."""
     urls: List[UrlConfig]
@@ -107,6 +137,7 @@ class Config:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
+    alerts: AlertsConfig = field(default_factory=AlertsConfig)
 
     def __post_init__(self) -> None:
         if not self.urls:
@@ -191,6 +222,40 @@ def _parse_api_config(data: Optional[dict]) -> ApiConfig:
         port=int(data.get("port", 8080)),
         reset_token=reset_token,
     )
+
+
+def _parse_webhook_config(data: dict, index: int) -> WebhookConfig:
+    """Parse a single webhook configuration entry."""
+    if not isinstance(data, dict):
+        raise ConfigError(f"Webhook entry {index} must be a dictionary")
+
+    url = data.get("url")
+    if url is None:
+        raise ConfigError(f"Webhook entry {index} is missing 'url' field")
+
+    return WebhookConfig(
+        url=str(url),
+        enabled=bool(data.get("enabled", True)),
+        on_failure=bool(data.get("on_failure", True)),
+        on_recovery=bool(data.get("on_recovery", True)),
+        cooldown_seconds=int(data.get("cooldown_seconds", 300)),
+    )
+
+
+def _parse_alerts_config(data: Optional[dict]) -> AlertsConfig:
+    """Parse alerts configuration section."""
+    if data is None:
+        return AlertsConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'alerts' section must be a dictionary")
+
+    webhooks_data = data.get("webhooks", [])
+    if not isinstance(webhooks_data, list):
+        raise ConfigError("'alerts.webhooks' must be a list")
+
+    webhooks = [_parse_webhook_config(webhook_data, i) for i, webhook_data in enumerate(webhooks_data)]
+
+    return AlertsConfig(webhooks=webhooks)
 
 
 def _apply_env_overrides(config_data: dict) -> dict:
@@ -285,4 +350,5 @@ def load_config(config_path: str) -> Config:
         database=_parse_database_config(data.get("database")),
         display=_parse_display_config(data.get("display")),
         api=_parse_api_config(data.get("api")),
+        alerts=_parse_alerts_config(data.get("alerts")),
     )

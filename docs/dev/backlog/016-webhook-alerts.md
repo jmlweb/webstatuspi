@@ -1,11 +1,12 @@
 # Task #016: Webhook Alerts
 
 ## Metadata
-- **Status**: pending
-- **Priority**: P2 - Next
+- **Status**: completed
+- **Priority**: P1 - Active
 - **Slice**: Core, Config, API
 - **Created**: 2026-01-21
-- **Started**: -
+- **Started**: 2026-01-21
+- **Completed**: 2026-01-21
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -109,8 +110,21 @@ None - uses existing `requests` library for HTTP POST
 
 ## Progress Log
 
-(No progress yet)
+- [2026-01-21 00:00] Started task
+- [2026-01-21 00:01] Implemented WebhookConfig and AlertConfig dataclasses with validation
+- [2026-01-21 00:02] Created alerter.py module with state tracking, cooldown management, and retry logic
+- [2026-01-21 00:03] Integrated alerter into monitor via on_check callback
+- [2026-01-21 00:04] Added test-alert CLI command for webhook verification
+- [2026-01-21 00:05] Created comprehensive test suite (23 tests, all passing)
+- [2026-01-21 00:06] Updated config.example.yaml with webhook examples (Slack, Discord, PagerDuty)
+- [2026-01-21 00:07] Added webhook alerts documentation to README.md with setup guides
+- [2026-01-21 00:08] Task completed - all acceptance criteria met
 
 ## Learnings
 
-(None yet)
+1. **State tracking pattern**: Using in-memory dictionaries keyed by URL name is efficient and thread-safe with locks
+2. **Cooldown mechanism**: Tracking last alert timestamp per URL prevents alert spam effectively
+3. **Webhook retry strategy**: Exponential backoff (delay * 2^attempt) is effective for transient failures
+4. **Integration point**: The Monitor's on_check callback pattern is perfect for event-driven features
+5. **Config validation**: Using frozen dataclasses with __post_init__ provides immutability and fail-fast validation
+6. **Test coverage**: 23 tests covering state transitions, filters, cooldowns, retries, and payload structure

@@ -39,6 +39,36 @@ display:
 api:
   enabled: true   # Enable JSON API server
   port: 8080      # API server port
+  # reset_token: "your-secret-token"  # Optional: token required for DELETE /reset
+
+alerts:
+  webhooks:
+    # Example: Slack webhook
+    - url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      enabled: true
+      on_failure: true    # Send alert when URL goes DOWN
+      on_recovery: true   # Send alert when URL comes back UP
+      cooldown_seconds: 300  # Minimum time between alerts for same URL (default: 300)
+
+    # Example: Discord webhook
+    # - url: "https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK"
+    #   enabled: true
+    #   on_failure: true
+    #   on_recovery: false  # Only alert on failures
+    #   cooldown_seconds: 600
+
+    # Example: Generic HTTP webhook (PagerDuty, custom endpoint, etc.)
+    # - url: "https://events.pagerduty.com/v2/enqueue"
+    #   enabled: true
+    #   on_failure: true
+    #   on_recovery: true
+    #   cooldown_seconds: 300
+
+    # Disabled webhook example (not sent)
+    # - url: "https://example.com/webhook"
+    #   enabled: false
+    #   on_failure: true
+    #   on_recovery: true
 
 # Environment variable overrides (optional):
 # - WEBSTATUSPI_MONITOR_INTERVAL: Override monitor.interval
