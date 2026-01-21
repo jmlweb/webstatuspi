@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 from urllib.parse import unquote
@@ -461,7 +461,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
 
             # Get history for the last 24 hours
-            since = datetime.utcnow() - timedelta(hours=24)
+            since = datetime.now(UTC) - timedelta(hours=24)
             checks = get_history(self.db_conn, name, since, limit=HISTORY_LIMIT)
 
             response = {

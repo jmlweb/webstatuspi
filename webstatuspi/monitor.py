@@ -6,10 +6,10 @@ import sqlite3
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import Event, Thread
-from typing import Callable, Dict, List, Optional
 
 from .config import Config, UrlConfig
 from .database import cleanup_old_checks, insert_check
@@ -71,10 +71,10 @@ class _ConnectivityCache:
 
     def __init__(self, cache_seconds: int = CONNECTIVITY_CACHE_SECONDS):
         self._cache_seconds = cache_seconds
-        self._last_check_time: Optional[float] = None
-        self._cached_result: Optional[bool] = None
+        self._last_check_time: float | None = None
+        self._cached_result: bool | None = None
 
-    def get_cached(self) -> Optional[bool]:
+    def get_cached(self) -> bool | None:
         """Get cached connectivity status if still valid.
 
         Returns:
@@ -129,7 +129,7 @@ def check_internet_connectivity(
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=timeout)
         result = True
-    except (socket.timeout, OSError):
+    except (TimeoutError, OSError):
         result = False
 
     _connectivity_cache.update(result)
@@ -147,7 +147,7 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
         CheckResult with status, response time, and any error details.
     """
     start = time.monotonic()
-    checked_at = datetime.utcnow()
+    checked_at = datetime.now(UTC)
 
     # SSRF protection: validate URL before making request
     try:
@@ -243,7 +243,7 @@ class Monitor:
         self,
         config: Config,
         db_conn: sqlite3.Connection,
-        on_check: Optional[Callable[[CheckResult], None]] = None,
+        on_check: Callable[[CheckResult], None] | None = None,
     ) -> None:
         """Initialize the monitor.
 
@@ -256,14 +256,14 @@ class Monitor:
         self._db_conn = db_conn
         self._on_check = on_check
         self._stop_event = Event()
-        self._thread: Optional[Thread] = None
+        self._thread: Thread | None = None
         self._cycle_count = 0
 
         # Internet connectivity status: None (unknown), True (available), False (no internet)
-        self._internet_status: Optional[bool] = None
+        self._internet_status: bool | None = None
 
         # Track next check time for each URL (staggered start)
-        self._next_check: Dict[str, float] = {}
+        self._next_check: dict[str, float] = {}
         now = time.monotonic()
         for i, url_config in enumerate(config.urls):
             # Stagger initial checks by 2 seconds each to avoid burst
@@ -303,7 +303,7 @@ class Monitor:
         return self._thread is not None and self._thread.is_alive()
 
     @property
-    def internet_status(self) -> Optional[bool]:
+    def internet_status(self) -> bool | None:
         """Get the current internet connectivity status.
 
         Returns:
@@ -335,7 +335,7 @@ class Monitor:
 
         logger.debug("Monitor loop exited")
 
-    def _get_urls_due(self, now: float) -> List[UrlConfig]:
+    def _get_urls_due(self, now: float) -> list[UrlConfig]:
         """Get URLs that are due for a check."""
         due = []
         for url_config in self._config.urls:
@@ -343,15 +343,15 @@ class Monitor:
                 due.append(url_config)
         return due
 
-    def _check_urls(self, urls: List[UrlConfig]) -> None:
+    def _check_urls(self, urls: list[UrlConfig]) -> None:
         """Check multiple URLs concurrently and store results.
 
         When all URLs fail, performs an internet connectivity check.
         If no internet, logs a single "NO INTERNET" warning instead of
         individual failure alerts.
         """
-        results: List[CheckResult] = []
-        url_configs: List[UrlConfig] = []
+        results: list[CheckResult] = []
+        url_configs: list[UrlConfig] = []
 
         # Collect all results first
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -367,9 +367,7 @@ class Monitor:
                     logger.error("Failed to check %s: %s", url_config.name, e)
                 finally:
                     # Schedule next check for this URL using global interval
-                    self._next_check[url_config.name] = (
-                        time.monotonic() + self._config.monitor.interval
-                    )
+                    self._next_check[url_config.name] = time.monotonic() + self._config.monitor.interval
 
         if not results:
             return

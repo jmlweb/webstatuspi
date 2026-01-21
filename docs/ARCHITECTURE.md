@@ -301,7 +301,7 @@ Key configuration sections:
 ### Why threading instead of async/await?
 
 - **Simplicity**: Threading is straightforward and well-understood
-- **Compatibility**: Python 3.7+ async support varies, threading is mature
+- **Compatibility**: Python 3.11+ required, threading is mature
 - **Sufficient**: Two threads (monitor + API) is manageable
 - **SQLite**: Works well with threading (multiple readers, serialized writers)
 

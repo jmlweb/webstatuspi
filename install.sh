@@ -23,7 +23,7 @@ set -euo pipefail
 INSTALLER_VERSION="1.0.0"
 GITHUB_REPO="jmlweb/webstatuspi"
 GITHUB_URL="https://github.com/${GITHUB_REPO}.git"
-MIN_PYTHON_VERSION="3.7"
+MIN_PYTHON_VERSION="3.11"
 DEFAULT_INSTALL_DIR="/opt/webstatuspi"
 DEFAULT_USER_INSTALL_DIR="${HOME}/webstatuspi"
 DEFAULT_PORT=8080

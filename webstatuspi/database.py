@@ -2,15 +2,15 @@
 
 import sqlite3
 import threading
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
 
 from .models import CheckResult, UrlStatus
 
 
 class DatabaseError(Exception):
     """Raised when a database operation fails."""
+
     pass
 
 
@@ -113,7 +113,7 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
         raise DatabaseError(f"Failed to insert check result: {e}")
 
 
-def get_latest_status(conn: sqlite3.Connection) -> List[UrlStatus]:
+def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
     """Get the latest status for all monitored URLs.
 
     Thread-safe: acquires global lock before database access.
@@ -129,7 +129,7 @@ def get_latest_status(conn: sqlite3.Connection) -> List[UrlStatus]:
         DatabaseError: If the query fails.
     """
     try:
-        since_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
         with _db_lock:
             rows = conn.execute(
@@ -183,11 +183,7 @@ def get_latest_status(conn: sqlite3.Connection) -> List[UrlStatus]:
                 last_error=row["error_message"],
                 last_check=datetime.fromisoformat(row["checked_at"]),
                 checks_24h=row["checks_24h"],
-                uptime_24h=(
-                    (row["up_checks_24h"] / row["checks_24h"] * 100.0)
-                    if row["checks_24h"] > 0
-                    else 0.0
-                ),
+                uptime_24h=((row["up_checks_24h"] / row["checks_24h"] * 100.0) if row["checks_24h"] > 0 else 0.0),
             )
             for row in rows
         ]
@@ -196,7 +192,7 @@ def get_latest_status(conn: sqlite3.Connection) -> List[UrlStatus]:
         raise DatabaseError(f"Failed to get latest status: {e}")
 
 
-def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> Optional[UrlStatus]:
+def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlStatus | None:
     """Get the latest status for a specific URL by name.
 
     Thread-safe: acquires global lock before database access.
@@ -213,7 +209,7 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> Option
         DatabaseError: If the query fails.
     """
     try:
-        since_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
         with _db_lock:
             row = conn.execute(
@@ -266,11 +262,7 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> Option
             last_error=row["error_message"],
             last_check=datetime.fromisoformat(row["checked_at"]),
             checks_24h=row["checks_24h"],
-            uptime_24h=(
-                (row["up_checks_24h"] / row["checks_24h"] * 100.0)
-                if row["checks_24h"] > 0
-                else 0.0
-            ),
+            uptime_24h=((row["up_checks_24h"] / row["checks_24h"] * 100.0) if row["checks_24h"] > 0 else 0.0),
         )
 
     except sqlite3.Error as e:
@@ -281,8 +273,8 @@ def get_history(
     conn: sqlite3.Connection,
     url_name: str,
     since: datetime,
-    limit: Optional[int] = None,
-) -> List[CheckResult]:
+    limit: int | None = None,
+) -> list[CheckResult]:
     """Get check history for a specific URL.
 
     Thread-safe: acquires global lock before database access.
@@ -348,7 +340,7 @@ def cleanup_old_checks(conn: sqlite3.Connection, retention_days: int) -> int:
         DatabaseError: If the cleanup fails.
     """
     try:
-        cutoff = (datetime.utcnow() - timedelta(days=retention_days)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=retention_days)).isoformat()
 
         with _db_lock:
             cursor = conn.execute(
@@ -364,7 +356,7 @@ def cleanup_old_checks(conn: sqlite3.Connection, retention_days: int) -> int:
         raise DatabaseError(f"Failed to cleanup old checks: {e}")
 
 
-def get_url_names(conn: sqlite3.Connection) -> List[str]:
+def get_url_names(conn: sqlite3.Connection) -> list[str]:
     """Get all unique URL names in the database.
 
     Thread-safe: acquires global lock before database access.
@@ -380,9 +372,7 @@ def get_url_names(conn: sqlite3.Connection) -> List[str]:
     """
     try:
         with _db_lock:
-            rows = conn.execute(
-                "SELECT DISTINCT url_name FROM checks ORDER BY url_name"
-            ).fetchall()
+            rows = conn.execute("SELECT DISTINCT url_name FROM checks ORDER BY url_name").fetchall()
         return [row["url_name"] for row in rows]
 
     except sqlite3.Error as e:

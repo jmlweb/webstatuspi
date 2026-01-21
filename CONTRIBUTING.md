@@ -57,7 +57,7 @@ Feature suggestions are welcome! Please:
 
 ### Prerequisites
 
-- Python 3.7+ (for compatibility with older Raspberry Pi OS)
+- Python 3.11+ (required for modern language features)
 - SQLite3 (usually pre-installed)
 - Git
 
@@ -167,7 +167,7 @@ This project follows specific coding conventions optimized for the Raspberry Pi 
 
 ### Quick Reference
 
-- **Type hints**: Required for all functions (Python 3.7+ compatible)
+- **Type hints**: Required for all functions (Python 3.10+ union syntax `|` supported)
 - **Functional approach**: Prefer functions over classes for logic
 - **Naming**: `snake_case` for functions/variables, `PascalCase` for types
 - **Imports**: Standard library first, then third-party, then local

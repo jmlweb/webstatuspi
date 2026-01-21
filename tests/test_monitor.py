@@ -2,9 +2,8 @@
 
 import sqlite3
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -95,9 +94,7 @@ class TestCheckUrl:
             assert result.status_code == 301
 
     @pytest.mark.parametrize("redirect_code", [301, 302, 303, 307, 308])
-    def test_all_redirect_codes_are_up(
-        self, url_config: UrlConfig, redirect_code: int
-    ) -> None:
+    def test_all_redirect_codes_are_up(self, url_config: UrlConfig, redirect_code: int) -> None:
         """All 3xx redirect codes are treated as up."""
         with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
             mock_response = MagicMock()
@@ -111,9 +108,7 @@ class TestCheckUrl:
             assert result.is_up is True, f"Redirect {redirect_code} should be up"
             assert result.status_code == redirect_code
 
-    def test_redirect_followed_returns_final_status(
-        self, url_config: UrlConfig
-    ) -> None:
+    def test_redirect_followed_returns_final_status(self, url_config: UrlConfig) -> None:
         """When redirect is followed, final status code is returned.
 
         urllib.request.urlopen follows redirects by default,
@@ -148,9 +143,7 @@ class TestCheckUrl:
             assert result.is_up is True
 
     @pytest.mark.parametrize("redirect_code", [301, 302, 303, 307, 308])
-    def test_redirect_as_http_error_is_up(
-        self, url_config: UrlConfig, redirect_code: int
-    ) -> None:
+    def test_redirect_as_http_error_is_up(self, url_config: UrlConfig, redirect_code: int) -> None:
         """Redirects raised as HTTPError are still treated as up.
 
         Some redirect codes (especially 308) may be raised as HTTPError
@@ -159,9 +152,7 @@ class TestCheckUrl:
         import urllib.error
 
         with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url_config.url, redirect_code, "Redirect", {}, None
-            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, redirect_code, "Redirect", {}, None)
 
             result = check_url(url_config)
 
@@ -174,9 +165,7 @@ class TestCheckUrl:
         import urllib.error
 
         with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url_config.url, 404, "Not Found", {}, None
-            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, 404, "Not Found", {}, None)
 
             result = check_url(url_config)
 
@@ -189,9 +178,7 @@ class TestCheckUrl:
         import urllib.error
 
         with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url_config.url, 500, "Internal Server Error", {}, None
-            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, 500, "Internal Server Error", {}, None)
 
             result = check_url(url_config)
 
@@ -214,10 +201,9 @@ class TestCheckUrl:
 
     def test_timeout_is_down(self, url_config: UrlConfig) -> None:
         """Timeout errors mark URL as down."""
-        import socket
 
         with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
-            mock_urlopen.side_effect = socket.timeout("timed out")
+            mock_urlopen.side_effect = TimeoutError("timed out")
 
             result = check_url(url_config)
 
@@ -247,9 +233,9 @@ class TestCheckUrl:
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
 
-            before = datetime.utcnow()
+            before = datetime.now(UTC)
             result = check_url(url_config)
-            after = datetime.utcnow()
+            after = datetime.now(UTC)
 
             assert before <= result.checked_at <= after
 
@@ -257,9 +243,7 @@ class TestCheckUrl:
 class TestMonitor:
     """Tests for Monitor class."""
 
-    def test_init_creates_staggered_schedule(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_init_creates_staggered_schedule(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Initial check times are staggered to avoid burst."""
         monitor = Monitor(config, db_conn)
 
@@ -268,9 +252,7 @@ class TestMonitor:
         assert len(times) == 2
         assert times[1] > times[0]  # Second URL scheduled later
 
-    def test_start_begins_monitoring(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_start_begins_monitoring(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Start method begins the monitor loop."""
         monitor = Monitor(config, db_conn)
         monitor.start()
@@ -280,9 +262,7 @@ class TestMonitor:
         finally:
             monitor.stop()
 
-    def test_stop_halts_monitoring(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_stop_halts_monitoring(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Stop method halts the monitor loop."""
         monitor = Monitor(config, db_conn)
         monitor.start()
@@ -290,9 +270,7 @@ class TestMonitor:
 
         assert not monitor.is_running()
 
-    def test_multiple_start_calls_safe(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_multiple_start_calls_safe(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Multiple start calls don't create multiple threads."""
         monitor = Monitor(config, db_conn)
         monitor.start()
@@ -303,18 +281,14 @@ class TestMonitor:
         finally:
             monitor.stop()
 
-    def test_stop_on_non_running_safe(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_stop_on_non_running_safe(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Stop on non-running monitor doesn't error."""
         monitor = Monitor(config, db_conn)
         monitor.stop()  # Should not raise
 
-    def test_on_check_callback_invoked(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_on_check_callback_invoked(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """on_check callback is invoked for each check."""
-        results: List[CheckResult] = []
+        results: list[CheckResult] = []
 
         def callback(result: CheckResult) -> None:
             results.append(result)
@@ -345,9 +319,7 @@ class TestMonitor:
             assert len(results) == 1
             assert results[0].url_name == "QUICK"
 
-    def test_stores_results_in_database(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_stores_results_in_database(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Check results are stored in database."""
         with patch("webstatuspi.monitor.check_url") as mock_check:
             mock_check.return_value = CheckResult(
@@ -375,9 +347,7 @@ class TestMonitor:
             assert row["url_name"] == "URL_A"
             assert row["status_code"] == 200
 
-    def test_handles_check_failure_gracefully(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_handles_check_failure_gracefully(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Check failures don't stop the monitor."""
         with patch("webstatuspi.monitor.check_url") as mock_check:
             mock_check.side_effect = Exception("Unexpected error")
@@ -392,9 +362,7 @@ class TestMonitor:
             # Next check should still be scheduled
             assert monitor._next_check["URL_A"] > 0
 
-    def test_get_urls_due_returns_due_urls(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_get_urls_due_returns_due_urls(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """_get_urls_due returns URLs that are due for checking."""
         monitor = Monitor(config, db_conn)
         now = time.monotonic()
@@ -412,9 +380,7 @@ class TestMonitor:
 class TestMonitorCleanup:
     """Tests for Monitor cleanup functionality."""
 
-    def test_cleanup_runs_periodically(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_cleanup_runs_periodically(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Cleanup runs after CLEANUP_INTERVAL_CYCLES cycles."""
         from webstatuspi.monitor import CLEANUP_INTERVAL_CYCLES
 
@@ -445,9 +411,7 @@ class TestMonitorCleanup:
                     monitor._run_cleanup()
                     mock_cleanup.assert_called_once()
 
-    def test_cleanup_uses_retention_days_from_config(
-        self, config: Config, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_cleanup_uses_retention_days_from_config(self, config: Config, db_conn: sqlite3.Connection) -> None:
         """Cleanup uses retention_days from config."""
         with patch("webstatuspi.monitor.cleanup_old_checks") as mock_cleanup:
             mock_cleanup.return_value = 5

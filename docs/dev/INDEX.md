@@ -4,21 +4,21 @@
 
 ## Quick Stats
 
-- **Pending**: 3 tasks
-- **In Progress**: 0 tasks
+- **Pending**: 2 tasks
+- **In Progress**: 1 task
 - **Completed**: 17 tasks
 
 ## Current Focus
 
-> No active task. Next up: Task #019 (Extended Metrics) or #017 (Telegram Bot Documentation)
+> **Active Task**: #020 - Migrate datetime.utcnow() to timezone-aware (Core, P4)
 
 ## Backlog (Priority Order)
 
-| # | Task | Slice | Priority |
-|---|------|-------|----------|
-| 019 | Extended Metrics | Core, Database, API | P3 |
-| 017 | Telegram Bot Integration Documentation | Docs | P3 |
-| 020 | Migrate datetime.utcnow() to timezone-aware | Core | P4 |
+| # | Task | Slice | Priority | Status |
+|---|------|-------|----------|--------|
+| 020 | Migrate datetime.utcnow() to timezone-aware | Core | P4 | 🔄 in_progress |
+| 019 | Extended Metrics | Core, Database, API | P3 | ⏳ pending |
+| 017 | Telegram Bot Integration Documentation | Docs | P3 | ⏳ pending |
 
 ## Completed Tasks
 

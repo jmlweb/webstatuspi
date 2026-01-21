@@ -8,7 +8,7 @@ WebStatusPi is a lightweight web monitoring system designed for Raspberry Pi 1B+
 
 ## Tech Stack
 
-- **Python**: 3.7+ (compatibility with older Raspberry Pi OS versions)
+- **Python**: 3.11+ (required for modern type hints and datetime.UTC constant)
 - **HTTP Client**: `requests` library for URL monitoring
 - **Database**: `sqlite3` (stdlib) for persistent storage
 - **Web Server**: `http.server` (stdlib) for JSON API - zero dependencies
@@ -21,7 +21,7 @@ Follow standard Python conventions and these project-specific rules.
 
 ### Python Guidelines
 
-- **Type hints**: All functions must have type hints (Python 3.7+ compatible)
+- **Type hints**: All functions must have type hints (Python 3.10+ union syntax `|` supported)
 - **Dataclasses**: Use `dataclasses` for configuration and data transfer objects
 - **No classes for logic**: Use modules with pure functions (classes only for data structures)
 - **Functional approach**: Prefer immutability, avoid side effects where possible
