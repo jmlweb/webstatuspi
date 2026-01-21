@@ -5,17 +5,18 @@
 ## Quick Stats
 
 - **Pending**: 1 task
-- **In Progress**: 0 tasks
+- **In Progress**: 1 task
 - **Completed**: 16 tasks
 
 ## Current Focus
 
-> No active task. Use `/start-task 017` to begin Telegram Bot Integration Documentation.
+> Task #018: Security Audit
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
+| 018 | Security Audit | Security, API, Config | P1 - Active |
 | 017 | Telegram Bot Integration Documentation | Docs | P3 |
 
 ## Completed Tasks

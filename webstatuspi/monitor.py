@@ -14,6 +14,7 @@ from typing import Callable, Dict, List, Optional
 from .config import Config, UrlConfig
 from .database import cleanup_old_checks, insert_check
 from .models import CheckResult
+from .security import SSRFError, validate_url_for_ssrf
 
 logger = logging.getLogger(__name__)
 
@@ -135,17 +136,33 @@ def check_internet_connectivity(
     return result
 
 
-def check_url(url_config: UrlConfig) -> CheckResult:
+def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult:
     """Perform a single HTTP health check on a URL.
 
     Args:
         url_config: Configuration for the URL to check.
+        allow_private: If True, allow private IPs (for testing only).
 
     Returns:
         CheckResult with status, response time, and any error details.
     """
     start = time.monotonic()
     checked_at = datetime.utcnow()
+
+    # SSRF protection: validate URL before making request
+    try:
+        validate_url_for_ssrf(url_config.url, allow_private=allow_private)
+    except SSRFError as e:
+        logger.warning("SSRF validation failed for %s: %s", url_config.name, e)
+        return CheckResult(
+            url_name=url_config.name,
+            url=url_config.url,
+            status_code=None,
+            response_time_ms=0,
+            is_up=False,
+            error_message=f"URL blocked: {e}",
+            checked_at=checked_at,
+        )
 
     try:
         request = urllib.request.Request(

@@ -13,6 +13,7 @@ import requests
 
 from webstatuspi.config import AlertsConfig, WebhookConfig
 from webstatuspi.models import CheckResult
+from webstatuspi.security import SSRFError, validate_url_for_ssrf
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,17 @@ class Alerter:
             webhook: The webhook configuration
             result: The check result that triggered the alert
         """
+        # SSRF protection: validate webhook URL before sending
+        try:
+            validate_url_for_ssrf(webhook.url)
+        except SSRFError as e:
+            logger.error(
+                "Webhook URL validation failed for %s: %s",
+                webhook.url,
+                e,
+            )
+            return
+
         payload = self._build_payload(result)
         retry_count = 0
 
@@ -205,6 +217,18 @@ class Alerter:
 
         for webhook in self._config.webhooks:
             if not webhook.enabled:
+                results[webhook.url] = False
+                continue
+
+            # SSRF protection: validate webhook URL before sending
+            try:
+                validate_url_for_ssrf(webhook.url)
+            except SSRFError as e:
+                logger.error(
+                    "Webhook URL validation failed for %s: %s",
+                    webhook.url,
+                    e,
+                )
                 results[webhook.url] = False
                 continue
 

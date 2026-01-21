@@ -417,6 +417,36 @@ class TestApiEndpoints:
             # Mono font
             assert "JetBrains Mono" in body
 
+    def test_dashboard_csp_nonce(self, running_server: ApiServer) -> None:
+        """Dashboard uses nonce-based CSP instead of unsafe-inline."""
+        import re
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+            csp = response.headers.get("Content-Security-Policy", "")
+
+            # Verify CSP contains nonce directive (not unsafe-inline)
+            assert "'unsafe-inline'" not in csp
+            assert "nonce-" in csp
+
+            # Extract nonce from CSP header
+            nonce_match = re.search(r"'nonce-([^']+)'", csp)
+            assert nonce_match is not None, "CSP should contain a nonce"
+            nonce = nonce_match.group(1)
+
+            # Verify the same nonce is in the HTML style and script tags
+            assert f'nonce="{nonce}"' in body, "Nonce should be in HTML tags"
+
+            # Verify nonce is in both style and script tags
+            style_nonce = re.search(r'<style[^>]*nonce="([^"]+)"', body)
+            script_nonce = re.search(r'<script[^>]*nonce="([^"]+)"', body)
+            assert style_nonce is not None, "Style tag should have nonce"
+            assert script_nonce is not None, "Script tag should have nonce"
+            assert style_nonce.group(1) == nonce, "Style nonce should match CSP nonce"
+            assert script_nonce.group(1) == nonce, "Script nonce should match CSP nonce"
+
 
 class TestHistoryEndpoint:
     """Tests for GET /history/<name> endpoint."""
@@ -453,7 +483,7 @@ class TestHistoryEndpoint:
         # Insert multiple checks
         for i in range(3):
             check = CheckResult(
-                url_name="HISTORY_TEST",
+                url_name="HIST_TEST",
                 url="https://history.example.com",
                 status_code=200 if i % 2 == 0 else 500,
                 response_time_ms=100 + i * 10,
@@ -464,10 +494,10 @@ class TestHistoryEndpoint:
             insert_check(db_conn, check)
             time.sleep(0.01)  # Ensure different timestamps
 
-        status, body = self._get(running_server, "/history/HISTORY_TEST")
+        status, body = self._get(running_server, "/history/HIST_TEST")
 
         assert status == 200
-        assert body["name"] == "HISTORY_TEST"
+        assert body["name"] == "HIST_TEST"
         assert body["count"] == 3
         assert len(body["checks"]) == 3
         # Should be ordered newest first
@@ -475,11 +505,11 @@ class TestHistoryEndpoint:
 
     def test_history_not_found(self, running_server: ApiServer) -> None:
         """GET /history/<name> returns 404 for unknown URL."""
-        status, body = self._get(running_server, "/history/UNKNOWN_URL")
+        status, body = self._get(running_server, "/history/UNKNOWN")
 
         assert status == 404
         assert "error" in body
-        assert "UNKNOWN_URL" in body["error"]
+        assert "UNKNOWN" in body["error"]
 
     def test_history_empty(
         self, running_server: ApiServer, db_conn: sqlite3.Connection
@@ -511,7 +541,7 @@ class TestHistoryEndpoint:
     ) -> None:
         """GET /history/<name> returns correct fields in each check."""
         check = CheckResult(
-            url_name="FIELDS_TEST",
+            url_name="FIELDS",
             url="https://fields.example.com",
             status_code=503,
             response_time_ms=250,
@@ -521,7 +551,7 @@ class TestHistoryEndpoint:
         )
         insert_check(db_conn, check)
 
-        status, body = self._get(running_server, "/history/FIELDS_TEST")
+        status, body = self._get(running_server, "/history/FIELDS")
 
         assert status == 200
         assert len(body["checks"]) == 1

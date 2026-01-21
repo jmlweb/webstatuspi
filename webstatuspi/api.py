@@ -1,7 +1,9 @@
 """HTTP API server for URL monitoring status."""
 
+import ipaddress
 import json
 import logging
+import secrets
 import sqlite3
 import threading
 import time
@@ -9,6 +11,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote
 
 from .config import ApiConfig
 from .database import (
@@ -19,7 +22,12 @@ from .database import (
     DatabaseError,
 )
 from .models import UrlStatus
-from ._dashboard import HTML_DASHBOARD, HTML_DASHBOARD_PREFIX, HTML_DASHBOARD_SUFFIX
+from ._dashboard import (
+    HTML_DASHBOARD,
+    HTML_DASHBOARD_PREFIX,
+    HTML_DASHBOARD_SUFFIX,
+    CSP_NONCE_PLACEHOLDER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +160,29 @@ class StatusHandler(BaseHTTPRequestHandler):
         """Override to use Python logging instead of stderr."""
         logger.debug("API %s - %s", self.address_string(), format % args)
 
+    def _get_client_ip(self) -> str:
+        """Get the real client IP, considering proxies like Cloudflare.
+
+        When behind Cloudflare, the socket IP is Cloudflare's server IP.
+        The real client IP is in the CF-Connecting-IP header.
+
+        Returns:
+            The client's real IP address.
+        """
+        # Only trust CF-Connecting-IP if this is actually a Cloudflare request
+        if self._is_cloudflare_request():
+            cf_ip = self.headers.get("CF-Connecting-IP")
+            if cf_ip:
+                # Validate IP format to prevent header injection
+                try:
+                    ipaddress.ip_address(cf_ip.strip())
+                    return cf_ip.strip()
+                except ValueError:
+                    logger.warning("Invalid CF-Connecting-IP header: %s", cf_ip)
+
+        # Fallback to socket IP (direct connection or untrusted proxy)
+        return self.client_address[0]
+
     def _check_rate_limit(self) -> bool:
         """Check if the request should be rate limited.
 
@@ -162,7 +193,7 @@ class StatusHandler(BaseHTTPRequestHandler):
         if self.rate_limiter is None:
             return True
 
-        client_ip = self.client_address[0]
+        client_ip = self._get_client_ip()
         if not self.rate_limiter.is_allowed(client_ip):
             logger.warning("Rate limit exceeded for %s", client_ip)
             self._send_error_json(429, "Rate limit exceeded. Try again later.")
@@ -181,10 +212,87 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self.rate_limiter.cleanup()
                 self._request_count = 0
 
+    def _add_security_headers(self, nonce: Optional[str] = None) -> None:
+        """Add security headers to the current response.
+
+        Args:
+            nonce: Optional CSP nonce for inline scripts/styles.
+                   If provided, uses nonce-based CSP instead of 'unsafe-inline'.
+        """
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-XSS-Protection", "1; mode=block")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+        # Build CSP based on whether nonce is provided
+        if nonce:
+            # Nonce-based CSP (more secure) - used for dashboard
+            csp = (
+                f"default-src 'self'; "
+                f"script-src 'self' 'nonce-{nonce}'; "
+                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+                f"font-src 'self' https://fonts.gstatic.com; "
+                f"img-src 'self' data:; "
+                f"connect-src 'self'; "
+                f"object-src 'none'; "
+                f"base-uri 'self'; "
+                f"form-action 'self'; "
+                f"frame-ancestors 'none';"
+            )
+        else:
+            # Basic CSP for API endpoints (no inline content)
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self'; "
+                "font-src 'self'; "
+                "img-src 'self'; "
+                "connect-src 'self'; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "frame-ancestors 'none';"
+            )
+
+        self.send_header("Content-Security-Policy", csp)
+
+    def _validate_url_name(self, name: str) -> Optional[str]:
+        """Validate and sanitize URL name from path parameter.
+
+        Args:
+            name: Raw URL name from path
+
+        Returns:
+            Validated name if safe, None if invalid
+        """
+        if not name:
+            return None
+
+        # URL decode to handle encoded sequences
+        try:
+            decoded = unquote(name)
+        except Exception:
+            return None
+
+        # Reject path traversal sequences
+        if '..' in decoded or '/' in decoded or '\\' in decoded:
+            return None
+
+        # Reject null bytes and control characters
+        if '\x00' in decoded or any(ord(c) < 32 and c not in '\t\n\r' for c in decoded):
+            return None
+
+        # URL names are limited to 10 chars and alphanumeric/underscore in config
+        # But we validate here too for safety
+        if len(decoded) > 10:
+            return None
+
+        return decoded
+
     def _send_json(self, code: int, data: Dict[str, Any]) -> None:
         """Send a JSON response with the given status code."""
         body = json.dumps(data).encode("utf-8")
         self.send_response(code)
+        self._add_security_headers()
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Connection", "close")
@@ -199,6 +307,7 @@ class StatusHandler(BaseHTTPRequestHandler):
         """Send an HTML response with the given status code."""
         body = html.encode("utf-8")
         self.send_response(code)
+        self._add_security_headers()
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache, must-revalidate")
@@ -206,12 +315,18 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html_bytes(self, code: int, body: bytes) -> None:
+    def _send_html_bytes(self, code: int, body: bytes, nonce: Optional[str] = None) -> None:
         """Send an HTML response with pre-encoded bytes.
 
         More efficient than _send_html() when the body is already encoded.
+
+        Args:
+            code: HTTP status code.
+            body: Pre-encoded HTML body.
+            nonce: Optional CSP nonce for inline scripts/styles.
         """
         self.send_response(code)
+        self._add_security_headers(nonce)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache, must-revalidate")
@@ -232,17 +347,17 @@ class StatusHandler(BaseHTTPRequestHandler):
             elif self.path == "/status":
                 self._handle_status_all()
             elif self.path.startswith("/status/"):
-                name = self.path[8:]  # Extract name after /status/
+                name = self._validate_url_name(self.path[8:])  # Extract name after /status/
                 if name:
                     self._handle_status_by_name(name)
                 else:
-                    self._send_error_json(400, "URL name is required")
+                    self._send_error_json(400, "Invalid URL name")
             elif self.path.startswith("/history/"):
-                name = self.path[9:]  # Extract name after /history/
+                name = self._validate_url_name(self.path[9:])  # Extract name after /history/
                 if name:
                     self._handle_history_by_name(name)
                 else:
-                    self._send_error_json(400, "URL name is required")
+                    self._send_error_json(400, "Invalid URL name")
             else:
                 self._send_error_json(404, "Not found")
         except Exception as e:
@@ -269,21 +384,27 @@ class StatusHandler(BaseHTTPRequestHandler):
 
     def _handle_dashboard(self) -> None:
         """Handle GET / endpoint - serve HTML dashboard with initial data."""
+        # Generate CSP nonce for this request
+        nonce = secrets.token_urlsafe(16)
+
         # Inject initial data for SSR
         if self.db_conn is not None:
             try:
                 statuses = get_latest_status(self.db_conn)
                 response = _build_status_response(statuses)
-                initial_data = json.dumps(response).encode("utf-8")
+                initial_data = json.dumps(response)
             except DatabaseError:
-                initial_data = b"null"
+                initial_data = "null"
         else:
-            initial_data = b"null"
+            initial_data = "null"
 
-        # Use pre-encoded HTML parts and only encode the JSON portion
-        # This avoids creating a new 35KB+ string and re-encoding on every request
-        body = HTML_DASHBOARD_PREFIX + initial_data + HTML_DASHBOARD_SUFFIX
-        self._send_html_bytes(200, body)
+        # Build HTML with nonce and initial data injected
+        # Replace nonce placeholder in the template, then inject data
+        html = HTML_DASHBOARD.replace(CSP_NONCE_PLACEHOLDER, nonce)
+        html = html.replace("__INITIAL_DATA__", initial_data)
+        body = html.encode("utf-8")
+
+        self._send_html_bytes(200, body, nonce)
 
     def _handle_health(self) -> None:
         """Handle GET /health endpoint."""
@@ -384,7 +505,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._send_error_json(401, "Authorization required: Bearer token expected")
                 return
             provided_token = auth_header[7:]  # Strip "Bearer "
-            if provided_token != self.reset_token:
+            if not secrets.compare_digest(provided_token, self.reset_token):
                 logger.warning("Invalid reset token attempt from %s", self.address_string())
                 self._send_error_json(403, "Invalid reset token")
                 return

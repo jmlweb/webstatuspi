@@ -12,7 +12,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebStatusPi // SYSTEM MONITOR</title>
-    <style>
+    <style nonce="__CSP_NONCE__">
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
         :root {
@@ -1022,7 +1022,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
 
     <script id="initialData" type="application/json">__INITIAL_DATA__</script>
-    <script>
+    <script nonce="__CSP_NONCE__">
         const POLL_INTERVAL = 10000;
         const FETCH_TIMEOUT_MS = 10000;  // 10 second timeout for API requests
         let isUpdating = false;
@@ -1522,3 +1522,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 _HTML_PARTS = HTML_DASHBOARD.split("__INITIAL_DATA__")
 HTML_DASHBOARD_PREFIX = _HTML_PARTS[0].encode("utf-8")
 HTML_DASHBOARD_SUFFIX = _HTML_PARTS[1].encode("utf-8")
+
+# CSP nonce placeholder for runtime replacement
+CSP_NONCE_PLACEHOLDER = "__CSP_NONCE__"
