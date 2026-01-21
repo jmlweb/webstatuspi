@@ -12,8 +12,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebStatusPi // SYSTEM MONITOR</title>
+    <!-- Preconnect to Google Fonts for faster font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Load fonts asynchronously to avoid blocking render -->
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap">
+    <noscript><link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"></noscript>
     <style nonce="__CSP_NONCE__">
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
         :root {
             --bg-dark: #0a0a0f;
@@ -32,6 +39,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
+            /* Use fallback fonts first to prevent FOIT (Flash of Invisible Text) */
+            /* JetBrains Mono will swap in when loaded due to display=swap parameter */
             font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
             background: var(--bg-dark);
             color: var(--text);
@@ -202,6 +211,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             justify-content: center;
         }
 
+        /* Reserve space for cards to prevent layout shift */
+        #cardsContainer {
+            min-height: 200px;
+            contain: layout style paint;
+        }
+
         /* When 4+ cards, limit to 2 columns for better balance */
         @media (min-width: 1000px) {
             main {
@@ -217,6 +232,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
             transition: all 0.3s ease;
             box-shadow: 0 0 8px rgba(0, 255, 249, 0.1);
+            /* Reserve space to prevent layout shift */
+            min-height: 200px;
+            contain: layout style;
         }
 
         .card::before {
@@ -244,7 +262,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         .card:hover {
             border-color: var(--cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25), 0 0 30px rgba(0, 255, 249, 0.15), inset 0 0 20px rgba(0, 255, 249, 0.05);
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25),
+                0 0 30px rgba(0, 255, 249, 0.15),
+                inset 0 0 20px rgba(0, 255, 249, 0.05);
         }
 
         .card.down {
@@ -259,7 +279,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
 
         .card.down:hover {
-            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35), 0 0 30px rgba(255, 0, 64, 0.2), inset 0 0 20px rgba(255, 0, 64, 0.05);
+            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35),
+                0 0 30px rgba(255, 0, 64, 0.2),
+                inset 0 0 20px rgba(255, 0, 64, 0.05);
         }
 
         /* Bottom left anchor indicator */
@@ -372,14 +394,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         .progress-fill {
             height: 100%;
+            width: var(--progress-width, 0%);
             background: repeating-linear-gradient(
                 90deg,
-                var(--cyan) 0px,
-                var(--cyan) 4px,
+                var(--progress-color, var(--cyan)) 0px,
+                var(--progress-color, var(--cyan)) 4px,
                 transparent 4px,
                 transparent 6px
             );
-            box-shadow: 0 0 6px var(--cyan);
+            box-shadow: 0 0 6px var(--progress-color, var(--cyan));
             transition: width 0.5s ease;
         }
 
@@ -880,14 +903,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         .card:focus-visible {
             border-color: var(--cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25), 0 0 30px rgba(0, 255, 249, 0.15), inset 0 0 20px rgba(0, 255, 249, 0.05);
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25),
+                0 0 30px rgba(0, 255, 249, 0.15),
+                inset 0 0 20px rgba(0, 255, 249, 0.05);
             outline: 2px solid var(--cyan);
             outline-offset: 4px;
         }
 
         .card.down:focus-visible {
             border-color: var(--red);
-            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35), 0 0 30px rgba(255, 0, 64, 0.2), inset 0 0 20px rgba(255, 0, 64, 0.05);
+            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35),
+                0 0 30px rgba(255, 0, 64, 0.2),
+                inset 0 0 20px rgba(255, 0, 64, 0.05);
             outline-color: var(--red);
         }
 
@@ -951,7 +978,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         </div>
         <div>
             <span class="updated-time" id="updatedTime" role="status" aria-live="polite">// INITIALIZING...</span>
-            <button class="reset-button" onclick="showResetModal()" aria-label="Reset all monitoring data" type="button">// RESET DATA</button>
+            <button class="reset-button" id="resetDataBtn"
+                aria-label="Reset all monitoring data" type="button">// RESET DATA</button>
         </div>
     </nav>
     <main id="cardsContainer" role="main" aria-label="Service status cards">
@@ -959,11 +987,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </main>
 
     <!-- History Modal -->
-    <div class="modal" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDescription">
+    <div class="modal" id="historyModal" role="dialog" aria-modal="true"
+        aria-labelledby="modalTitle" aria-describedby="modalDescription">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title" id="modalTitle">URL_NAME</h2>
-                <button class="modal-close" onclick="closeModal()" aria-label="Close history modal" type="button">&times;</button>
+                <button class="modal-close" id="historyModalClose"
+                    aria-label="Close history modal" type="button">&times;</button>
             </div>
             <p id="modalDescription" class="sr-only">Service status history and metrics</p>
             <section class="modal-summary" id="modalSummary" aria-label="Current status summary">
@@ -1004,19 +1034,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
 
     <!-- Reset Confirmation Modal -->
-    <div class="modal" id="resetModal" role="alertdialog" aria-modal="true" aria-labelledby="resetModalTitle" aria-describedby="resetWarningText">
+    <div class="modal" id="resetModal" role="alertdialog" aria-modal="true"
+        aria-labelledby="resetModalTitle" aria-describedby="resetWarningText">
         <div class="reset-modal-content">
             <div class="reset-modal-header">
                 <h2 class="reset-modal-title" id="resetModalTitle">Confirm Reset</h2>
-                <button class="modal-close" onclick="cancelReset()" aria-label="Cancel and close" type="button">&times;</button>
+                <button class="modal-close" id="resetModalClose"
+                    aria-label="Cancel and close" type="button">&times;</button>
             </div>
             <div class="reset-modal-body">
-                <div class="reset-warning" id="resetWarningText" role="alert">This will delete all monitoring data. This action cannot be undone.</div>
+                <div class="reset-warning" id="resetWarningText" role="alert">
+                    This will delete all monitoring data. This action cannot be undone.
+                </div>
                 <p>Are you sure you want to reset all check records from the database?</p>
             </div>
             <div class="reset-modal-actions">
-                <button class="reset-button-cancel" onclick="cancelReset()" type="button">Cancel</button>
-                <button class="reset-button-confirm" id="confirmResetBtn" onclick="confirmReset()" type="button">Confirm Reset</button>
+                <button class="reset-button-cancel" id="resetCancelBtn" type="button">Cancel</button>
+                <button class="reset-button-confirm" id="confirmResetBtn" type="button">Confirm Reset</button>
             </div>
         </div>
     </div>
@@ -1113,7 +1147,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             const statusClass = url.is_up ? 'up' : 'down';
             const cardClass = url.is_up ? '' : ' down';
             const statusCode = url.status_code !== null ? url.status_code : '---';
-            const errorHtml = url.error ? `<div class="error-text" title="${escapeHtml(url.error)}" role="alert">${escapeHtml(url.error)}</div>` : '';
+            const errorHtml = url.error
+                ? `<div class="error-text" title="${escapeHtml(url.error)}" role="alert">${escapeHtml(url.error)}</div>`
+                : '';
 
             const latencyPercent = getLatencyPercent(url.response_time_ms);
             const latencyClass = getLatencyClass(url.response_time_ms);
@@ -1123,7 +1159,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             const statusText = url.is_up ? 'online' : 'offline';
             const latencyText = url.response_time_ms ? url.response_time_ms + ' milliseconds' : 'unknown';
             const uptimeText = url.uptime_24h !== null ? url.uptime_24h.toFixed(1) + ' percent' : 'unknown';
-            const ariaLabel = `${escapeHtml(url.name)}, ${statusText}, latency ${latencyText}, uptime ${uptimeText}. Press Enter or Space to view history.`;
+            const ariaLabel = `${escapeHtml(url.name)}, ${statusText}, ` +
+                `latency ${latencyText}, uptime ${uptimeText}. Press Enter or Space to view history.`;
 
             return `
                 <article class="card${cardClass}"
@@ -1131,8 +1168,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     role="button"
                     aria-label="${ariaLabel}"
                     data-url-name="${escapeHtml(url.name)}"
-                    onclick="openModal('${escapeHtml(url.name)}')"
-                    onkeydown="handleCardKeydown(event, '${escapeHtml(url.name)}')">
+>
                     <div class="card-anchor" aria-hidden="true"></div>
                     <header class="card-header">
                         <span class="status-indicator ${statusClass}" aria-hidden="true"></span>
@@ -1146,15 +1182,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                         <div class="metric">
                             <div class="metric-value">${formatResponseTime(url.response_time_ms)}</div>
                             <div class="metric-label">Latency</div>
-                            <div class="progress-bar" role="progressbar" aria-valuenow="${url.response_time_ms || 0}" aria-valuemin="0" aria-valuemax="2000" aria-label="Latency indicator">
-                                <div class="progress-fill ${latencyClass}" style="width: ${latencyPercent}%"></div>
+                            <div class="progress-bar" role="progressbar"
+                                aria-valuenow="${url.response_time_ms || 0}"
+                                aria-valuemin="0" aria-valuemax="2000"
+                                aria-label="Latency indicator">
+                                <div class="progress-fill ${latencyClass}" data-width="${latencyPercent}"></div>
                             </div>
                         </div>
                         <div class="metric">
                             <div class="metric-value">${formatUptime(url.uptime_24h)}</div>
                             <div class="metric-label">Uptime</div>
-                            <div class="progress-bar" role="progressbar" aria-valuenow="${uptimePercent}" aria-valuemin="0" aria-valuemax="100" aria-label="Uptime indicator">
-                                <div class="progress-fill" style="width: ${uptimePercent}%; background: repeating-linear-gradient(90deg, ${uptimeColor} 0px, ${uptimeColor} 4px, transparent 4px, transparent 6px); box-shadow: 0 0 6px ${uptimeColor};"></div>
+                            <div class="progress-bar" role="progressbar"
+                                aria-valuenow="${uptimePercent}"
+                                aria-valuemin="0" aria-valuemax="100"
+                                aria-label="Uptime indicator">
+                                <div class="progress-fill"
+                                    data-width="${uptimePercent}"
+                                    data-color="${uptimeColor}"></div>
                             </div>
                         </div>
                     </div>
@@ -1166,38 +1210,49 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             `;
         }
 
-        function handleCardKeydown(event, urlName) {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                openModal(urlName);
-            }
-        }
-
         function renderDashboard(data, showPulse = true) {
-            const countUp = document.getElementById('countUp');
-            const countDown = document.getElementById('countDown');
-            countUp.textContent = '[' + data.summary.up + '] ONLINE';
-            countDown.textContent = '[' + data.summary.down + '] OFFLINE';
-            // Update aria-labels with current counts
-            countUp.setAttribute('aria-label', data.summary.up + ' services online');
-            countDown.setAttribute('aria-label', data.summary.down + ' services offline');
-            countUp.classList.toggle('count-dimmed', data.summary.up === 0);
-            countDown.classList.toggle('count-dimmed', data.summary.down === 0);
-            document.getElementById('updatedTime').textContent = '// SYNC: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+            // Batch DOM updates to reduce reflows
+            requestAnimationFrame(function() {
+                const countUp = document.getElementById('countUp');
+                const countDown = document.getElementById('countDown');
+                countUp.textContent = '[' + data.summary.up + '] ONLINE';
+                countDown.textContent = '[' + data.summary.down + '] OFFLINE';
+                // Update aria-labels with current counts
+                countUp.setAttribute('aria-label', data.summary.up + ' services online');
+                countDown.setAttribute('aria-label', data.summary.down + ' services offline');
+                countUp.classList.toggle('count-dimmed', data.summary.up === 0);
+                countDown.classList.toggle('count-dimmed', data.summary.down === 0);
+                const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
+                document.getElementById('updatedTime').textContent = '// SYNC: ' + timeStr;
 
-            const container = document.getElementById('cardsContainer');
-            if (data.urls.length === 0) {
-                container.innerHTML = '<div class="no-data" role="status">NO_TARGETS_CONFIGURED</div>';
-            } else {
-                container.innerHTML = data.urls.map(renderCard).join('');
-                // Trigger pulse effect on latency bars
-                if (showPulse) {
+                const container = document.getElementById('cardsContainer');
+                if (data.urls.length === 0) {
+                    container.innerHTML = '<div class="no-data" role="status">NO_TARGETS_CONFIGURED</div>';
+                } else {
+                    // Use DocumentFragment for better performance on large updates
+                    const fragment = document.createDocumentFragment();
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = data.urls.map(renderCard).join('');
+                    while (tempDiv.firstChild) {
+                        fragment.appendChild(tempDiv.firstChild);
+                    }
+                    container.innerHTML = '';
+                    container.appendChild(fragment);
+
+                    // Apply CSS custom properties from data attributes
                     document.querySelectorAll('.progress-fill').forEach(bar => {
-                        bar.classList.add('pulse');
-                        setTimeout(() => bar.classList.remove('pulse'), 200);
+                        const width = bar.dataset.width;
+                        const color = bar.dataset.color;
+                        if (width) bar.style.setProperty('--progress-width', width + '%');
+                        if (color) bar.style.setProperty('--progress-color', color);
+                        // Trigger pulse effect on latency bars
+                        if (showPulse) {
+                            bar.classList.add('pulse');
+                            setTimeout(() => bar.classList.remove('pulse'), 200);
+                        }
                     });
                 }
-            }
+            });
         }
 
         async function fetchStatus() {
@@ -1221,6 +1276,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
 
         function initializeDashboard() {
+            // Use DOMContentLoaded if available, otherwise execute immediately
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    initializeDashboardData();
+                });
+            } else {
+                // DOM already loaded
+                initializeDashboardData();
+            }
+        }
+
+        function initializeDashboardData() {
             // Try to use server-provided initial data
             const initialDataEl = document.getElementById('initialData');
             if (initialDataEl) {
@@ -1288,7 +1355,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             lastFocusedElement = document.activeElement;
 
             modalTitle.textContent = urlName;
-            tableBody.innerHTML = '<tr><td colspan="5" class="history-loading" role="status">LOADING_HISTORY...</td></tr>';
+            tableBody.innerHTML =
+                '<tr><td colspan="5" class="history-loading" role="status">LOADING_HISTORY...</td></tr>';
 
             // Reset summary values
             document.getElementById('modalStatus').textContent = '---';
@@ -1380,7 +1448,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             const tableBody = document.getElementById('historyTableBody');
 
             if (!checks || checks.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="5" class="history-empty" role="status">// NO_HISTORY_DATA</td></tr>';
+                tableBody.innerHTML =
+                    '<tr><td colspan="5" class="history-empty" role="status">// NO_HISTORY_DATA</td></tr>';
                 return;
             }
 
@@ -1389,13 +1458,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 const statusText = check.is_up ? 'UP' : 'DOWN';
                 const code = check.status_code !== null ? check.status_code : '---';
                 const latency = check.response_time_ms ? check.response_time_ms + 'ms' : '---';
-                const error = check.error ? `<span class="error-cell" title="${escapeHtml(check.error)}">${escapeHtml(check.error)}</span>` : '---';
+                const errorTitle = escapeHtml(check.error);
+                const error = check.error
+                    ? `<span class="error-cell" title="${errorTitle}">${errorTitle}</span>`
+                    : '---';
                 const time = formatDateTime(check.checked_at);
 
                 return `
                     <tr>
                         <td>${time}</td>
-                        <td class="status-cell"><span class="status-dot ${statusClass}" aria-hidden="true"></span><span class="sr-only">Status: </span>${statusText}</td>
+                        <td class="status-cell">
+                            <span class="status-dot ${statusClass}" aria-hidden="true"></span>
+                            <span class="sr-only">Status: </span>${statusText}
+                        </td>
                         <td><span class="sr-only">HTTP Code: </span>${code}</td>
                         <td><span class="sr-only">Latency: </span>${latency}</td>
                         <td>${error}</td>
@@ -1511,6 +1586,33 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             if (e.key === 'Escape') {
                 closeModal();
                 cancelReset();
+            }
+        });
+
+        // Button event listeners (CSP-compliant, no inline handlers)
+        document.getElementById('resetDataBtn').addEventListener('click', showResetModal);
+        document.getElementById('historyModalClose').addEventListener('click', closeModal);
+        document.getElementById('resetModalClose').addEventListener('click', cancelReset);
+        document.getElementById('resetCancelBtn').addEventListener('click', cancelReset);
+        document.getElementById('confirmResetBtn').addEventListener('click', confirmReset);
+
+        // Card click/keyboard event delegation (for dynamically created cards)
+        document.getElementById('cardsContainer').addEventListener('click', function(e) {
+            const card = e.target.closest('.card');
+            if (card) {
+                const urlName = card.dataset.urlName;
+                if (urlName) openModal(urlName);
+            }
+        });
+
+        document.getElementById('cardsContainer').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.card');
+                if (card) {
+                    e.preventDefault();
+                    const urlName = card.dataset.urlName;
+                    if (urlName) openModal(urlName);
+                }
             }
         });
     </script>

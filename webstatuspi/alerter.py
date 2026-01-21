@@ -1,13 +1,10 @@
 """Webhook alert system with state tracking and cooldown management."""
 
-import json
 import logging
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from queue import Queue
-from typing import Dict, Optional
+from datetime import UTC, datetime
 
 import requests
 
@@ -21,8 +18,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StateTracker:
     """Track URL state changes and alert cooldowns."""
-    last_state: Dict[str, bool] = None  # {url_name: is_up}
-    last_alert_time: Dict[str, float] = None  # {url_name: timestamp}
+
+    last_state: dict[str, bool] = None  # {url_name: is_up}
+    last_alert_time: dict[str, float] = None  # {url_name: timestamp}
 
     def __post_init__(self) -> None:
         if self.last_state is None:
@@ -207,7 +205,7 @@ class Alerter:
             "previous_status": "up" if previous_state else "down" if previous_state is not None else None,
         }
 
-    def test_webhooks(self) -> Dict[str, bool]:
+    def test_webhooks(self) -> dict[str, bool]:
         """Test all configured webhooks by sending a test payload.
 
         Returns:
@@ -243,7 +241,7 @@ class Alerter:
                     "success": True,
                     "response_time_ms": 100,
                     "error": None,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
                 "previous_status": "up",
             }

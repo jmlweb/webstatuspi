@@ -9,25 +9,23 @@ import threading
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Any, Dict, List, Optional
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
 from urllib.parse import unquote
 
+from ._dashboard import (
+    CSP_NONCE_PLACEHOLDER,
+    HTML_DASHBOARD,
+)
 from .config import ApiConfig
 from .database import (
+    DatabaseError,
+    delete_all_checks,
     get_history,
     get_latest_status,
     get_latest_status_by_name,
-    delete_all_checks,
-    DatabaseError,
 )
 from .models import UrlStatus
-from ._dashboard import (
-    HTML_DASHBOARD,
-    HTML_DASHBOARD_PREFIX,
-    HTML_DASHBOARD_SUFFIX,
-    CSP_NONCE_PLACEHOLDER,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +54,7 @@ class RateLimiter:
     ) -> None:
         self._max_requests = max_requests
         self._window_seconds = window_seconds
-        self._requests: Dict[str, List[float]] = defaultdict(list)
+        self._requests: dict[str, list[float]] = defaultdict(list)
         self._lock = threading.Lock()
 
     def is_allowed(self, client_ip: str) -> bool:
@@ -99,10 +97,11 @@ class RateLimiter:
 
 class ApiError(Exception):
     """Raised when an API operation fails."""
+
     pass
 
 
-def _url_status_to_dict(status: UrlStatus) -> Dict[str, Any]:
+def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
     """Convert a UrlStatus object to a JSON-serializable dictionary."""
     return {
         "name": status.url_name,
@@ -117,7 +116,7 @@ def _url_status_to_dict(status: UrlStatus) -> Dict[str, Any]:
     }
 
 
-def _build_status_response(statuses: List[UrlStatus]) -> Dict[str, Any]:
+def _build_status_response(statuses: list[UrlStatus]) -> dict[str, Any]:
     """Build the full status response with summary."""
     urls_data = [_url_status_to_dict(s) for s in statuses]
     up_count = sum(1 for s in statuses if s.is_up)
@@ -136,9 +135,9 @@ class StatusHandler(BaseHTTPRequestHandler):
     """HTTP request handler for status API endpoints."""
 
     # Class-level references set by factory
-    db_conn: Optional[sqlite3.Connection] = None
-    reset_token: Optional[str] = None  # Required for DELETE /reset when set
-    rate_limiter: Optional[RateLimiter] = None
+    db_conn: sqlite3.Connection | None = None
+    reset_token: str | None = None  # Required for DELETE /reset when set
+    rate_limiter: RateLimiter | None = None
     _request_count: int = 0  # Counter for periodic rate limiter cleanup
     _cleanup_lock = threading.Lock()  # Lock for thread-safe cleanup counter
 
@@ -212,7 +211,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self.rate_limiter.cleanup()
                 self._request_count = 0
 
-    def _add_security_headers(self, nonce: Optional[str] = None) -> None:
+    def _add_security_headers(self, nonce: str | None = None) -> None:
         """Add security headers to the current response.
 
         Args:
@@ -255,7 +254,7 @@ class StatusHandler(BaseHTTPRequestHandler):
 
         self.send_header("Content-Security-Policy", csp)
 
-    def _validate_url_name(self, name: str) -> Optional[str]:
+    def _validate_url_name(self, name: str) -> str | None:
         """Validate and sanitize URL name from path parameter.
 
         Args:
@@ -274,11 +273,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             return None
 
         # Reject path traversal sequences
-        if '..' in decoded or '/' in decoded or '\\' in decoded:
+        if ".." in decoded or "/" in decoded or "\\" in decoded:
             return None
 
         # Reject null bytes and control characters
-        if '\x00' in decoded or any(ord(c) < 32 and c not in '\t\n\r' for c in decoded):
+        if "\x00" in decoded or any(ord(c) < 32 and c not in "\t\n\r" for c in decoded):
             return None
 
         # URL names are limited to 10 chars and alphanumeric/underscore in config
@@ -288,7 +287,7 @@ class StatusHandler(BaseHTTPRequestHandler):
 
         return decoded
 
-    def _send_json(self, code: int, data: Dict[str, Any]) -> None:
+    def _send_json(self, code: int, data: dict[str, Any]) -> None:
         """Send a JSON response with the given status code."""
         body = json.dumps(data).encode("utf-8")
         self.send_response(code)
@@ -315,7 +314,7 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html_bytes(self, code: int, body: bytes, nonce: Optional[str] = None) -> None:
+    def _send_html_bytes(self, code: int, body: bytes, nonce: str | None = None) -> None:
         """Send an HTML response with pre-encoded bytes.
 
         More efficient than _send_html() when the body is already encoded.
@@ -329,7 +328,10 @@ class StatusHandler(BaseHTTPRequestHandler):
         self._add_security_headers(nonce)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        # Cache-Control: no-cache for real-time dashboard, but allow private caching
+        self.send_header("Cache-Control", "private, no-cache, must-revalidate")
+        # Hint to browser to prefetch DNS for external resources
+        self.send_header("X-DNS-Prefetch-Control", "on")
         self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
@@ -521,8 +523,8 @@ class StatusHandler(BaseHTTPRequestHandler):
 
 def _create_handler_class(
     db_conn: sqlite3.Connection,
-    reset_token: Optional[str] = None,
-    rate_limiter: Optional[RateLimiter] = None,
+    reset_token: str | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> type:
     """Create a handler class with the database connection and config bound."""
 
@@ -551,8 +553,8 @@ class ApiServer:
         """
         self.config = config
         self.db_conn = db_conn
-        self._server: Optional[HTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._server: HTTPServer | None = None
+        self._thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
         self._rate_limiter = RateLimiter()
 

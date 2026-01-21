@@ -1,14 +1,12 @@
 """Tests for the database module."""
 
 import sqlite3
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from webstatuspi.database import (
-    DatabaseError,
     cleanup_old_checks,
     get_history,
     get_latest_status,
@@ -65,16 +63,12 @@ class TestInitDb:
 
     def test_creates_checks_table(self, db_conn: sqlite3.Connection) -> None:
         """Checks table is created with correct schema."""
-        cursor = db_conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='checks'"
-        )
+        cursor = db_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checks'")
         assert cursor.fetchone() is not None
 
     def test_creates_indexes(self, db_conn: sqlite3.Connection) -> None:
         """Required indexes are created."""
-        cursor = db_conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index'"
-        )
+        cursor = db_conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
         indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_checks_url_name" in indexes
         assert "idx_checks_checked_at" in indexes
@@ -96,9 +90,7 @@ class TestInitDb:
 class TestInsertCheck:
     """Tests for insert_check function."""
 
-    def test_inserts_successful_check(
-        self, db_conn: sqlite3.Connection, sample_check: CheckResult
-    ) -> None:
+    def test_inserts_successful_check(self, db_conn: sqlite3.Connection, sample_check: CheckResult) -> None:
         """Successful check is inserted correctly."""
         insert_check(db_conn, sample_check)
 
@@ -133,9 +125,7 @@ class TestInsertCheck:
         assert row["is_up"] == 0
         assert row["error_message"] == "Connection timeout"
 
-    def test_inserts_multiple_checks(
-        self, db_conn: sqlite3.Connection, sample_check: CheckResult
-    ) -> None:
+    def test_inserts_multiple_checks(self, db_conn: sqlite3.Connection, sample_check: CheckResult) -> None:
         """Multiple checks can be inserted."""
         for _ in range(5):
             insert_check(db_conn, sample_check)
@@ -148,16 +138,12 @@ class TestInsertCheck:
 class TestGetLatestStatus:
     """Tests for get_latest_status function."""
 
-    def test_returns_empty_list_for_empty_db(
-        self, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_returns_empty_list_for_empty_db(self, db_conn: sqlite3.Connection) -> None:
         """Empty list returned when no checks exist."""
         result = get_latest_status(db_conn)
         assert result == []
 
-    def test_returns_latest_check_per_url(
-        self, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_returns_latest_check_per_url(self, db_conn: sqlite3.Connection) -> None:
         """Only the latest check per URL is returned."""
         now = datetime.utcnow()
 
@@ -214,9 +200,7 @@ class TestGetLatestStatus:
         assert result[0].checks_24h == 4
         assert result[0].uptime_24h == 75.0
 
-    def test_excludes_old_checks_from_stats(
-        self, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_excludes_old_checks_from_stats(self, db_conn: sqlite3.Connection) -> None:
         """Checks older than 24h are excluded from statistics."""
         now = datetime.utcnow()
 
@@ -274,9 +258,7 @@ class TestGetLatestStatus:
 class TestGetHistory:
     """Tests for get_history function."""
 
-    def test_returns_empty_list_for_no_matches(
-        self, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_returns_empty_list_for_no_matches(self, db_conn: sqlite3.Connection) -> None:
         """Empty list returned when no history exists."""
         result = get_history(db_conn, "NONEXISTENT", datetime.utcnow() - timedelta(days=1))
         assert result == []
@@ -423,9 +405,7 @@ class TestCleanupOldChecks:
 class TestGetUrlNames:
     """Tests for get_url_names function."""
 
-    def test_returns_empty_list_for_empty_db(
-        self, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_returns_empty_list_for_empty_db(self, db_conn: sqlite3.Connection) -> None:
         """Empty list returned when no URLs exist."""
         result = get_url_names(db_conn)
         assert result == []

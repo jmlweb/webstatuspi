@@ -3,10 +3,9 @@
 import json
 import socket
 import sqlite3
-import threading
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -15,10 +14,7 @@ import pytest
 from webstatuspi.api import (
     ApiError,
     ApiServer,
-    HTML_DASHBOARD,
-    StatusHandler,
     _build_status_response,
-    _create_handler_class,
     _url_status_to_dict,
 )
 from webstatuspi.config import ApiConfig
@@ -246,9 +242,7 @@ class TestApiEndpoints:
     """Integration tests for API endpoints."""
 
     @pytest.fixture
-    def running_server(
-        self, db_conn: sqlite3.Connection
-    ) -> ApiServer:
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
         """Start a server and yield it, stopping after test."""
         port = get_free_port()
         config = ApiConfig(enabled=True, port=port)
@@ -286,9 +280,7 @@ class TestApiEndpoints:
         assert body["urls"] == []
         assert body["summary"]["total"] == 0
 
-    def test_status_endpoint_with_data(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_status_endpoint_with_data(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /status returns URL statuses."""
         check = CheckResult(
             url_name="API_TEST",
@@ -310,9 +302,7 @@ class TestApiEndpoints:
         assert body["summary"]["total"] == 1
         assert body["summary"]["up"] == 1
 
-    def test_status_by_name_found(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_status_by_name_found(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /status/<name> returns specific URL status."""
         check = CheckResult(
             url_name="SPECIFIC",
@@ -346,9 +336,7 @@ class TestApiEndpoints:
         assert status == 404
         assert body == {"error": "Not found"}
 
-    def test_json_content_type(
-        self, running_server: ApiServer
-    ) -> None:
+    def test_json_content_type(self, running_server: ApiServer) -> None:
         """Responses have application/json content type."""
         port = running_server.config.port
         url = f"http://localhost:{port}/health"
@@ -370,9 +358,7 @@ class TestApiEndpoints:
             assert "<!DOCTYPE html>" in body
             assert "WebStatusPi" in body
 
-    def test_dashboard_contains_required_elements(
-        self, running_server: ApiServer
-    ) -> None:
+    def test_dashboard_contains_required_elements(self, running_server: ApiServer) -> None:
         """Dashboard HTML contains all required UI elements."""
         port = running_server.config.port
         url = f"http://localhost:{port}/"
@@ -420,6 +406,7 @@ class TestApiEndpoints:
     def test_dashboard_csp_nonce(self, running_server: ApiServer) -> None:
         """Dashboard uses nonce-based CSP instead of unsafe-inline."""
         import re
+
         port = running_server.config.port
         url = f"http://localhost:{port}/"
 
@@ -452,9 +439,7 @@ class TestHistoryEndpoint:
     """Tests for GET /history/<name> endpoint."""
 
     @pytest.fixture
-    def running_server(
-        self, db_conn: sqlite3.Connection
-    ) -> ApiServer:
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
         """Start a server and yield it, stopping after test."""
         port = get_free_port()
         config = ApiConfig(enabled=True, port=port)
@@ -476,9 +461,7 @@ class TestHistoryEndpoint:
             body = json.loads(e.read().decode("utf-8"))
             return e.code, body
 
-    def test_history_returns_checks(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_history_returns_checks(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /history/<name> returns check history ordered by time."""
         # Insert multiple checks
         for i in range(3):
@@ -511,12 +494,11 @@ class TestHistoryEndpoint:
         assert "error" in body
         assert "UNKNOWN" in body["error"]
 
-    def test_history_empty(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_history_empty(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /history/<name> returns empty list if no recent checks."""
         # Insert a check with old timestamp (outside 24h window)
         from datetime import timedelta
+
         old_time = datetime.utcnow() - timedelta(hours=25)
         check = CheckResult(
             url_name="OLD_URL",
@@ -536,9 +518,7 @@ class TestHistoryEndpoint:
         assert body["count"] == 0
         assert body["checks"] == []
 
-    def test_history_check_fields(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_history_check_fields(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /history/<name> returns correct fields in each check."""
         check = CheckResult(
             url_name="FIELDS",
@@ -564,9 +544,7 @@ class TestHistoryEndpoint:
         assert check_data["response_time_ms"] == 250
         assert check_data["error"] == "Service unavailable"
 
-    def test_history_limits_to_100(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_history_limits_to_100(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """GET /history/<name> limits results to 100 checks."""
         # Insert 110 checks
         for i in range(110):
@@ -603,9 +581,7 @@ class TestResetEndpoint:
         yield server
         server.stop()
 
-    def _delete(
-        self, server: ApiServer, path: str, headers: dict = None
-    ) -> tuple:
+    def _delete(self, server: ApiServer, path: str, headers: dict = None) -> tuple:
         """Make a DELETE request and return (status_code, json_body)."""
         port = server.config.port
         url = f"http://localhost:{port}{path}"
@@ -621,9 +597,7 @@ class TestResetEndpoint:
             body = json.loads(e.read().decode("utf-8"))
             return e.code, body
 
-    def test_reset_deletes_all_checks(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_reset_deletes_all_checks(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """DELETE /reset deletes all check records."""
         # Insert some checks
         for i in range(5):
@@ -656,9 +630,7 @@ class TestResetEndpoint:
         count_after = cursor.fetchone()[0]
         assert count_after == 0
 
-    def test_reset_with_no_checks(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_reset_with_no_checks(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """DELETE /reset returns 0 deleted when database is empty."""
         status, body = self._delete(running_server, "/reset")
 
@@ -666,9 +638,7 @@ class TestResetEndpoint:
         assert body["success"] is True
         assert body["deleted"] == 0
 
-    def test_reset_returns_deleted_count(
-        self, running_server: ApiServer, db_conn: sqlite3.Connection
-    ) -> None:
+    def test_reset_returns_deleted_count(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
         """DELETE /reset returns correct count of deleted records."""
         # Insert checks
         for i in range(3):
@@ -698,22 +668,16 @@ class TestResetEndpoint:
     def test_reset_blocked_from_cloudflare(self, running_server: ApiServer) -> None:
         """DELETE /reset is blocked when request comes through Cloudflare."""
         # Test with CF-Connecting-IP header
-        status, body = self._delete(
-            running_server, "/reset", headers={"CF-Connecting-IP": "1.2.3.4"}
-        )
+        status, body = self._delete(running_server, "/reset", headers={"CF-Connecting-IP": "1.2.3.4"})
         assert status == 403
         assert "Nice try, Diddy!" in body["error"]
 
         # Test with CF-Ray header
-        status, body = self._delete(
-            running_server, "/reset", headers={"CF-Ray": "abc123"}
-        )
+        status, body = self._delete(running_server, "/reset", headers={"CF-Ray": "abc123"})
         assert status == 403
         assert "not allowed" in body["error"]
 
         # Test with CF-IPCountry header
-        status, body = self._delete(
-            running_server, "/reset", headers={"CF-IPCountry": "US"}
-        )
+        status, body = self._delete(running_server, "/reset", headers={"CF-IPCountry": "US"})
         assert status == 403
         assert "not allowed" in body["error"]

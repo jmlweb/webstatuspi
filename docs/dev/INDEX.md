@@ -4,25 +4,27 @@
 
 ## Quick Stats
 
-- **Pending**: 1 task
-- **In Progress**: 1 task
-- **Completed**: 16 tasks
+- **Pending**: 3 tasks
+- **In Progress**: 0 tasks
+- **Completed**: 17 tasks
 
 ## Current Focus
 
-> Task #018: Security Audit
+> No active task. Next up: Task #019 (Extended Metrics) or #017 (Telegram Bot Documentation)
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority |
 |---|------|-------|----------|
-| 018 | Security Audit | Security, API, Config | P1 - Active |
+| 019 | Extended Metrics | Core, Database, API | P3 |
 | 017 | Telegram Bot Integration Documentation | Docs | P3 |
+| 020 | Migrate datetime.utcnow() to timezone-aware | Core | P4 |
 
 ## Completed Tasks
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 018 | Security Audit | Security, API, Config | ✓ |
 | 016 | Webhook Alerts | Core, Config, API | ✓ |
 | 015 | Dashboard Accessibility | API | ✓ |
 | 014 | CI Workflow with GitHub Actions | DevOps | ✓ |

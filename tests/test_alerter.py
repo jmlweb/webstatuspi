@@ -1,8 +1,6 @@
 """Tests for the webhook alerter module."""
 
-import json
 from datetime import datetime
-from typing import Dict
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -31,6 +29,7 @@ class TestStateTracker:
         """Test tracking alert times."""
         tracker = StateTracker()
         import time
+
         current_time = time.time()
         tracker.last_alert_time["test_url"] = current_time
         assert tracker.last_alert_time["test_url"] == current_time
@@ -88,9 +87,7 @@ class TestAlerter:
         assert alerter._max_retries == 2
         assert alerter._retry_delay == 1
 
-    def test_first_check_no_alert(
-        self, alerter: Alerter, check_result_down: CheckResult
-    ) -> None:
+    def test_first_check_no_alert(self, alerter: Alerter, check_result_down: CheckResult) -> None:
         """Test that first check doesn't trigger alert (no state change)."""
         with patch.object(alerter, "_send_webhook") as mock_send:
             alerter.process_check_result(check_result_down)
@@ -119,9 +116,7 @@ class TestAlerter:
             alerter.process_check_result(check_result_up)
             mock_send.assert_called_once()
 
-    def test_no_state_change_no_alert(
-        self, alerter: Alerter, check_result_up: CheckResult
-    ) -> None:
+    def test_no_state_change_no_alert(self, alerter: Alerter, check_result_up: CheckResult) -> None:
         """Test that no alert is sent when state doesn't change."""
         # Set initial state to UP
         alerter._state_tracker.last_state["test_url"] = True
@@ -130,9 +125,7 @@ class TestAlerter:
             alerter.process_check_result(check_result_up)
             mock_send.assert_not_called()
 
-    def test_on_failure_filter(
-        self, check_result_down: CheckResult
-    ) -> None:
+    def test_on_failure_filter(self, check_result_down: CheckResult) -> None:
         """Test that on_failure filter works."""
         webhook = WebhookConfig(
             url="https://example.com/webhook",
@@ -147,9 +140,7 @@ class TestAlerter:
             alerter.process_check_result(check_result_down)
             mock_send.assert_not_called()
 
-    def test_on_recovery_filter(
-        self, check_result_up: CheckResult
-    ) -> None:
+    def test_on_recovery_filter(self, check_result_up: CheckResult) -> None:
         """Test that on_recovery filter works."""
         webhook = WebhookConfig(
             url="https://example.com/webhook",
@@ -164,9 +155,7 @@ class TestAlerter:
             alerter.process_check_result(check_result_up)
             mock_send.assert_not_called()
 
-    def test_disabled_webhook_not_sent(
-        self, check_result_down: CheckResult
-    ) -> None:
+    def test_disabled_webhook_not_sent(self, check_result_down: CheckResult) -> None:
         """Test that disabled webhooks are not sent."""
         webhook = WebhookConfig(
             url="https://example.com/webhook",
@@ -187,15 +176,14 @@ class TestAlerter:
         """Test that cooldown prevents duplicate alerts."""
         alerter._state_tracker.last_state["test_url"] = True
         import time
+
         alerter._state_tracker.last_alert_time["test_url"] = time.time()
 
         with patch.object(alerter, "_send_webhook") as mock_send:
             alerter.process_check_result(check_result_down)
             mock_send.assert_not_called()
 
-    def test_cooldown_expiration_allows_alert(
-        self, alerter: Alerter, check_result_down: CheckResult
-    ) -> None:
+    def test_cooldown_expiration_allows_alert(self, alerter: Alerter, check_result_down: CheckResult) -> None:
         """Test that alert is sent after cooldown expires."""
         alerter._state_tracker.last_state["test_url"] = True
         alerter._state_tracker.last_alert_time["test_url"] = 0  # Very old timestamp
@@ -204,9 +192,7 @@ class TestAlerter:
             alerter.process_check_result(check_result_down)
             mock_send.assert_called_once()
 
-    def test_build_payload(
-        self, alerter: Alerter, check_result_down: CheckResult
-    ) -> None:
+    def test_build_payload(self, alerter: Alerter, check_result_down: CheckResult) -> None:
         """Test webhook payload structure."""
         alerter._state_tracker.last_state["test_url"] = True
 
@@ -221,9 +207,7 @@ class TestAlerter:
         assert payload["status"]["error"] == "Service Unavailable"
         assert payload["previous_status"] == "up"
 
-    def test_build_payload_up_event(
-        self, alerter: Alerter, check_result_up: CheckResult
-    ) -> None:
+    def test_build_payload_up_event(self, alerter: Alerter, check_result_up: CheckResult) -> None:
         """Test webhook payload for UP event."""
         alerter._state_tracker.last_state["test_url"] = False
 
@@ -234,9 +218,7 @@ class TestAlerter:
         assert payload["previous_status"] == "down"
 
     @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_success(
-        self, mock_post: Mock, alerter: Alerter, check_result_down: CheckResult
-    ) -> None:
+    def test_send_webhook_success(self, mock_post: Mock, alerter: Alerter, check_result_down: CheckResult) -> None:
         """Test successful webhook delivery."""
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
@@ -253,11 +235,10 @@ class TestAlerter:
         assert "event" in kwargs["json"]
 
     @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_retry_on_failure(
-        self, mock_post: Mock, check_result_down: CheckResult
-    ) -> None:
+    def test_send_webhook_retry_on_failure(self, mock_post: Mock, check_result_down: CheckResult) -> None:
         """Test that webhook retries on failure."""
         import requests
+
         mock_post.side_effect = requests.RequestException("Connection error")
 
         webhook = WebhookConfig(
@@ -275,14 +256,13 @@ class TestAlerter:
         assert mock_post.call_count == 3
 
     @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_success_after_retry(
-        self, mock_post: Mock, check_result_down: CheckResult
-    ) -> None:
+    def test_send_webhook_success_after_retry(self, mock_post: Mock, check_result_down: CheckResult) -> None:
         """Test successful delivery after retry."""
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
 
         import requests
+
         # Fail first, succeed second
         mock_post.side_effect = [
             requests.RequestException("Connection error"),
@@ -304,9 +284,7 @@ class TestAlerter:
         assert mock_post.call_count == 2
 
     @patch("webstatuspi.alerter.requests.post")
-    def test_test_webhooks_all_success(
-        self, mock_post: Mock, alerter: Alerter
-    ) -> None:
+    def test_test_webhooks_all_success(self, mock_post: Mock, alerter: Alerter) -> None:
         """Test successful webhook testing."""
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
@@ -318,11 +296,10 @@ class TestAlerter:
         mock_post.assert_called_once()
 
     @patch("webstatuspi.alerter.requests.post")
-    def test_test_webhooks_failure(
-        self, mock_post: Mock, alerter: Alerter
-    ) -> None:
+    def test_test_webhooks_failure(self, mock_post: Mock, alerter: Alerter) -> None:
         """Test failed webhook testing."""
         import requests
+
         mock_post.side_effect = requests.RequestException("Connection error")
 
         results = alerter.test_webhooks()
@@ -355,7 +332,6 @@ class TestAlerter:
 
     def test_thread_safety_lock(self, alerter: Alerter) -> None:
         """Test that lock attribute exists for thread safety."""
-        import threading
         # Verify lock exists and has acquire/release methods (duck typing)
         assert hasattr(alerter, "_lock")
         assert hasattr(alerter._lock, "acquire")
