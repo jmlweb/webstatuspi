@@ -12,6 +12,7 @@ from webstatuspi.config import (
     DisplayConfig,
     MonitorConfig,
     UrlConfig,
+    _parse_success_codes,
     load_config,
 )
 
@@ -135,6 +136,104 @@ class TestUrlConfig:
             timeout=1,
         )
         assert url_config.timeout == 1
+
+    def test_accepts_success_codes_single(self) -> None:
+        """UrlConfig accepts single success codes."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            success_codes=[200, 201, 202],
+        )
+        assert url_config.success_codes == [200, 201, 202]
+
+    def test_accepts_success_codes_with_ranges(self) -> None:
+        """UrlConfig accepts success codes with ranges."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            success_codes=[(200, 299), 400],
+        )
+        assert url_config.success_codes == [(200, 299), 400]
+
+    def test_success_codes_default_none(self) -> None:
+        """UrlConfig defaults success_codes to None."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+        )
+        assert url_config.success_codes is None
+
+
+class TestParseSuccessCodes:
+    """Tests for _parse_success_codes function."""
+
+    def test_none_returns_none(self) -> None:
+        """None input returns None."""
+        assert _parse_success_codes(None) is None
+
+    def test_empty_list_returns_none(self) -> None:
+        """Empty list returns None."""
+        assert _parse_success_codes([]) is None
+
+    def test_parses_single_codes(self) -> None:
+        """Parses list of single integer codes."""
+        result = _parse_success_codes([200, 201, 404])
+        assert result == [200, 201, 404]
+
+    def test_parses_range_codes(self) -> None:
+        """Parses range strings into tuples."""
+        result = _parse_success_codes(["200-299"])
+        assert result == [(200, 299)]
+
+    def test_parses_mixed_codes(self) -> None:
+        """Parses mixed single codes and ranges."""
+        result = _parse_success_codes([200, "201-299", 400])
+        assert result == [200, (201, 299), 400]
+
+    def test_parses_string_single_code(self) -> None:
+        """Parses string single code."""
+        result = _parse_success_codes(["200"])
+        assert result == [200]
+
+    def test_rejects_invalid_code_below_100(self) -> None:
+        """Rejects status codes below 100."""
+        with pytest.raises(ConfigError, match="must be 100-599"):
+            _parse_success_codes([99])
+
+    def test_rejects_invalid_code_above_599(self) -> None:
+        """Rejects status codes above 599."""
+        with pytest.raises(ConfigError, match="must be 100-599"):
+            _parse_success_codes([600])
+
+    def test_rejects_invalid_range_format(self) -> None:
+        """Rejects invalid range format."""
+        with pytest.raises(ConfigError, match="Invalid range format"):
+            _parse_success_codes(["200-299-300"])
+
+    def test_rejects_range_with_invalid_codes(self) -> None:
+        """Rejects range with invalid codes."""
+        with pytest.raises(ConfigError, match="must be 100-599"):
+            _parse_success_codes(["50-200"])
+
+    def test_rejects_inverted_range(self) -> None:
+        """Rejects range where start > end."""
+        with pytest.raises(ConfigError, match="start must be <= end"):
+            _parse_success_codes(["299-200"])
+
+    def test_rejects_non_numeric_range(self) -> None:
+        """Rejects non-numeric range values."""
+        with pytest.raises(ConfigError, match="Invalid range format"):
+            _parse_success_codes(["abc-def"])
+
+    def test_rejects_invalid_entry_type(self) -> None:
+        """Rejects invalid entry types."""
+        with pytest.raises(ConfigError, match="Invalid success_codes entry"):
+            _parse_success_codes([200, 3.14])  # type: ignore[list-item]
+
+    def test_rejects_non_list(self) -> None:
+        """Rejects non-list input."""
+        with pytest.raises(ConfigError, match="must be a list"):
+            _parse_success_codes("200")  # type: ignore[arg-type]
 
 
 class TestMonitorConfig:

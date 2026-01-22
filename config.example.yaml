@@ -38,6 +38,17 @@ urls:
   #   timeout: 10
   #   json_path: "status.healthy"  # Checks if data.status.healthy is truthy
 
+  # Custom success codes - override default 200-399 success range
+  # - name: "API_CREATE"
+  #   url: "https://api.example.com/create"
+  #   timeout: 10
+  #   success_codes: [200, 201, 202]  # Accept 200, 201, 202 as success
+  #
+  # - name: "API_LEGACY"
+  #   url: "https://legacy.example.com/api"
+  #   timeout: 10
+  #   success_codes: ["200-299", 400]  # Accept 2xx range and 400
+
   # Add more URLs as needed:
   # - name: "MY_SERVICE"
   #   url: "http://localhost:3000/health"

@@ -574,6 +574,39 @@ urls:
 | CDN returns cached error page | Use `keyword` to verify expected content |
 | Backend returns maintenance page | Use `keyword` to detect unexpected content |
 
+### Custom Success Codes
+
+By default, HTTP status codes 200-399 are treated as success. You can customize this per URL using `success_codes`:
+
+```yaml
+urls:
+  # Accept specific codes (e.g., API that returns 201 on create)
+  - name: "API_CREATE"
+    url: "https://api.example.com/create"
+    timeout: 10
+    success_codes: [200, 201, 202]
+
+  # Accept code ranges (e.g., legacy API where 400 means "no results")
+  - name: "API_LEGACY"
+    url: "https://legacy.example.com/api"
+    timeout: 10
+    success_codes: ["200-299", 400]
+```
+
+**Supported formats:**
+
+| Format | Example | Meaning |
+|--------|---------|---------|
+| Single code | `200` | Exactly status code 200 |
+| Multiple codes | `[200, 201, 202]` | Any of 200, 201, or 202 |
+| Range | `"200-299"` | 200 to 299 inclusive |
+| Mixed | `["200-299", 400]` | 2xx range plus 400 |
+
+**Notes:**
+- If `success_codes` is not specified, default range 200-399 is used
+- Status codes must be valid HTTP codes (100-599)
+- Ranges use string format with hyphen: `"200-299"`
+
 ### SSL Certificate Monitoring
 
 WebStatusPi automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.

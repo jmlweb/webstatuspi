@@ -1,12 +1,12 @@
 # Task #027: Custom Status Code Ranges
 
 ## Metadata
-- **Status**: pending
+- **Status**: done
 - **Priority**: P3
 - **Slice**: Config, Core
 - **Created**: 2026-01-22
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-22
+- **Completed**: 2026-01-22
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,12 +14,12 @@
 **User Story**: As a developer, I want to define custom HTTP status code ranges that indicate success so that I can monitor APIs that use non-standard status codes (e.g., 201 Created, 202 Accepted) or handle specific error codes as acceptable.
 
 **Acceptance Criteria**:
-- [ ] Config schema supports optional `success_codes` per URL
-- [ ] Default behavior unchanged (200-399 = success) if not specified
-- [ ] Supports single codes (e.g., `[200, 201]`) or ranges (e.g., `[200-299, 400]`)
-- [ ] Validation ensures valid HTTP status codes (100-599)
-- [ ] Unit tests for custom status code logic
-- [ ] Documentation added to README.md with examples
+- [x] Config schema supports optional `success_codes` per URL
+- [x] Default behavior unchanged (200-399 = success) if not specified
+- [x] Supports single codes (e.g., `[200, 201]`) or ranges (e.g., `[200-299, 400]`)
+- [x] Validation ensures valid HTTP status codes (100-599)
+- [x] Unit tests for custom status code logic
+- [x] Documentation added to README.md with examples
 
 ## Implementation Notes
 
@@ -95,8 +95,15 @@ None
 
 ## Progress Log
 
-(To be filled during implementation)
+- 2026-01-22: Implemented `_parse_success_codes()` in config.py to parse single codes and ranges
+- 2026-01-22: Added `success_codes` field to UrlConfig dataclass
+- 2026-01-22: Implemented `_is_success_status()` in monitor.py to evaluate custom codes
+- 2026-01-22: Updated `check_url()` to use custom success codes
+- 2026-01-22: Added comprehensive tests for config parsing and monitor logic
+- 2026-01-22: Updated config.example.yaml with success_codes examples
+- 2026-01-22: Added documentation to README.md
 
 ## Learnings
 
-(To be filled during implementation)
+- Ranges stored as tuples internally for efficient evaluation
+- Config validation at parse time prevents runtime errors

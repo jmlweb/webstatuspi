@@ -35,6 +35,58 @@ class MonitorConfig:
             raise ConfigError(f"SSL warning days must be non-negative (got {self.ssl_warning_days})")
 
 
+def _parse_success_codes(codes: list | None) -> list[int | tuple[int, int]] | None:
+    """Parse success_codes into a normalized format.
+
+    Args:
+        codes: List of codes (int) or ranges (str like "200-299")
+
+    Returns:
+        List of ints and (start, end) tuples, or None if not specified.
+
+    Raises:
+        ConfigError: If codes are invalid.
+    """
+    if codes is None:
+        return None
+
+    if not isinstance(codes, list):
+        raise ConfigError("success_codes must be a list")
+
+    parsed: list[int | tuple[int, int]] = []
+    for code in codes:
+        if isinstance(code, int):
+            if not (100 <= code <= 599):
+                raise ConfigError(f"Invalid HTTP status code: {code} (must be 100-599)")
+            parsed.append(code)
+        elif isinstance(code, str):
+            if "-" in code:
+                try:
+                    parts = code.split("-")
+                    if len(parts) != 2:
+                        raise ConfigError(f"Invalid range format: {code}")
+                    start, end = int(parts[0]), int(parts[1])
+                    if not (100 <= start <= 599) or not (100 <= end <= 599):
+                        raise ConfigError(f"Invalid HTTP status code range: {code} (codes must be 100-599)")
+                    if start > end:
+                        raise ConfigError(f"Invalid range: {code} (start must be <= end)")
+                    parsed.append((start, end))
+                except ValueError:
+                    raise ConfigError(f"Invalid range format: {code}")
+            else:
+                try:
+                    code_int = int(code)
+                    if not (100 <= code_int <= 599):
+                        raise ConfigError(f"Invalid HTTP status code: {code} (must be 100-599)")
+                    parsed.append(code_int)
+                except ValueError:
+                    raise ConfigError(f"Invalid status code format: {code}")
+        else:
+            raise ConfigError(f"Invalid success_codes entry: {code}")
+
+    return parsed if parsed else None
+
+
 @dataclass(frozen=True)
 class UrlConfig:
     """Configuration for a single URL to monitor.
@@ -42,6 +94,9 @@ class UrlConfig:
     Optional content validation:
     - keyword: Check if response body contains this string (case-sensitive)
     - json_path: Check if JSON response has expected value at this path (e.g., "status.healthy")
+
+    Optional success codes:
+    - success_codes: Custom HTTP status codes that indicate success (default: 200-399)
     """
 
     name: str
@@ -49,6 +104,7 @@ class UrlConfig:
     timeout: int = 10
     keyword: str | None = None
     json_path: str | None = None
+    success_codes: list[int | tuple[int, int]] | None = None
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -181,6 +237,8 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
 
     keyword = data.get("keyword")
     json_path = data.get("json_path")
+    success_codes_raw = data.get("success_codes")
+    success_codes = _parse_success_codes(success_codes_raw)
 
     return UrlConfig(
         name=str(name),
@@ -188,6 +246,7 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
         timeout=int(data.get("timeout", 10)),
         keyword=str(keyword) if keyword is not None else None,
         json_path=str(json_path) if json_path is not None else None,
+        success_codes=success_codes,
     )
 
 

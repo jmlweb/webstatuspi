@@ -74,6 +74,31 @@ MAX_BODY_SIZE = 1024 * 1024  # 1MB
 DEFAULT_SSL_WARNING_DAYS = 30
 
 
+def _is_success_status(status_code: int, success_codes: list[int | tuple[int, int]] | None) -> bool:
+    """Check if a status code indicates success.
+
+    Args:
+        status_code: HTTP status code to check.
+        success_codes: Custom success codes (ints or (start, end) tuples), or None for default.
+
+    Returns:
+        True if status code indicates success, False otherwise.
+    """
+    if success_codes is None:
+        # Default: 2xx and 3xx are success
+        return 200 <= status_code < 400
+
+    for code in success_codes:
+        if isinstance(code, int):
+            if status_code == code:
+                return True
+        elif isinstance(code, tuple):
+            start, end = code
+            if start <= status_code <= end:
+                return True
+    return False
+
+
 @dataclass(frozen=True)
 class SSLCertInfo:
     """SSL certificate information extracted from an HTTPS URL.
@@ -379,7 +404,7 @@ def check_url(
         with _opener.open(request, timeout=url_config.timeout) as response:
             elapsed_ms = int((time.monotonic() - start) * 1000)
             status_code = response.status
-            is_up = 200 <= status_code < 400
+            is_up = _is_success_status(status_code, url_config.success_codes)
 
             # Extract Content-Length header if present
             content_length_str = response.headers.get("Content-Length")
@@ -441,8 +466,8 @@ def check_url(
 
     except urllib.error.HTTPError as e:
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        # Treat 3xx redirects as "up" - server is responding
-        is_up = 300 <= e.code < 400
+        # Use custom success codes or default (3xx redirects are "up")
+        is_up = _is_success_status(e.code, url_config.success_codes)
 
         # Extract Content-Length header if present
         content_length_str = e.headers.get("Content-Length") if e.headers else None

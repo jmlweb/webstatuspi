@@ -11,7 +11,7 @@ import pytest
 from webstatuspi.config import Config, DatabaseConfig, MonitorConfig, UrlConfig
 from webstatuspi.database import init_db
 from webstatuspi.models import CheckResult
-from webstatuspi.monitor import MAX_WORKERS, Monitor, SSLCertInfo, _get_ssl_cert_info, check_url
+from webstatuspi.monitor import MAX_WORKERS, Monitor, SSLCertInfo, _get_ssl_cert_info, _is_success_status, check_url
 
 
 @pytest.fixture
@@ -951,6 +951,161 @@ class TestContentValidation:
             assert result.error_message is None
             # Verify read was not called
             mock_response.read.assert_not_called()
+
+
+class TestIsSuccessStatus:
+    """Tests for _is_success_status function."""
+
+    def test_default_accepts_2xx(self) -> None:
+        """Default behavior accepts 2xx status codes."""
+        assert _is_success_status(200, None) is True
+        assert _is_success_status(201, None) is True
+        assert _is_success_status(299, None) is True
+
+    def test_default_accepts_3xx(self) -> None:
+        """Default behavior accepts 3xx status codes."""
+        assert _is_success_status(300, None) is True
+        assert _is_success_status(301, None) is True
+        assert _is_success_status(399, None) is True
+
+    def test_default_rejects_4xx(self) -> None:
+        """Default behavior rejects 4xx status codes."""
+        assert _is_success_status(400, None) is False
+        assert _is_success_status(404, None) is False
+        assert _is_success_status(499, None) is False
+
+    def test_default_rejects_5xx(self) -> None:
+        """Default behavior rejects 5xx status codes."""
+        assert _is_success_status(500, None) is False
+        assert _is_success_status(503, None) is False
+        assert _is_success_status(599, None) is False
+
+    def test_custom_single_codes(self) -> None:
+        """Custom single codes work correctly."""
+        codes = [200, 201, 202]
+        assert _is_success_status(200, codes) is True
+        assert _is_success_status(201, codes) is True
+        assert _is_success_status(202, codes) is True
+        assert _is_success_status(203, codes) is False
+        assert _is_success_status(301, codes) is False
+
+    def test_custom_range_codes(self) -> None:
+        """Custom range codes work correctly."""
+        codes: list[int | tuple[int, int]] = [(200, 299)]
+        assert _is_success_status(200, codes) is True
+        assert _is_success_status(250, codes) is True
+        assert _is_success_status(299, codes) is True
+        assert _is_success_status(199, codes) is False
+        assert _is_success_status(300, codes) is False
+
+    def test_custom_mixed_codes(self) -> None:
+        """Custom mixed single codes and ranges work correctly."""
+        codes: list[int | tuple[int, int]] = [(200, 299), 400]
+        assert _is_success_status(200, codes) is True
+        assert _is_success_status(250, codes) is True
+        assert _is_success_status(299, codes) is True
+        assert _is_success_status(400, codes) is True  # Special case
+        assert _is_success_status(401, codes) is False
+        assert _is_success_status(500, codes) is False
+
+    def test_empty_list_rejects_all(self) -> None:
+        """Empty list rejects all status codes."""
+        assert _is_success_status(200, []) is False
+        assert _is_success_status(404, []) is False
+
+
+class TestCustomSuccessCodesInCheckUrl:
+    """Tests for custom success codes in check_url."""
+
+    def test_custom_codes_accept_configured_status(self) -> None:
+        """Custom success codes accept configured status codes."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            success_codes=[200, 201, 400],  # 400 is success for this API
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 400  # Normally a failure
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.status_code == 400
+
+    def test_custom_codes_reject_non_configured_status(self) -> None:
+        """Custom success codes reject non-configured status codes."""
+        import urllib.error
+
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            success_codes=[200, 201],  # Only 200 and 201
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(
+                url_config.url,
+                301,  # Normally a success (redirect)
+                "Moved Permanently",
+                {},
+                None,
+            )
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert result.status_code == 301
+
+    def test_custom_range_accepts_status_in_range(self) -> None:
+        """Custom range accepts status codes within the range."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            success_codes=[(200, 299), (400, 401)],
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 250
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.status_code == 250
+
+    def test_no_custom_codes_uses_default(self) -> None:
+        """No custom codes uses default behavior (200-399)."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            # No success_codes specified
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 301
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True  # Default includes 3xx
 
 
 class TestSSLCertExtraction:
