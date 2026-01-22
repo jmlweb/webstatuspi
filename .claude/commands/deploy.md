@@ -10,25 +10,64 @@ Deploy the application to a Raspberry Pi over SSH.
 
 ## Usage
 
-- `/deploy` - Deploy to default Pi (from config)
-- `/deploy pi@192.168.1.100` - Deploy to specific host
+- `/deploy` - Deploy to Pi configured in `.env.local`
+- `/deploy user@192.168.1.100` - Deploy to specific host (override)
 
 ## Prerequisites
 
 - SSH key authentication configured
 - Pi accessible on network
 - Target directory exists on Pi
+- `.env.local` file configured (see below)
+
+## Configuration
+
+Create `.env.local` from the template:
+
+```bash
+cp .env.local.example .env.local
+# Edit .env.local with your values
+```
+
+Environment variables used:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PI_SSH_HOST` | Hostname or IP | (required) |
+| `PI_SSH_USER` | SSH username | (required) |
+| `PI_SSH_PORT` | SSH port | `22` |
+| `PI_PROJECT_PATH` | Install path on Pi | `/opt/webstatuspi` |
+| `PI_SERVICE_NAME` | systemd service name | `webstatuspi` |
 
 ## Workflow
 
-### 1. Get Target Host
+### 1. Load Configuration
 
-If no argument provided:
-- Check for `PI_HOST` in environment
-- Check for `.deploy.conf` file in project root
-- Ask user for host if not found
+```bash
+# Load environment variables
+source .env.local
 
-Expected format: `user@hostname` or `user@ip`
+# Validate required variables are set
+if [[ -z "$PI_SSH_HOST" || -z "$PI_SSH_USER" ]]; then
+    echo "Error: PI_SSH_HOST and PI_SSH_USER must be set in .env.local"
+    exit 1
+fi
+
+# Set defaults
+PI_SSH_PORT="${PI_SSH_PORT:-22}"
+PI_PROJECT_PATH="${PI_PROJECT_PATH:-/opt/webstatuspi}"
+PI_SERVICE_NAME="${PI_SERVICE_NAME:-webstatuspi}"
+
+# Build SSH target
+SSH_TARGET="$PI_SSH_USER@$PI_SSH_HOST"
+SSH_OPTS="-p $PI_SSH_PORT"
+```
+
+If argument provided, override:
+```bash
+# /deploy claude@192.168.1.50 overrides .env.local
+SSH_TARGET="$1"
+```
 
 ### 2. Validate Local State
 
@@ -72,21 +111,22 @@ Fix errors before deploying:
 ### 4. Create Deployment Package
 
 ```bash
-# Files to deploy
-rsync -avz --exclude='.git' \
+# Files to deploy (uses variables from .env.local)
+rsync -avz $SSH_OPTS --exclude='.git' \
            --exclude='__pycache__' \
            --exclude='*.pyc' \
            --exclude='.claude' \
+           --exclude='.env.local' \
            --exclude='venv' \
            --exclude='data/*.db' \
-           ./ pi@host:/opt/webstatuspi/
+           ./ "$SSH_TARGET:$PI_PROJECT_PATH/"
 ```
 
 ### 5. Remote Setup (if first deploy)
 
 ```bash
-ssh pi@host << 'EOF'
-  cd /opt/webstatuspi
+./scripts/ssh-pi.sh << 'EOF'
+  cd "$PI_PROJECT_PATH"
 
   # Create venv if not exists
   [ ! -d venv ] && python3 -m venv venv
@@ -105,36 +145,26 @@ EOF
 ### 6. Restart Service
 
 ```bash
-ssh pi@host "sudo systemctl restart webstatuspi 2>/dev/null || echo 'Service not installed'"
+./scripts/ssh-pi.sh "sudo systemctl restart $PI_SERVICE_NAME 2>/dev/null || echo 'Service not installed'"
 ```
 
 ### 7. Verify Deployment
 
 ```bash
 # Check if running
-ssh pi@host "curl -s http://localhost:8080/api/health 2>/dev/null || echo 'API not responding'"
+./scripts/ssh-pi.sh "curl -s http://localhost:8080/api/health 2>/dev/null || echo 'API not responding'"
 ```
 
 ### 8. Report Status
 
 ```
-✓ Deployed to pi@192.168.1.100
+✓ Deployed to $SSH_TARGET
 
 Files synced: 15
 Service: restarted
 API health: OK
 
-Deployment log: /opt/webstatuspi/deploy.log
-```
-
-## Configuration File
-
-Create `.deploy.conf` in project root:
-
-```
-PI_HOST=pi@192.168.1.100
-PI_PATH=/opt/webstatuspi
-PI_SERVICE=webstatuspi
+Deployment log: $PI_PROJECT_PATH/deploy.log
 ```
 
 ## Rollback
@@ -144,15 +174,21 @@ If deployment fails:
 ❌ Deployment failed
 
 Last working version backed up at:
-/opt/webstatuspi.backup/
+$PI_PROJECT_PATH.backup/
 
 To rollback manually:
-ssh pi@host "sudo mv /opt/webstatuspi.backup /opt/webstatuspi && sudo systemctl restart webstatuspi"
+./scripts/ssh-pi.sh "sudo mv $PI_PROJECT_PATH.backup $PI_PROJECT_PATH && sudo systemctl restart $PI_SERVICE_NAME"
 ```
 
 ## Error Handling
 
-- SSH connection failed: Check network and credentials
+- SSH connection failed: Check network and `.env.local` configuration
 - Rsync failed: Check disk space on Pi
 - Service restart failed: Check systemd logs
 - API not responding: Check application logs
+
+## Security Notes
+
+- **Never hardcode hosts/users** - always use `.env.local` variables
+- **`.env.local` is gitignored** - safe to store real values
+- Use `./scripts/ssh-pi.sh` helper for consistent SSH connections

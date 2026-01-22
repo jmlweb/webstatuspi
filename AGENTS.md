@@ -327,6 +327,93 @@ Real-time monitoring output:
 
 ---
 
+## SSH and Deployment
+
+### Secure SSH Connection
+
+**Never hardcode SSH hosts, users, or credentials in code.** Use environment variables from `.env.local`.
+
+#### Initial Setup
+
+1. Copy the example file: `cp .env.local.example .env.local`
+2. Edit `.env.local` with your actual values
+3. The file is gitignored - safe to store real values
+
+#### SSH Key Authentication (Required)
+
+**Password authentication is not supported.** The helper script requires SSH key authentication for security.
+
+**First-time setup:**
+
+```bash
+# 1. Generate an SSH key (if you don't have one)
+ssh-keygen -t ed25519 -C "claude-deploy"
+
+# 2. Copy your public key to the Pi
+ssh-copy-id -p 22 claude@webstatuspi.lan
+
+# 3. Test the connection (should not ask for password)
+ssh -p 22 claude@webstatuspi.lan "echo 'SSH key auth working'"
+```
+
+**Why SSH keys instead of passwords?**
+- No credentials stored in plain text
+- More secure than passwords
+- Works with automated deployments
+- Can be revoked individually
+
+**Troubleshooting:**
+- If `ssh-copy-id` fails, ensure password auth is temporarily enabled on the Pi
+- Check `~/.ssh/authorized_keys` on the Pi contains your public key
+- Verify permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`
+
+#### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `PI_SSH_HOST` | Hostname or IP of the Pi | `webstatuspi.lan` |
+| `PI_SSH_USER` | SSH username | `pi` or `claude` |
+| `PI_SSH_PORT` | SSH port (default: 22) | `22` |
+| `PI_PROJECT_PATH` | Project path on Pi | `/opt/webstatuspi` |
+| `PI_SERVICE_NAME` | systemd service name | `webstatuspi` |
+
+#### Usage in Claude Sessions
+
+**Preferred method** - Use the helper script:
+```bash
+# Interactive SSH session (asks for confirmation)
+./scripts/ssh-pi.sh
+
+# Execute a remote command (no confirmation needed)
+./scripts/ssh-pi.sh "systemctl status webstatuspi"
+
+# Skip confirmation prompt with -y flag
+./scripts/ssh-pi.sh -y
+```
+
+The script automatically:
+1. Validates SSH key authentication is configured
+2. Shows confirmation prompt for interactive sessions
+3. Displays clear error messages if key auth fails
+
+**Alternative** - Load variables manually (not recommended):
+```bash
+source .env.local
+ssh -p "$PI_SSH_PORT" "$PI_SSH_USER@$PI_SSH_HOST"
+```
+
+#### Rules for Claude
+
+- **DO**: Use `./scripts/ssh-pi.sh` for all SSH connections
+- **DO**: Reference variables like `$PI_SSH_HOST`, `$PI_SSH_USER`
+- **DO**: Ensure SSH key auth is configured before deploying
+- **DO NOT**: Hardcode `claude@webstatuspi.lan` or any host/user
+- **DO NOT**: Use password authentication (keys only)
+- **DO NOT**: Include SSH credentials in commit messages or logs
+- **DO NOT**: Store `.env.local` in git (it's gitignored)
+
+---
+
 ## Architecture Decision Log
 
 Record of key architectural decisions made during development. Add new entries as decisions are made.

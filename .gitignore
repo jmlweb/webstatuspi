@@ -51,6 +51,8 @@ coverage.xml
 
 # Environments
 .env
+.env.local
+.deploy.conf
 .venv
 env/
 venv/
