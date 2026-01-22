@@ -4,19 +4,19 @@
 
 ## Quick Stats
 
-- **Pending**: 4 tasks
-- **In Progress**: 0 tasks
+- **Pending**: 3 tasks
+- **In Progress**: 1 task
 - **Completed**: 26 tasks
 
 ## Current Focus
 
-> No active task
+> **Task #026**: SSL Certificate Expiration Monitoring (Core, Config, Database, API)
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| 026 | SSL Certificate Expiration Monitoring | Core, Config, Database, API | P3 | pending |
+| 026 | SSL Certificate Expiration Monitoring | Core, Config, Database, API | P3 | in_progress |
 | 027 | Custom Status Code Ranges | Config, Core | P3 | pending |
 | 028 | TCP Port Monitoring | Core, Config, Database | P4 | pending |
 | 029 | DNS Monitoring | Core, Config, Database | P4 | pending |

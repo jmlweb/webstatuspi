@@ -1,11 +1,11 @@
 # Task #026: SSL Certificate Expiration Monitoring
 
 ## Metadata
-- **Status**: pending
+- **Status**: in_progress
 - **Priority**: P3
 - **Slice**: Core, Config, Database, API
 - **Created**: 2026-01-22
-- **Started**: -
+- **Started**: 2026-01-22
 - **Completed**: -
 - **Blocked by**: -
 
