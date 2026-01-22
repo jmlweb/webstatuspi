@@ -1,72 +1,39 @@
 ---
-argument-hint: [pi-host]
-description: Deploy to Raspberry Pi via SSH
+argument-hint: [branch]
+description: Deploy to Raspberry Pi via git pull
 model: haiku
 ---
 
 # Deploy Skill
 
-Deploy the application to a Raspberry Pi over SSH.
+Deploy the application to a Raspberry Pi by pulling from git.
 
 ## Usage
 
-- `/deploy` - Deploy to Pi configured in `.env.local`
-- `/deploy user@192.168.1.100` - Deploy to specific host (override)
+- `/deploy` - Deploy current branch to Pi
+- `/deploy main` - Deploy specific branch
 
 ## Prerequisites
 
-- SSH key authentication configured
-- Pi accessible on network
-- Target directory exists on Pi
-- `.env.local` file configured (see below)
-
-## Configuration
-
-Create `.env.local` from the template:
-
-```bash
-cp .env.local.example .env.local
-# Edit .env.local with your values
-```
-
-Environment variables used:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PI_SSH_HOST` | Hostname or IP | (required) |
-| `PI_SSH_USER` | SSH username | (required) |
-| `PI_SSH_PORT` | SSH port | `22` |
-| `PI_PROJECT_PATH` | Install path on Pi | `/opt/webstatuspi` |
-| `PI_SERVICE_NAME` | systemd service name | `webstatuspi` |
+- SSH key authentication configured (see `AGENTS.md`)
+- `.env.local` file configured
+- Repository cloned on Pi at `$PI_PROJECT_PATH`
 
 ## Workflow
 
 ### 1. Load Configuration
 
 ```bash
-# Load environment variables
 source .env.local
 
-# Validate required variables are set
+# Validate required variables
 if [[ -z "$PI_SSH_HOST" || -z "$PI_SSH_USER" ]]; then
-    echo "Error: PI_SSH_HOST and PI_SSH_USER must be set in .env.local"
+    echo "Error: Configure .env.local first"
     exit 1
 fi
 
-# Set defaults
-PI_SSH_PORT="${PI_SSH_PORT:-22}"
-PI_PROJECT_PATH="${PI_PROJECT_PATH:-/opt/webstatuspi}"
+PI_PROJECT_PATH="${PI_PROJECT_PATH:-/home/pi/webstatuspi}"
 PI_SERVICE_NAME="${PI_SERVICE_NAME:-webstatuspi}"
-
-# Build SSH target
-SSH_TARGET="$PI_SSH_USER@$PI_SSH_HOST"
-SSH_OPTS="-p $PI_SSH_PORT"
-```
-
-If argument provided, override:
-```bash
-# /deploy claude@192.168.1.50 overrides .env.local
-SSH_TARGET="$1"
 ```
 
 ### 2. Validate Local State
@@ -78,117 +45,117 @@ git status --porcelain
 
 If uncommitted changes:
 ```
-⚠️ Uncommitted changes detected
-
-Files:
-- src/monitor.py (modified)
-- config.yaml (modified)
+⚠️ Uncommitted changes detected - these won't be deployed
 
 Options:
-1. Deploy anyway (changes included)
-2. Commit first (/commit)
-3. Abort deployment
+1. Commit first (/commit)
+2. Continue anyway (only pushed commits will deploy)
+3. Abort
 ```
 
-### 3. Run Pre-deploy Checks
+### 3. Ensure Changes Are Pushed
 
 ```bash
-# Syntax check all Python files
-python3 -m py_compile src/*.py
-
-# Run tests if they exist
-pytest tests/ -q --tb=no 2>/dev/null || echo "No tests or tests failed"
+# Check if local is ahead of remote
+git status -sb
 ```
 
-If syntax errors:
+If ahead of remote:
 ```
-❌ Syntax errors found - aborting deployment
+⚠️ You have unpushed commits
 
-Fix errors before deploying:
-- src/monitor.py: line 45 - invalid syntax
-```
-
-### 4. Create Deployment Package
-
-```bash
-# Files to deploy (uses variables from .env.local)
-rsync -avz $SSH_OPTS --exclude='.git' \
-           --exclude='__pycache__' \
-           --exclude='*.pyc' \
-           --exclude='.claude' \
-           --exclude='.env.local' \
-           --exclude='venv' \
-           --exclude='data/*.db' \
-           ./ "$SSH_TARGET:$PI_PROJECT_PATH/"
+Push now? (yes/no)
 ```
 
-### 5. Remote Setup (if first deploy)
+If yes: `git push`
+
+### 4. Deploy via Git Pull
 
 ```bash
 ./scripts/ssh-pi.sh << 'EOF'
-  cd "$PI_PROJECT_PATH"
+cd $PI_PROJECT_PATH || exit 1
 
-  # Create venv if not exists
-  [ ! -d venv ] && python3 -m venv venv
+echo "📥 Pulling latest changes..."
+git fetch origin
+git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
 
-  # Install dependencies
-  venv/bin/pip install -r requirements.txt
+echo "📦 Installing dependencies..."
+if [ -f requirements.txt ]; then
+    ./venv/bin/pip install -q -r requirements.txt
+fi
 
-  # Create data directory
-  mkdir -p data
-
-  # Set permissions
-  chmod +x src/main.py
+echo "✅ Deploy complete"
+git log -1 --oneline
 EOF
 ```
 
-### 6. Restart Service
+### 5. Restart Service
 
 ```bash
-./scripts/ssh-pi.sh "sudo systemctl restart $PI_SERVICE_NAME 2>/dev/null || echo 'Service not installed'"
+./scripts/ssh-pi.sh "sudo systemctl restart $PI_SERVICE_NAME 2>/dev/null || echo 'Service not configured'"
 ```
 
-### 7. Verify Deployment
+### 6. Verify Deployment
 
 ```bash
-# Check if running
-./scripts/ssh-pi.sh "curl -s http://localhost:8080/api/health 2>/dev/null || echo 'API not responding'"
+./scripts/ssh-pi.sh "curl -s http://localhost:8080/api/health 2>/dev/null || echo 'API not responding yet...'"
 ```
 
-### 8. Report Status
+### 7. Report Status
 
 ```
-✓ Deployed to $SSH_TARGET
+✅ Deployed to Pi
 
-Files synced: 15
+Branch: main
+Commit: abc1234 feat: add new feature
 Service: restarted
-API health: OK
-
-Deployment log: $PI_PROJECT_PATH/deploy.log
+API: healthy
 ```
 
-## Rollback
+## First-Time Setup on Pi
 
-If deployment fails:
-```
-❌ Deployment failed
+If the repo isn't cloned yet on the Pi:
 
-Last working version backed up at:
-$PI_PROJECT_PATH.backup/
+```bash
+./scripts/ssh-pi.sh << 'EOF'
+# Clone the repository
+git clone https://github.com/USER/webstatuspi.git $PI_PROJECT_PATH
+cd $PI_PROJECT_PATH
 
-To rollback manually:
-./scripts/ssh-pi.sh "sudo mv $PI_PROJECT_PATH.backup $PI_PROJECT_PATH && sudo systemctl restart $PI_SERVICE_NAME"
+# Create virtual environment
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+
+# Create data directory
+mkdir -p data
+EOF
 ```
 
 ## Error Handling
 
-- SSH connection failed: Check network and `.env.local` configuration
-- Rsync failed: Check disk space on Pi
-- Service restart failed: Check systemd logs
-- API not responding: Check application logs
+- **SSH failed**: Check `.env.local` and SSH key setup
+- **Git pull failed**: Check if repo is cloned on Pi
+- **Service restart failed**: Check systemd configuration
+- **API not responding**: Check application logs on Pi
+
+## Quick Deploy (After Push)
+
+The typical workflow:
+
+```bash
+# 1. Make changes locally
+# 2. Commit
+/commit
+
+# 3. Push to GitHub
+git push
+
+# 4. Deploy to Pi
+/deploy
+```
 
 ## Security Notes
 
-- **Never hardcode hosts/users** - always use `.env.local` variables
-- **`.env.local` is gitignored** - safe to store real values
-- Use `./scripts/ssh-pi.sh` helper for consistent SSH connections
+- Uses SSH key authentication only
+- No credentials in code or commits
+- Git pull over HTTPS (no SSH keys needed on Pi for GitHub)
