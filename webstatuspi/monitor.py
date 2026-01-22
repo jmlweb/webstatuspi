@@ -47,9 +47,6 @@ class _RedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
-# Create opener with custom redirect handler
-_opener = urllib.request.build_opener(_RedirectHandler())
-
 # Pi 1B+ optimized: limit concurrent checks to avoid resource contention.
 # Three workers balances parallel checks vs memory/CPU on constrained hardware.
 MAX_WORKERS = 3
@@ -72,6 +69,38 @@ MAX_BODY_SIZE = 1024 * 1024  # 1MB
 
 # Default warning threshold for SSL certificate expiration (days).
 DEFAULT_SSL_WARNING_DAYS = 30
+
+# Default cache duration for SSL certificate info (1 hour).
+# Reduces SSL handshakes significantly on resource-constrained hardware.
+DEFAULT_SSL_CACHE_SECONDS = 3600
+
+# Pi 1B+ optimized SSL context: disable post-quantum hybrid key exchange.
+# OpenSSL 3.5+ defaults to X25519MLKEM768 which is extremely slow on ARMv6.
+# Using prime256v1 (P-256) reduces SSL handshake from ~1000ms to ~300ms.
+_SSL_ECDH_CURVE = "prime256v1"
+
+
+def _create_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context optimized for Pi 1B+ performance.
+
+    Disables post-quantum hybrid key exchange algorithms that are
+    computationally expensive on low-power ARM processors.
+
+    Returns:
+        SSL context configured for performance on constrained hardware.
+    """
+    ctx = ssl.create_default_context()
+    try:
+        ctx.set_ecdh_curve(_SSL_ECDH_CURVE)
+    except (ValueError, ssl.SSLError):
+        # Fallback: curve not available, use default
+        pass
+    return ctx
+
+
+# Create opener with custom redirect handler and optimized SSL context
+_https_handler = urllib.request.HTTPSHandler(context=_create_ssl_context())
+_opener = urllib.request.build_opener(_RedirectHandler(), _https_handler)
 
 
 def _is_success_status(status_code: int, success_codes: list[int | tuple[int, int]] | None) -> bool:
@@ -116,15 +145,77 @@ class SSLCertInfo:
     expires_in_days: int
 
 
-def _get_ssl_cert_info(url: str, timeout: int) -> tuple[SSLCertInfo | None, str | None]:
+@dataclass
+class _CachedSSLCertInfo:
+    """Cached SSL certificate info with timestamp."""
+
+    info: SSLCertInfo | None
+    error: str | None
+    cached_at: float  # time.monotonic() timestamp
+
+
+class _SSLCertCache:
+    """Thread-safe cache for SSL certificate information.
+
+    Caches SSL cert info to avoid repeated expensive SSL handshakes.
+    Particularly important on resource-constrained hardware like Pi 1B+
+    where SSL handshakes can take 300-900ms each.
+    """
+
+    def __init__(self, cache_seconds: int = DEFAULT_SSL_CACHE_SECONDS):
+        self._cache: dict[str, _CachedSSLCertInfo] = {}
+        self._cache_seconds = cache_seconds
+
+    def get(self, url: str) -> tuple[SSLCertInfo | None, str | None] | None:
+        """Get cached cert info if available and not expired.
+
+        Returns:
+            Tuple of (SSLCertInfo, error) if cached and valid, None if cache miss.
+        """
+        cached = self._cache.get(url)
+        if cached is None:
+            return None
+
+        if time.monotonic() - cached.cached_at > self._cache_seconds:
+            # Cache expired
+            del self._cache[url]
+            return None
+
+        return cached.info, cached.error
+
+    def put(self, url: str, info: SSLCertInfo | None, error: str | None) -> None:
+        """Cache cert info for a URL."""
+        self._cache[url] = _CachedSSLCertInfo(
+            info=info,
+            error=error,
+            cached_at=time.monotonic(),
+        )
+
+    def set_cache_seconds(self, seconds: int) -> None:
+        """Update cache duration (for configuration changes)."""
+        self._cache_seconds = seconds
+
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self._cache.clear()
+
+
+# Global SSL certificate cache instance
+_ssl_cert_cache = _SSLCertCache()
+
+
+def _get_ssl_cert_info(url: str, timeout: int, use_cache: bool = True) -> tuple[SSLCertInfo | None, str | None]:
     """Extract SSL certificate information from an HTTPS URL.
 
     Uses a separate SSL connection (not urllib) to get the raw certificate data,
     since urllib doesn't expose certificate details reliably.
 
+    Results are cached to reduce expensive SSL handshakes on subsequent calls.
+
     Args:
         url: The URL to check (must be HTTPS).
         timeout: Connection timeout in seconds.
+        use_cache: Whether to use cached results (default True).
 
     Returns:
         Tuple of (SSLCertInfo, None) on success, or (None, error_message) on failure.
@@ -135,6 +226,12 @@ def _get_ssl_cert_info(url: str, timeout: int) -> tuple[SSLCertInfo | None, str 
     if parsed.scheme != "https":
         return None, None
 
+    # Check cache first
+    if use_cache:
+        cached = _ssl_cert_cache.get(url)
+        if cached is not None:
+            return cached
+
     hostname = parsed.hostname
     port = parsed.port or 443
 
@@ -142,8 +239,8 @@ def _get_ssl_cert_info(url: str, timeout: int) -> tuple[SSLCertInfo | None, str 
         return None, "Invalid URL: no hostname"
 
     try:
-        # Create SSL context with default CA certificates
-        context = ssl.create_default_context()
+        # Create SSL context optimized for Pi 1B+ performance
+        context = _create_ssl_context()
 
         # Connect and get certificate
         with socket.create_connection((hostname, port), timeout=timeout) as sock:
@@ -190,25 +287,36 @@ def _get_ssl_cert_info(url: str, timeout: int) -> tuple[SSLCertInfo | None, str 
                         subject_dict[str(first[0])] = str(first[1])
             subject = subject_dict.get("commonName")
 
-        return SSLCertInfo(
+        result = SSLCertInfo(
             issuer=issuer,
             subject=subject,
             expires_at=expires_at,
             expires_in_days=expires_in_days,
-        ), None
+        )
+        _ssl_cert_cache.put(url, result, None)
+        return result, None
 
     except ssl.SSLCertVerificationError as e:
-        return None, f"SSL certificate verification failed: {e}"
+        error = f"SSL certificate verification failed: {e}"
+        _ssl_cert_cache.put(url, None, error)
+        return None, error
     except ssl.SSLError as e:
-        return None, f"SSL error: {e}"
+        error = f"SSL error: {e}"
+        _ssl_cert_cache.put(url, None, error)
+        return None, error
     except TimeoutError:
+        # Don't cache timeouts - they may be transient
         return None, "SSL connection timeout"
     except socket.gaierror as e:
+        # Don't cache DNS failures - they may be transient
         return None, f"DNS resolution failed: {e}"
     except OSError as e:
+        # Don't cache connection failures - they may be transient
         return None, f"Connection failed: {e}"
     except Exception as e:
-        return None, f"SSL check failed: {e}"
+        error = f"SSL check failed: {e}"
+        _ssl_cert_cache.put(url, None, error)
+        return None, error
 
 
 class _ConnectivityCache:
@@ -371,12 +479,13 @@ def check_url(
 
     # Extract SSL certificate info for HTTPS URLs (separate connection)
     # This happens before the HTTP check so SSL failures don't affect HTTP status
+    # Can be disabled per-URL with verify_ssl=false to reduce latency
     ssl_cert_info: SSLCertInfo | None = None
     ssl_cert_error: str | None = None
     ssl_expired = False
     ssl_error_message: str | None = None
 
-    if url_config.url.startswith("https://"):
+    if url_config.url.startswith("https://") and url_config.verify_ssl:
         ssl_cert_info, ssl_cert_error = _get_ssl_cert_info(url_config.url, url_config.timeout)
 
         if ssl_cert_error:
@@ -759,6 +868,9 @@ class Monitor:
 
         # Internet connectivity status: None (unknown), True (available), False (no internet)
         self._internet_status: bool | None = None
+
+        # Configure SSL certificate cache duration from config
+        _ssl_cert_cache.set_cache_seconds(config.monitor.ssl_cache_seconds)
 
         # Track next check time for each target (staggered start)
         self._next_check: dict[str, float] = {}

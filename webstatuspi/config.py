@@ -24,6 +24,7 @@ class MonitorConfig:
 
     interval: int = 60  # seconds between check cycles
     ssl_warning_days: int = 30  # days before expiration to warn about SSL certificates
+    ssl_cache_seconds: int = 3600  # cache SSL cert info for 1 hour (reduces SSL handshakes)
 
     def __post_init__(self) -> None:
         if self.interval < MIN_MONITOR_INTERVAL:
@@ -33,6 +34,8 @@ class MonitorConfig:
             )
         if self.ssl_warning_days < 0:
             raise ConfigError(f"SSL warning days must be non-negative (got {self.ssl_warning_days})")
+        if self.ssl_cache_seconds < 0:
+            raise ConfigError(f"SSL cache seconds must be non-negative (got {self.ssl_cache_seconds})")
 
 
 def _parse_success_codes(codes: list | None) -> list[int | tuple[int, int]] | None:
@@ -97,6 +100,10 @@ class UrlConfig:
 
     Optional success codes:
     - success_codes: Custom HTTP status codes that indicate success (default: 200-399)
+
+    SSL certificate monitoring:
+    - verify_ssl: Whether to check SSL certificate info (default: True for HTTPS URLs).
+                  Set to False to skip SSL cert checks and reduce latency on slow hardware.
     """
 
     name: str
@@ -105,6 +112,7 @@ class UrlConfig:
     keyword: str | None = None
     json_path: str | None = None
     success_codes: list[int | tuple[int, int]] | None = None
+    verify_ssl: bool = True
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -327,6 +335,7 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
         keyword=str(keyword) if keyword is not None else None,
         json_path=str(json_path) if json_path is not None else None,
         success_codes=success_codes,
+        verify_ssl=bool(data.get("verify_ssl", True)),
     )
 
 
@@ -388,6 +397,7 @@ def _parse_monitor_config(data: dict | None) -> MonitorConfig:
     return MonitorConfig(
         interval=int(data.get("interval", 60)),
         ssl_warning_days=int(data.get("ssl_warning_days", 30)),
+        ssl_cache_seconds=int(data.get("ssl_cache_seconds", 3600)),
     )
 
 
