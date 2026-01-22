@@ -4,13 +4,16 @@ import json
 import logging
 import socket
 import sqlite3
+import ssl
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Event, Thread
+from urllib.parse import urlparse
 
 from .config import Config, UrlConfig
 from .database import cleanup_old_checks, insert_check
@@ -66,6 +69,121 @@ CONNECTIVITY_CACHE_SECONDS = 30
 # Maximum response body size to read for content validation (1MB).
 # Pi 1B+ memory constraint: prevent loading large responses into memory.
 MAX_BODY_SIZE = 1024 * 1024  # 1MB
+
+# Default warning threshold for SSL certificate expiration (days).
+DEFAULT_SSL_WARNING_DAYS = 30
+
+
+@dataclass(frozen=True)
+class SSLCertInfo:
+    """SSL certificate information extracted from an HTTPS URL.
+
+    Attributes:
+        issuer: Certificate issuer organization name.
+        subject: Certificate subject common name.
+        expires_at: Certificate expiration timestamp (UTC).
+        expires_in_days: Days until expiration (negative if expired).
+    """
+
+    issuer: str | None
+    subject: str | None
+    expires_at: datetime
+    expires_in_days: int
+
+
+def _get_ssl_cert_info(url: str, timeout: int) -> tuple[SSLCertInfo | None, str | None]:
+    """Extract SSL certificate information from an HTTPS URL.
+
+    Uses a separate SSL connection (not urllib) to get the raw certificate data,
+    since urllib doesn't expose certificate details reliably.
+
+    Args:
+        url: The URL to check (must be HTTPS).
+        timeout: Connection timeout in seconds.
+
+    Returns:
+        Tuple of (SSLCertInfo, None) on success, or (None, error_message) on failure.
+    """
+    parsed = urlparse(url)
+
+    # Only HTTPS URLs have SSL certificates
+    if parsed.scheme != "https":
+        return None, None
+
+    hostname = parsed.hostname
+    port = parsed.port or 443
+
+    if not hostname:
+        return None, "Invalid URL: no hostname"
+
+    try:
+        # Create SSL context with default CA certificates
+        context = ssl.create_default_context()
+
+        # Connect and get certificate
+        with socket.create_connection((hostname, port), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssl_sock:
+                cert = ssl_sock.getpeercert()
+
+        if not cert:
+            return None, "No certificate returned by server"
+
+        # Extract expiration date (notAfter is in format: 'Mon DD HH:MM:SS YYYY GMT')
+        not_after_raw = cert.get("notAfter")
+        if not not_after_raw or not isinstance(not_after_raw, str):
+            return None, "Certificate missing expiration date"
+
+        # Parse the certificate date format
+        expires_at = datetime.strptime(not_after_raw, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
+
+        # Calculate days until expiration
+        now = datetime.now(UTC)
+        delta = expires_at - now
+        expires_in_days = delta.days
+
+        # Extract issuer organization name
+        issuer: str | None = None
+        issuer_tuple = cert.get("issuer", ())
+        if isinstance(issuer_tuple, tuple):
+            issuer_dict: dict[str, str] = {}
+            for item in issuer_tuple:
+                if isinstance(item, tuple) and len(item) > 0:
+                    first = item[0]
+                    if isinstance(first, tuple) and len(first) == 2:
+                        issuer_dict[str(first[0])] = str(first[1])
+            issuer = issuer_dict.get("organizationName") or issuer_dict.get("commonName")
+
+        # Extract subject common name
+        subject: str | None = None
+        subject_tuple = cert.get("subject", ())
+        if isinstance(subject_tuple, tuple):
+            subject_dict: dict[str, str] = {}
+            for item in subject_tuple:
+                if isinstance(item, tuple) and len(item) > 0:
+                    first = item[0]
+                    if isinstance(first, tuple) and len(first) == 2:
+                        subject_dict[str(first[0])] = str(first[1])
+            subject = subject_dict.get("commonName")
+
+        return SSLCertInfo(
+            issuer=issuer,
+            subject=subject,
+            expires_at=expires_at,
+            expires_in_days=expires_in_days,
+        ), None
+
+    except ssl.SSLCertVerificationError as e:
+        return None, f"SSL certificate verification failed: {e}"
+    except ssl.SSLError as e:
+        return None, f"SSL error: {e}"
+    except TimeoutError:
+        return None, "SSL connection timeout"
+    except socket.gaierror as e:
+        return None, f"DNS resolution failed: {e}"
+    except OSError as e:
+        return None, f"Connection failed: {e}"
+    except Exception as e:
+        return None, f"SSL check failed: {e}"
 
 
 class _ConnectivityCache:
@@ -193,12 +311,17 @@ def check_internet_connectivity(
     return result
 
 
-def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult:
+def check_url(
+    url_config: UrlConfig,
+    allow_private: bool = False,
+    ssl_warning_days: int = DEFAULT_SSL_WARNING_DAYS,
+) -> CheckResult:
     """Perform a single HTTP health check on a URL.
 
     Args:
         url_config: Configuration for the URL to check.
         allow_private: If True, allow private IPs (for testing only).
+        ssl_warning_days: Days before expiration to log SSL certificate warnings.
 
     Returns:
         CheckResult with status, response time, and any error details.
@@ -220,6 +343,32 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             error_message=f"URL blocked: {e}",
             checked_at=checked_at,
         )
+
+    # Extract SSL certificate info for HTTPS URLs (separate connection)
+    # This happens before the HTTP check so SSL failures don't affect HTTP status
+    ssl_cert_info: SSLCertInfo | None = None
+    ssl_cert_error: str | None = None
+    ssl_expired = False
+    ssl_error_message: str | None = None
+
+    if url_config.url.startswith("https://"):
+        ssl_cert_info, ssl_cert_error = _get_ssl_cert_info(url_config.url, url_config.timeout)
+
+        if ssl_cert_error:
+            logger.debug("SSL cert extraction failed for %s: %s", url_config.name, ssl_cert_error)
+        elif ssl_cert_info:
+            # Check if certificate is expired
+            if ssl_cert_info.expires_in_days < 0:
+                ssl_expired = True
+                ssl_error_message = f"SSL certificate expired {-ssl_cert_info.expires_in_days} days ago"
+                logger.warning("%s: %s", url_config.name, ssl_error_message)
+            elif ssl_cert_info.expires_in_days <= ssl_warning_days:
+                logger.warning(
+                    "%s: SSL certificate expires in %d days (threshold: %d)",
+                    url_config.name,
+                    ssl_cert_info.expires_in_days,
+                    ssl_warning_days,
+                )
 
     try:
         request = urllib.request.Request(
@@ -267,6 +416,11 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
                             is_up = False
                             error_message = validation_error
 
+            # SSL expiration overrides is_up status
+            if ssl_expired:
+                is_up = False
+                error_message = ssl_error_message
+
             return CheckResult(
                 url_name=url_config.name,
                 url=url_config.url,
@@ -278,6 +432,11 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
                 content_length=content_length,
                 server_header=server_header,
                 status_text=status_text,
+                ssl_cert_issuer=ssl_cert_info.issuer if ssl_cert_info else None,
+                ssl_cert_subject=ssl_cert_info.subject if ssl_cert_info else None,
+                ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
+                ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
+                ssl_cert_error=ssl_cert_error,
             )
 
     except urllib.error.HTTPError as e:
@@ -295,17 +454,28 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
         # Extract status text (reason phrase)
         status_text = getattr(e, "reason", None)
 
+        # SSL expiration overrides is_up status
+        error_message = None if is_up else f"HTTP {e.code}: {e.reason}"
+        if ssl_expired:
+            is_up = False
+            error_message = ssl_error_message
+
         return CheckResult(
             url_name=url_config.name,
             url=url_config.url,
             status_code=e.code,
             response_time_ms=elapsed_ms,
             is_up=is_up,
-            error_message=None if is_up else f"HTTP {e.code}: {e.reason}",
+            error_message=error_message,
             checked_at=checked_at,
             content_length=content_length,
             server_header=server_header,
             status_text=status_text,
+            ssl_cert_issuer=ssl_cert_info.issuer if ssl_cert_info else None,
+            ssl_cert_subject=ssl_cert_info.subject if ssl_cert_info else None,
+            ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
+            ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
+            ssl_cert_error=ssl_cert_error,
         )
 
     except urllib.error.URLError as e:
@@ -317,8 +487,13 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             status_code=None,
             response_time_ms=elapsed_ms,
             is_up=False,
-            error_message=reason,
+            error_message=ssl_error_message if ssl_expired else reason,
             checked_at=checked_at,
+            ssl_cert_issuer=ssl_cert_info.issuer if ssl_cert_info else None,
+            ssl_cert_subject=ssl_cert_info.subject if ssl_cert_info else None,
+            ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
+            ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
+            ssl_cert_error=ssl_cert_error,
         )
 
     except Exception as e:
@@ -329,8 +504,13 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             status_code=None,
             response_time_ms=elapsed_ms,
             is_up=False,
-            error_message=str(e),
+            error_message=ssl_error_message if ssl_expired else str(e),
             checked_at=checked_at,
+            ssl_cert_issuer=ssl_cert_info.issuer if ssl_cert_info else None,
+            ssl_cert_subject=ssl_cert_info.subject if ssl_cert_info else None,
+            ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
+            ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
+            ssl_cert_error=ssl_cert_error,
         )
 
 
@@ -463,8 +643,9 @@ class Monitor:
         url_configs: list[UrlConfig] = []
 
         # Collect all results first
+        ssl_warning_days = self._config.monitor.ssl_warning_days
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(check_url, url): url for url in urls}
+            futures = {executor.submit(check_url, url, False, ssl_warning_days): url for url in urls}
 
             for future in as_completed(futures):
                 url_config = futures[future]

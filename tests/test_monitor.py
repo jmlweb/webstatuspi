@@ -11,7 +11,7 @@ import pytest
 from webstatuspi.config import Config, DatabaseConfig, MonitorConfig, UrlConfig
 from webstatuspi.database import init_db
 from webstatuspi.models import CheckResult
-from webstatuspi.monitor import MAX_WORKERS, Monitor, check_url
+from webstatuspi.monitor import MAX_WORKERS, Monitor, SSLCertInfo, _get_ssl_cert_info, check_url
 
 
 @pytest.fixture
@@ -951,3 +951,232 @@ class TestContentValidation:
             assert result.error_message is None
             # Verify read was not called
             mock_response.read.assert_not_called()
+
+
+class TestSSLCertExtraction:
+    """Tests for SSL certificate extraction functionality."""
+
+    def test_http_url_returns_none(self) -> None:
+        """HTTP URLs return None for SSL cert info (no SSL)."""
+        ssl_info, error = _get_ssl_cert_info("http://example.com", timeout=5)
+
+        assert ssl_info is None
+        assert error is None
+
+    def test_https_url_extracts_cert_info(self) -> None:
+        """HTTPS URLs return SSL cert info when successful."""
+        # Mock the SSL connection
+        mock_cert = {
+            "subject": ((("commonName", "example.com"),),),
+            "issuer": ((("organizationName", "Let's Encrypt"),),),
+            "notAfter": "Dec 31 23:59:59 2025 GMT",
+        }
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_ssl_sock = MagicMock()
+            mock_ssl_sock.getpeercert.return_value = mock_cert
+            mock_ssl_sock.__enter__ = MagicMock(return_value=mock_ssl_sock)
+            mock_ssl_sock.__exit__ = MagicMock(return_value=False)
+
+            mock_sock = MagicMock()
+            mock_sock.__enter__ = MagicMock(return_value=mock_sock)
+            mock_sock.__exit__ = MagicMock(return_value=False)
+            mock_conn.return_value = mock_sock
+
+            with patch("webstatuspi.monitor.ssl.create_default_context") as mock_ctx:
+                mock_context = MagicMock()
+                mock_context.wrap_socket.return_value = mock_ssl_sock
+                mock_ctx.return_value = mock_context
+
+                ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+
+        assert error is None
+        assert ssl_info is not None
+        assert ssl_info.issuer == "Let's Encrypt"
+        assert ssl_info.subject == "example.com"
+        assert ssl_info.expires_at is not None
+
+    def test_ssl_connection_failure_returns_error(self) -> None:
+        """SSL connection failures return error message."""
+        import ssl
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_conn.side_effect = ssl.SSLError("Connection refused")
+
+            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+
+        assert ssl_info is None
+        assert "SSL error" in error
+
+    def test_ssl_timeout_returns_error(self) -> None:
+        """SSL connection timeout returns error message."""
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_conn.side_effect = TimeoutError("timed out")
+
+            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+
+        assert ssl_info is None
+        assert "timeout" in error.lower()
+
+    def test_invalid_hostname_returns_error(self) -> None:
+        """Invalid hostname returns error message."""
+        ssl_info, error = _get_ssl_cert_info("https://", timeout=5)
+
+        assert ssl_info is None
+        assert "hostname" in error.lower() or "invalid" in error.lower()
+
+
+class TestSSLCertInCheckUrl:
+    """Tests for SSL certificate integration in check_url."""
+
+    def test_ssl_fields_populated_for_https(self) -> None:
+        """SSL fields are populated for HTTPS URLs."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+        )
+
+        mock_ssl_info = SSLCertInfo(
+            issuer="Let's Encrypt",
+            subject="example.com",
+            expires_at=datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC),
+            expires_in_days=365,
+        )
+
+        with patch("webstatuspi.monitor._get_ssl_cert_info") as mock_ssl:
+            mock_ssl.return_value = (mock_ssl_info, None)
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+        assert result.is_up is True
+        assert result.ssl_cert_issuer == "Let's Encrypt"
+        assert result.ssl_cert_subject == "example.com"
+        assert result.ssl_cert_expires_in_days == 365
+        assert result.ssl_cert_error is None
+
+    def test_ssl_fields_none_for_http(self) -> None:
+        """SSL fields are None for HTTP URLs."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="http://example.com",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config, allow_private=True)
+
+        assert result.is_up is True
+        assert result.ssl_cert_issuer is None
+        assert result.ssl_cert_subject is None
+        assert result.ssl_cert_expires_in_days is None
+        assert result.ssl_cert_error is None
+
+    def test_expired_ssl_cert_marks_down(self) -> None:
+        """Expired SSL certificate marks URL as down."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+        )
+
+        mock_ssl_info = SSLCertInfo(
+            issuer="Let's Encrypt",
+            subject="example.com",
+            expires_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+            expires_in_days=-30,  # Expired 30 days ago
+        )
+
+        with patch("webstatuspi.monitor._get_ssl_cert_info") as mock_ssl:
+            mock_ssl.return_value = (mock_ssl_info, None)
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+        assert result.is_up is False
+        assert "expired" in result.error_message.lower()
+        assert result.ssl_cert_expires_in_days == -30
+
+    def test_ssl_extraction_failure_does_not_affect_http_check(self) -> None:
+        """SSL extraction failure doesn't mark URL as down if HTTP succeeds."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor._get_ssl_cert_info") as mock_ssl:
+            mock_ssl.return_value = (None, "SSL extraction failed")
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+        assert result.is_up is True  # HTTP check succeeded
+        assert result.ssl_cert_error == "SSL extraction failed"
+        assert result.ssl_cert_issuer is None
+
+    def test_ssl_warning_threshold_logged(self) -> None:
+        """SSL certificate approaching expiration is logged as warning."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+        )
+
+        mock_ssl_info = SSLCertInfo(
+            issuer="Let's Encrypt",
+            subject="example.com",
+            expires_at=datetime(2025, 2, 1, 0, 0, 0, tzinfo=UTC),
+            expires_in_days=15,  # Expires in 15 days (below 30 day threshold)
+        )
+
+        with patch("webstatuspi.monitor._get_ssl_cert_info") as mock_ssl:
+            mock_ssl.return_value = (mock_ssl_info, None)
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                with patch("webstatuspi.monitor.logger") as mock_logger:
+                    result = check_url(url_config, ssl_warning_days=30)
+
+                    # Verify warning was logged
+                    mock_logger.warning.assert_called()
+                    warning_call = mock_logger.warning.call_args[0]
+                    assert "15 days" in str(warning_call) or "expires in" in str(warning_call).lower()
+
+        assert result.is_up is True  # Still up, just a warning
+        assert result.ssl_cert_expires_in_days == 15

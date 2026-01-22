@@ -574,6 +574,53 @@ urls:
 | CDN returns cached error page | Use `keyword` to verify expected content |
 | Backend returns maintenance page | Use `keyword` to detect unexpected content |
 
+### SSL Certificate Monitoring
+
+WebStatusPi automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.
+
+**What's monitored:**
+
+- Certificate expiration date
+- Days until expiration (negative if expired)
+- Certificate issuer (e.g., "Let's Encrypt")
+- Certificate subject (common name)
+
+**Behavior:**
+
+| Condition | Result |
+|-----------|--------|
+| Certificate valid | Normal monitoring, SSL info in API response |
+| Certificate expires within threshold | Warning logged, URL still marked UP |
+| Certificate expired | URL marked DOWN with error message |
+| SSL extraction fails | URL status unaffected, error stored in `ssl_cert_error` |
+
+**Configuration:**
+
+```yaml
+monitor:
+  interval: 60
+  ssl_warning_days: 30  # Days before expiration to log warnings (default: 30)
+```
+
+**API Response (SSL fields):**
+
+```json
+{
+  "name": "MY_SITE",
+  "ssl_cert_issuer": "Let's Encrypt",
+  "ssl_cert_subject": "example.com",
+  "ssl_cert_expires_at": "2025-12-31T23:59:59Z",
+  "ssl_cert_expires_in_days": 365,
+  "ssl_cert_error": null
+}
+```
+
+**Prometheus metric:**
+
+```prometheus
+webstatuspi_ssl_cert_expires_in_days{url_name="MY_SITE",url="https://example.com",issuer="Let's Encrypt",subject="example.com"} 365
+```
+
 ### Performance Tips
 
 For Raspberry Pi 1B+:

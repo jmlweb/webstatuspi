@@ -23,6 +23,7 @@ class MonitorConfig:
     """Configuration for the monitor loop."""
 
     interval: int = 60  # seconds between check cycles
+    ssl_warning_days: int = 30  # days before expiration to warn about SSL certificates
 
     def __post_init__(self) -> None:
         if self.interval < MIN_MONITOR_INTERVAL:
@@ -30,6 +31,8 @@ class MonitorConfig:
                 f"Monitor interval must be at least {MIN_MONITOR_INTERVAL} seconds "
                 f"(got {self.interval}). Lower values cause CPU thrashing on Pi 1B+."
             )
+        if self.ssl_warning_days < 0:
+            raise ConfigError(f"SSL warning days must be non-negative (got {self.ssl_warning_days})")
 
 
 @dataclass(frozen=True)
@@ -197,6 +200,7 @@ def _parse_monitor_config(data: dict | None) -> MonitorConfig:
 
     return MonitorConfig(
         interval=int(data.get("interval", 60)),
+        ssl_warning_days=int(data.get("ssl_warning_days", 30)),
     )
 
 

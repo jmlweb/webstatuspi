@@ -19,6 +19,11 @@ class CheckResult:
         content_length: Response Content-Length header value, or None if not provided.
         server_header: Response Server header value, or None if not provided.
         status_text: HTTP status reason phrase (e.g., "OK", "Not Found"), or None if not available.
+        ssl_cert_issuer: SSL certificate issuer organization, or None for HTTP URLs.
+        ssl_cert_subject: SSL certificate subject common name, or None for HTTP URLs.
+        ssl_cert_expires_at: SSL certificate expiration timestamp, or None for HTTP URLs.
+        ssl_cert_expires_in_days: Days until SSL certificate expires (negative if expired), or None.
+        ssl_cert_error: Error message if SSL certificate extraction failed, or None.
     """
 
     url_name: str
@@ -31,6 +36,11 @@ class CheckResult:
     content_length: int | None = None
     server_header: str | None = None
     status_text: str | None = None
+    ssl_cert_issuer: str | None = None
+    ssl_cert_subject: str | None = None
+    ssl_cert_expires_at: datetime | None = None
+    ssl_cert_expires_in_days: int | None = None
+    ssl_cert_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +69,11 @@ class UrlStatus:
         p95_response_time_24h: 95th percentile response time in last 24h (ms).
         p99_response_time_24h: 99th percentile response time in last 24h (ms).
         stddev_response_time_24h: Standard deviation of response times in last 24h (ms).
+        ssl_cert_issuer: SSL certificate issuer organization, or None for HTTP URLs.
+        ssl_cert_subject: SSL certificate subject common name, or None for HTTP URLs.
+        ssl_cert_expires_at: SSL certificate expiration timestamp, or None for HTTP URLs.
+        ssl_cert_expires_in_days: Days until SSL certificate expires (negative if expired), or None.
+        ssl_cert_error: Error message if SSL certificate extraction failed, or None.
     """
 
     url_name: str
@@ -82,3 +97,8 @@ class UrlStatus:
     p95_response_time_24h: int | None = None
     p99_response_time_24h: int | None = None
     stddev_response_time_24h: float | None = None
+    ssl_cert_issuer: str | None = None
+    ssl_cert_subject: str | None = None
+    ssl_cert_expires_at: datetime | None = None
+    ssl_cert_expires_in_days: int | None = None
+    ssl_cert_error: str | None = None

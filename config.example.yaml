@@ -7,6 +7,7 @@
 
 monitor:
   interval: 60  # seconds between check cycles (default: 60)
+  ssl_warning_days: 30  # days before expiration to warn about SSL certs (default: 30)
 
 urls:
   - name: "UB_APP"

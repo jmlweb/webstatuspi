@@ -55,7 +55,12 @@ def init_db(db_path: str) -> sqlite3.Connection:
                 checked_at TEXT NOT NULL,
                 content_length INTEGER,
                 server_header TEXT,
-                status_text TEXT
+                status_text TEXT,
+                ssl_cert_issuer TEXT,
+                ssl_cert_subject TEXT,
+                ssl_cert_expires_at TEXT,
+                ssl_cert_expires_in_days INTEGER,
+                ssl_cert_error TEXT
             )
         """)
 
@@ -68,6 +73,17 @@ def init_db(db_path: str) -> sqlite3.Connection:
             conn.execute("ALTER TABLE checks ADD COLUMN server_header TEXT")
         if "status_text" not in columns:
             conn.execute("ALTER TABLE checks ADD COLUMN status_text TEXT")
+        # SSL certificate monitoring columns
+        if "ssl_cert_issuer" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN ssl_cert_issuer TEXT")
+        if "ssl_cert_subject" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN ssl_cert_subject TEXT")
+        if "ssl_cert_expires_at" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN ssl_cert_expires_at TEXT")
+        if "ssl_cert_expires_in_days" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN ssl_cert_expires_in_days INTEGER")
+        if "ssl_cert_error" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN ssl_cert_error TEXT")
 
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_checks_url_name
@@ -108,8 +124,10 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
             conn.execute(
                 """
                 INSERT INTO checks
-                (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length, server_header, status_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
+                 content_length, server_header, status_text,
+                 ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     result.url_name,
@@ -122,6 +140,11 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                     result.content_length,
                     result.server_header,
                     result.status_text,
+                    result.ssl_cert_issuer,
+                    result.ssl_cert_subject,
+                    result.ssl_cert_expires_at.isoformat() if result.ssl_cert_expires_at else None,
+                    result.ssl_cert_expires_in_days,
+                    result.ssl_cert_error,
                 ),
             )
             conn.commit()
@@ -162,6 +185,11 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                         content_length,
                         server_header,
                         status_text,
+                        ssl_cert_issuer,
+                        ssl_cert_subject,
+                        ssl_cert_expires_at,
+                        ssl_cert_expires_in_days,
+                        ssl_cert_error,
                         ROW_NUMBER() OVER (PARTITION BY url_name ORDER BY checked_at DESC) as rn
                     FROM checks
                 ),
@@ -245,6 +273,11 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                     l.content_length,
                     l.server_header,
                     l.status_text,
+                    l.ssl_cert_issuer,
+                    l.ssl_cert_subject,
+                    l.ssl_cert_expires_at,
+                    l.ssl_cert_expires_in_days,
+                    l.ssl_cert_error,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -291,6 +324,13 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                 p95_response_time_24h=row["p95_response_time_24h"],
                 p99_response_time_24h=row["p99_response_time_24h"],
                 stddev_response_time_24h=(row["variance_24h"] ** 0.5) if row["variance_24h"] is not None else None,
+                ssl_cert_issuer=row["ssl_cert_issuer"],
+                ssl_cert_subject=row["ssl_cert_subject"],
+                ssl_cert_expires_at=(
+                    datetime.fromisoformat(row["ssl_cert_expires_at"]) if row["ssl_cert_expires_at"] else None
+                ),
+                ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
+                ssl_cert_error=row["ssl_cert_error"],
             )
             for row in rows
         ]
@@ -333,7 +373,12 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                         checked_at,
                         content_length,
                         server_header,
-                        status_text
+                        status_text,
+                        ssl_cert_issuer,
+                        ssl_cert_subject,
+                        ssl_cert_expires_at,
+                        ssl_cert_expires_in_days,
+                        ssl_cert_error
                     FROM checks
                     WHERE url_name = ?
                     ORDER BY checked_at DESC
@@ -401,6 +446,11 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                     l.content_length,
                     l.server_header,
                     l.status_text,
+                    l.ssl_cert_issuer,
+                    l.ssl_cert_subject,
+                    l.ssl_cert_expires_at,
+                    l.ssl_cert_expires_in_days,
+                    l.ssl_cert_error,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -454,6 +504,13 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
             p95_response_time_24h=row["p95_response_time_24h"],
             p99_response_time_24h=row["p99_response_time_24h"],
             stddev_response_time_24h=(row["variance_24h"] ** 0.5) if row["variance_24h"] is not None else None,
+            ssl_cert_issuer=row["ssl_cert_issuer"],
+            ssl_cert_subject=row["ssl_cert_subject"],
+            ssl_cert_expires_at=(
+                datetime.fromisoformat(row["ssl_cert_expires_at"]) if row["ssl_cert_expires_at"] else None
+            ),
+            ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
+            ssl_cert_error=row["ssl_cert_error"],
         )
 
     except sqlite3.Error as e:
@@ -484,7 +541,9 @@ def get_history(
     """
     try:
         query = """
-            SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at, content_length, server_header, status_text
+            SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
+                   content_length, server_header, status_text,
+                   ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error
             FROM checks
             WHERE url_name = ? AND checked_at >= ?
             ORDER BY checked_at DESC
@@ -510,6 +569,13 @@ def get_history(
                 content_length=row["content_length"],
                 server_header=row["server_header"],
                 status_text=row["status_text"],
+                ssl_cert_issuer=row["ssl_cert_issuer"],
+                ssl_cert_subject=row["ssl_cert_subject"],
+                ssl_cert_expires_at=(
+                    datetime.fromisoformat(row["ssl_cert_expires_at"]) if row["ssl_cert_expires_at"] else None
+                ),
+                ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
+                ssl_cert_error=row["ssl_cert_error"],
             )
             for row in rows
         ]

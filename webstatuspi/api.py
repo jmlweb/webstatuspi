@@ -137,6 +137,13 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         "stddev_response_time_24h": round(status.stddev_response_time_24h, 2)
         if status.stddev_response_time_24h is not None
         else None,
+        "ssl_cert_issuer": status.ssl_cert_issuer,
+        "ssl_cert_subject": status.ssl_cert_subject,
+        "ssl_cert_expires_at": status.ssl_cert_expires_at.isoformat().replace("+00:00", "Z")
+        if status.ssl_cert_expires_at is not None
+        else None,
+        "ssl_cert_expires_in_days": status.ssl_cert_expires_in_days,
+        "ssl_cert_error": status.ssl_cert_error,
     }
 
 
@@ -237,6 +244,21 @@ def _format_prometheus_metrics(statuses: list[UrlStatus]) -> str:
         url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
         timestamp = int(status.last_check.timestamp())
         lines.append(f'webstatuspi_last_check_timestamp{{url_name="{url_name}",url="{url}"}} {timestamp}')
+
+    # webstatuspi_ssl_cert_expires_in_days (only for HTTPS URLs with valid cert info)
+    lines.append("")
+    lines.append("# HELP webstatuspi_ssl_cert_expires_in_days Days until SSL certificate expires (negative if expired)")
+    lines.append("# TYPE webstatuspi_ssl_cert_expires_in_days gauge")
+    for status in statuses:
+        if status.ssl_cert_expires_in_days is not None:
+            url_name = status.url_name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            issuer = (status.ssl_cert_issuer or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            subject = (status.ssl_cert_subject or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            lines.append(
+                f'webstatuspi_ssl_cert_expires_in_days{{url_name="{url_name}",url="{url}",'
+                f'issuer="{issuer}",subject="{subject}"}} {status.ssl_cert_expires_in_days}'
+            )
 
     return "\n".join(lines) + "\n"
 
