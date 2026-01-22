@@ -1,12 +1,12 @@
 # Task #028: TCP Port Monitoring
 
 ## Metadata
-- **Status**: pending
+- **Status**: done
 - **Priority**: P4
 - **Slice**: Core, Config, Database
 - **Created**: 2026-01-22
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-22
+- **Completed**: 2026-01-22
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,13 +14,13 @@
 **User Story**: As a system administrator, I want to monitor TCP port connectivity (e.g., database ports, Redis, custom services) so that I can verify network-level availability beyond HTTP endpoints.
 
 **Acceptance Criteria**:
-- [ ] Config schema supports `type: tcp` for non-HTTP monitoring
-- [ ] TCP check connects to host:port and measures connection time
-- [ ] Connection success/failure stored in database (reusing existing schema)
-- [ ] Response time measured as connection establishment time
-- [ ] TCP checks integrated into existing monitor loop
-- [ ] Unit tests for TCP connection logic
-- [ ] Documentation added to README.md with examples
+- [x] Config schema supports `tcp` section for non-HTTP monitoring
+- [x] TCP check connects to host:port and measures connection time
+- [x] Connection success/failure stored in database (reusing existing schema)
+- [x] Response time measured as connection establishment time
+- [x] TCP checks integrated into existing monitor loop
+- [x] Unit tests for TCP connection logic
+- [x] Documentation added to README.md with examples
 
 ## Implementation Notes
 
@@ -103,8 +103,17 @@ None
 
 ## Progress Log
 
-(To be filled during implementation)
+- 2026-01-22: Added TcpConfig dataclass with host/port validation
+- 2026-01-22: Added TargetConfig union type for polymorphic handling
+- 2026-01-22: Implemented check_tcp() function with socket.create_connection()
+- 2026-01-22: Added check_target() dispatcher function
+- 2026-01-22: Updated Monitor class to handle all targets (URLs + TCP)
+- 2026-01-22: Added Config.all_targets property for unified iteration
+- 2026-01-22: Added comprehensive tests for TcpConfig and check_tcp
+- 2026-01-22: Updated README.md with TCP monitoring documentation
+- 2026-01-22: Updated config.example.yaml with TCP examples
 
 ## Learnings
 
-(To be filled during implementation)
+- Implemented as separate config section (tcp:) instead of type field on UrlConfig for cleaner separation
+- Reused existing CheckResult and database schema - status_code=None for TCP

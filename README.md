@@ -607,6 +607,39 @@ urls:
 - Status codes must be valid HTTP codes (100-599)
 - Ranges use string format with hyphen: `"200-299"`
 
+### TCP Port Monitoring
+
+Monitor non-HTTP services like databases, caches, and custom services by checking TCP port connectivity:
+
+```yaml
+tcp:
+  # Database connectivity check
+  - name: "DB_PROD"
+    host: "db.example.com"
+    port: 5432
+    timeout: 5
+
+  # Redis cache check
+  - name: "REDIS"
+    host: "redis.example.com"
+    port: 6379
+    timeout: 3
+```
+
+**How it works:**
+
+| Condition | Result |
+|-----------|--------|
+| TCP connection succeeds | Target marked UP |
+| Connection refused | Target marked DOWN |
+| Connection timeout | Target marked DOWN with timeout message |
+
+**Notes:**
+- TCP checks measure connection establishment time (response_time_ms)
+- No HTTP protocol overhead - faster than HTTP checks
+- Status code is `null` for TCP checks (no HTTP status)
+- URL format in API: `tcp://host:port`
+
 ### SSL Certificate Monitoring
 
 WebStatusPi automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.

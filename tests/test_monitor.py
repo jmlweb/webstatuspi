@@ -8,10 +8,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from webstatuspi.config import Config, DatabaseConfig, MonitorConfig, UrlConfig
+from webstatuspi.config import Config, DatabaseConfig, MonitorConfig, TcpConfig, UrlConfig
 from webstatuspi.database import init_db
 from webstatuspi.models import CheckResult
-from webstatuspi.monitor import MAX_WORKERS, Monitor, SSLCertInfo, _get_ssl_cert_info, _is_success_status, check_url
+from webstatuspi.monitor import (
+    MAX_WORKERS,
+    Monitor,
+    SSLCertInfo,
+    _get_ssl_cert_info,
+    _is_success_status,
+    check_tcp,
+    check_url,
+)
 
 
 @pytest.fixture
@@ -1106,6 +1114,106 @@ class TestCustomSuccessCodesInCheckUrl:
             result = check_url(url_config)
 
             assert result.is_up is True  # Default includes 3xx
+
+
+class TestCheckTcp:
+    """Tests for check_tcp function."""
+
+    def test_successful_tcp_connection(self) -> None:
+        """Successful TCP connection marks target as up."""
+        tcp_config = TcpConfig(
+            name="TCP_TEST",
+            host="example.com",
+            port=80,
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_sock = MagicMock()
+            mock_conn.return_value = mock_sock
+
+            result = check_tcp(tcp_config)
+
+            assert result.is_up is True
+            assert result.url_name == "TCP_TEST"
+            assert result.url == "tcp://example.com:80"
+            assert result.status_code is None
+            assert result.error_message is None
+            mock_sock.close.assert_called_once()
+
+    def test_tcp_connection_timeout(self) -> None:
+        """TCP connection timeout marks target as down."""
+
+        tcp_config = TcpConfig(
+            name="TCP_TEST",
+            host="example.com",
+            port=80,
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_conn.side_effect = TimeoutError("timed out")
+
+            result = check_tcp(tcp_config)
+
+            assert result.is_up is False
+            assert result.url_name == "TCP_TEST"
+            assert "timeout" in result.error_message.lower()
+
+    def test_tcp_connection_refused(self) -> None:
+        """TCP connection refused marks target as down."""
+        tcp_config = TcpConfig(
+            name="TCP_TEST",
+            host="example.com",
+            port=80,
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_conn.side_effect = OSError("Connection refused")
+
+            result = check_tcp(tcp_config)
+
+            assert result.is_up is False
+            assert result.url_name == "TCP_TEST"
+            assert "refused" in result.error_message.lower()
+
+    def test_tcp_measures_response_time(self) -> None:
+        """TCP check measures connection time in milliseconds."""
+        tcp_config = TcpConfig(
+            name="TCP_TEST",
+            host="example.com",
+            port=80,
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_sock = MagicMock()
+            mock_conn.return_value = mock_sock
+
+            result = check_tcp(tcp_config)
+
+            assert isinstance(result.response_time_ms, int)
+            assert result.response_time_ms >= 0
+
+    def test_tcp_sets_checked_at_timestamp(self) -> None:
+        """TCP check sets checked_at timestamp."""
+        tcp_config = TcpConfig(
+            name="TCP_TEST",
+            host="example.com",
+            port=80,
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
+            mock_sock = MagicMock()
+            mock_conn.return_value = mock_sock
+
+            before = datetime.now(UTC)
+            result = check_tcp(tcp_config)
+            after = datetime.now(UTC)
+
+            assert before <= result.checked_at <= after
 
 
 class TestSSLCertExtraction:

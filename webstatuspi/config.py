@@ -119,6 +119,40 @@ class UrlConfig:
             raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
 
 
+@dataclass(frozen=True)
+class TcpConfig:
+    """Configuration for a TCP port to monitor.
+
+    Used for monitoring non-HTTP services like databases, caches, and custom services.
+    """
+
+    name: str
+    host: str
+    port: int
+    timeout: int = 10
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ConfigError("TCP name cannot be empty")
+        if len(self.name) > 10:
+            raise ConfigError(f"TCP name '{self.name}' exceeds 10 characters (OLED display limit)")
+        if not self.host:
+            raise ConfigError(f"TCP host cannot be empty for '{self.name}'")
+        if not (1 <= self.port <= 65535):
+            raise ConfigError(f"TCP port must be between 1 and 65535 for '{self.name}'")
+        if self.timeout < 1:
+            raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
+
+    @property
+    def url(self) -> str:
+        """Return a URL-like string for API consistency."""
+        return f"tcp://{self.host}:{self.port}"
+
+
+# Union type for all target configurations
+TargetConfig = UrlConfig | TcpConfig
+
+
 def _get_default_db_path() -> str:
     """Get the default database path using XDG-compliant directory.
 
@@ -207,6 +241,7 @@ class Config:
     """Main configuration container."""
 
     urls: list[UrlConfig]
+    tcp: list[TcpConfig] = field(default_factory=list)
     monitor: MonitorConfig = field(default_factory=MonitorConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
@@ -214,12 +249,18 @@ class Config:
     alerts: AlertsConfig = field(default_factory=AlertsConfig)
 
     def __post_init__(self) -> None:
-        if not self.urls:
-            raise ConfigError("At least one URL must be configured")
-        names = [url.name for url in self.urls]
+        if not self.urls and not self.tcp:
+            raise ConfigError("At least one URL or TCP target must be configured")
+        # Check for duplicate names across both URLs and TCP targets
+        names = [url.name for url in self.urls] + [tcp.name for tcp in self.tcp]
         duplicates = [name for name in names if names.count(name) > 1]
         if duplicates:
-            raise ConfigError(f"Duplicate URL names found: {set(duplicates)}")
+            raise ConfigError(f"Duplicate target names found: {set(duplicates)}")
+
+    @property
+    def all_targets(self) -> list[TargetConfig]:
+        """Return all monitoring targets (URLs and TCP endpoints)."""
+        return list(self.urls) + list(self.tcp)
 
 
 def _parse_url_config(data: dict, index: int) -> UrlConfig:
@@ -247,6 +288,30 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
         keyword=str(keyword) if keyword is not None else None,
         json_path=str(json_path) if json_path is not None else None,
         success_codes=success_codes,
+    )
+
+
+def _parse_tcp_config(data: dict, index: int) -> TcpConfig:
+    """Parse a single TCP configuration entry."""
+    if not isinstance(data, dict):
+        raise ConfigError(f"TCP entry {index} must be a dictionary")
+
+    name = data.get("name")
+    host = data.get("host")
+    port = data.get("port")
+
+    if name is None:
+        raise ConfigError(f"TCP entry {index} is missing 'name' field")
+    if host is None:
+        raise ConfigError(f"TCP entry {index} is missing 'host' field")
+    if port is None:
+        raise ConfigError(f"TCP entry {index} is missing 'port' field")
+
+    return TcpConfig(
+        name=str(name),
+        host=str(host),
+        port=int(port),
+        timeout=int(data.get("timeout", 10)),
     )
 
 
@@ -420,15 +485,29 @@ def load_config(config_path: str) -> Config:
     data = _apply_env_overrides(data)
 
     urls_data = data.get("urls")
-    if urls_data is None:
-        raise ConfigError("Configuration must contain 'urls' section")
-    if not isinstance(urls_data, list):
-        raise ConfigError("'urls' must be a list")
+    tcp_data = data.get("tcp")
 
-    urls = [_parse_url_config(url_data, i) for i, url_data in enumerate(urls_data)]
+    # At least one of urls or tcp must be present
+    if urls_data is None and tcp_data is None:
+        raise ConfigError("Configuration must contain 'urls' or 'tcp' section")
+
+    # Parse URLs (optional if tcp is present)
+    urls: list[UrlConfig] = []
+    if urls_data is not None:
+        if not isinstance(urls_data, list):
+            raise ConfigError("'urls' must be a list")
+        urls = [_parse_url_config(url_data, i) for i, url_data in enumerate(urls_data)]
+
+    # Parse TCP targets (optional if urls is present)
+    tcp: list[TcpConfig] = []
+    if tcp_data is not None:
+        if not isinstance(tcp_data, list):
+            raise ConfigError("'tcp' must be a list")
+        tcp = [_parse_tcp_config(tcp_entry, i) for i, tcp_entry in enumerate(tcp_data)]
 
     return Config(
         urls=urls,
+        tcp=tcp,
         monitor=_parse_monitor_config(data.get("monitor")),
         database=_parse_database_config(data.get("database")),
         display=_parse_display_config(data.get("display")),

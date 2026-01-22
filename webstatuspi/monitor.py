@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from threading import Event, Thread
 from urllib.parse import urlparse
 
-from .config import Config, UrlConfig
+from .config import Config, TargetConfig, TcpConfig, UrlConfig
 from .database import cleanup_old_checks, insert_check
 from .models import CheckResult
 from .security import SSRFError, validate_url_for_ssrf
@@ -539,10 +539,100 @@ def check_url(
         )
 
 
-class Monitor:
-    """Threaded URL monitor that checks URLs at a global interval.
+def check_tcp(tcp_config: TcpConfig) -> CheckResult:
+    """Perform a TCP connection check to a host:port.
 
-    All URLs are checked together at the configured monitor interval.
+    Attempts to establish a TCP connection and measures the connection time.
+    Success is determined by whether the connection is established within
+    the timeout period.
+
+    Args:
+        tcp_config: TCP target configuration (host, port, timeout).
+
+    Returns:
+        CheckResult with connection status and timing information.
+    """
+    checked_at = datetime.now(UTC)
+    start = time.monotonic()
+
+    try:
+        sock = socket.create_connection(
+            (tcp_config.host, tcp_config.port),
+            timeout=tcp_config.timeout,
+        )
+        sock.close()
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+
+        return CheckResult(
+            url_name=tcp_config.name,
+            url=tcp_config.url,  # tcp://host:port format
+            status_code=None,  # No status code for TCP
+            response_time_ms=elapsed_ms,
+            is_up=True,
+            error_message=None,
+            checked_at=checked_at,
+        )
+
+    except TimeoutError:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=tcp_config.name,
+            url=tcp_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=f"Connection timeout after {tcp_config.timeout}s",
+            checked_at=checked_at,
+        )
+
+    except OSError as e:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=tcp_config.name,
+            url=tcp_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=str(e),
+            checked_at=checked_at,
+        )
+
+    except Exception as e:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=tcp_config.name,
+            url=tcp_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=str(e),
+            checked_at=checked_at,
+        )
+
+
+def check_target(target: TargetConfig, **kwargs) -> CheckResult:
+    """Check a target (URL or TCP) and return the result.
+
+    Dispatcher function that routes to the appropriate check function
+    based on target type.
+
+    Args:
+        target: Target configuration (UrlConfig or TcpConfig).
+        **kwargs: Additional arguments passed to check_url (ssl_warning_days, allow_private).
+
+    Returns:
+        CheckResult with status and timing information.
+    """
+    if isinstance(target, TcpConfig):
+        return check_tcp(target)
+    else:
+        return check_url(target, **kwargs)
+
+
+class Monitor:
+    """Threaded monitor that checks URLs and TCP targets at a global interval.
+
+    All targets are checked together at the configured monitor interval.
     Checks run concurrently using a thread pool, optimized for
     Raspberry Pi 1B+ constraints.
 
@@ -562,7 +652,7 @@ class Monitor:
         """Initialize the monitor.
 
         Args:
-            config: Application configuration with URLs to monitor.
+            config: Application configuration with targets to monitor.
             db_conn: Database connection for storing results.
             on_check: Optional callback invoked after each check completes.
         """
@@ -576,12 +666,12 @@ class Monitor:
         # Internet connectivity status: None (unknown), True (available), False (no internet)
         self._internet_status: bool | None = None
 
-        # Track next check time for each URL (staggered start)
+        # Track next check time for each target (staggered start)
         self._next_check: dict[str, float] = {}
         now = time.monotonic()
-        for i, url_config in enumerate(config.urls):
+        for i, target in enumerate(config.all_targets):
             # Stagger initial checks by 2 seconds each to avoid burst
-            self._next_check[url_config.name] = now + (i * 2)
+            self._next_check[target.name] = now + (i * 2)
 
     def start(self) -> None:
         """Start the monitor loop in a background thread."""
@@ -592,7 +682,11 @@ class Monitor:
         self._stop_event.clear()
         self._thread = Thread(target=self._run_loop, daemon=True, name="monitor-loop")
         self._thread.start()
-        logger.info("Monitor started with %d URLs", len(self._config.urls))
+        logger.info(
+            "Monitor started with %d URLs and %d TCP targets",
+            len(self._config.urls),
+            len(self._config.tcp),
+        )
 
     def stop(self, timeout: float = 10.0) -> None:
         """Stop the monitor loop gracefully.
@@ -632,10 +726,10 @@ class Monitor:
 
         while not self._stop_event.is_set():
             now = time.monotonic()
-            urls_due = self._get_urls_due(now)
+            targets_due = self._get_targets_due(now)
 
-            if urls_due:
-                self._check_urls(urls_due)
+            if targets_due:
+                self._check_targets(targets_due)
                 self._cycle_count += 1
 
                 # Run cleanup periodically
@@ -649,57 +743,68 @@ class Monitor:
 
         logger.debug("Monitor loop exited")
 
+    def _get_targets_due(self, now: float) -> list[TargetConfig]:
+        """Get targets (URLs and TCP) that are due for a check."""
+        due: list[TargetConfig] = []
+        for target in self._config.all_targets:
+            if now >= self._next_check.get(target.name, 0):
+                due.append(target)
+        return due
+
     def _get_urls_due(self, now: float) -> list[UrlConfig]:
-        """Get URLs that are due for a check."""
+        """Get URLs that are due for a check (for backward compatibility)."""
         due = []
         for url_config in self._config.urls:
             if now >= self._next_check.get(url_config.name, 0):
                 due.append(url_config)
         return due
 
-    def _check_urls(self, urls: list[UrlConfig]) -> None:
-        """Check multiple URLs concurrently and store results.
+    def _check_targets(self, targets: list[TargetConfig]) -> None:
+        """Check multiple targets concurrently and store results.
 
-        When all URLs fail, performs an internet connectivity check.
+        When all targets fail, performs an internet connectivity check.
         If no internet, logs a single "NO INTERNET" warning instead of
         individual failure alerts.
         """
         results: list[CheckResult] = []
-        url_configs: list[UrlConfig] = []
+        target_configs: list[TargetConfig] = []
 
         # Collect all results first
         ssl_warning_days = self._config.monitor.ssl_warning_days
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(check_url, url, False, ssl_warning_days): url for url in urls}
+            futures = {
+                executor.submit(check_target, target, allow_private=False, ssl_warning_days=ssl_warning_days): target
+                for target in targets
+            }
 
             for future in as_completed(futures):
-                url_config = futures[future]
+                target_config = futures[future]
                 try:
                     result = future.result()
                     results.append(result)
-                    url_configs.append(url_config)
+                    target_configs.append(target_config)
                 except Exception as e:
-                    logger.error("Failed to check %s: %s", url_config.name, e)
+                    logger.error("Failed to check %s: %s", target_config.name, e)
                 finally:
-                    # Schedule next check for this URL using global interval
-                    self._next_check[url_config.name] = time.monotonic() + self._config.monitor.interval
+                    # Schedule next check for this target using global interval
+                    self._next_check[target_config.name] = time.monotonic() + self._config.monitor.interval
 
         if not results:
             return
 
-        # Check if all URLs failed
+        # Check if all targets failed
         all_failed = all(not r.is_up for r in results)
         no_internet = False
 
         if all_failed and len(results) > 0:
-            # All URLs failed - check internet connectivity
+            # All targets failed - check internet connectivity
             no_internet = not check_internet_connectivity()
             self._internet_status = not no_internet
 
             if no_internet:
-                logger.warning("NO INTERNET - All URLs unavailable")
+                logger.warning("NO INTERNET - All targets unavailable")
         else:
-            # At least one URL is up, internet is available
+            # At least one target is up, internet is available
             self._internet_status = True
             # Invalidate connectivity cache since we have confirmation internet works
             _connectivity_cache.invalidate()
@@ -719,6 +824,11 @@ class Monitor:
                 status,
                 result.response_time_ms,
             )
+
+    def _check_urls(self, urls: list[UrlConfig]) -> None:
+        """Check multiple URLs concurrently and store results (backward compat)."""
+        targets: list[TargetConfig] = list(urls)
+        self._check_targets(targets)
 
     def _store_result(self, result: CheckResult) -> None:
         """Store a check result in the database and invoke callback."""

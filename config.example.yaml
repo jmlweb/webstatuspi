@@ -54,6 +54,26 @@ urls:
   #   url: "http://localhost:3000/health"
   #   timeout: 5
 
+# TCP port monitoring - for non-HTTP services
+tcp:
+  # Example: Database connectivity check
+  # - name: "DB_PROD"
+  #   host: "db.example.com"
+  #   port: 5432
+  #   timeout: 5
+
+  # Example: Redis cache check
+  # - name: "REDIS"
+  #   host: "redis.example.com"
+  #   port: 6379
+  #   timeout: 3
+
+  # Example: Custom service check
+  # - name: "MSG_QUEUE"
+  #   host: "mq.example.com"
+  #   port: 5672
+  #   timeout: 5
+
 database:
   path: "./data/status.db"  # SQLite database path
   retention_days: 7         # Delete checks older than this

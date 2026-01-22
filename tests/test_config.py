@@ -11,6 +11,7 @@ from webstatuspi.config import (
     DatabaseConfig,
     DisplayConfig,
     MonitorConfig,
+    TcpConfig,
     UrlConfig,
     _parse_success_codes,
     load_config,
@@ -236,6 +237,85 @@ class TestParseSuccessCodes:
             _parse_success_codes("200")  # type: ignore[arg-type]
 
 
+class TestTcpConfig:
+    """Tests for TcpConfig dataclass."""
+
+    def test_creates_valid_tcp_config(self) -> None:
+        """Valid TCP configuration can be created."""
+        tcp_config = TcpConfig(
+            name="DB_TEST",
+            host="db.example.com",
+            port=5432,
+            timeout=5,
+        )
+        assert tcp_config.name == "DB_TEST"
+        assert tcp_config.host == "db.example.com"
+        assert tcp_config.port == 5432
+        assert tcp_config.timeout == 5
+
+    def test_tcp_config_with_defaults(self) -> None:
+        """TcpConfig uses default timeout of 10 seconds."""
+        tcp_config = TcpConfig(
+            name="TCP",
+            host="example.com",
+            port=80,
+        )
+        assert tcp_config.timeout == 10
+
+    def test_tcp_config_url_property(self) -> None:
+        """TcpConfig url property returns tcp:// format."""
+        tcp_config = TcpConfig(
+            name="TCP",
+            host="example.com",
+            port=5432,
+        )
+        assert tcp_config.url == "tcp://example.com:5432"
+
+    def test_rejects_empty_name(self) -> None:
+        """Empty TCP name is rejected."""
+        with pytest.raises(ConfigError, match="TCP name cannot be empty"):
+            TcpConfig(name="", host="example.com", port=80)
+
+    def test_rejects_name_exceeding_10_chars(self) -> None:
+        """TCP name longer than 10 characters is rejected."""
+        with pytest.raises(ConfigError, match="exceeds 10 characters"):
+            TcpConfig(
+                name="VeryLongNameThatExceeds10",
+                host="example.com",
+                port=80,
+            )
+
+    def test_rejects_empty_host(self) -> None:
+        """Empty TCP host is rejected."""
+        with pytest.raises(ConfigError, match="TCP host cannot be empty"):
+            TcpConfig(name="Test", host="", port=80)
+
+    def test_rejects_port_less_than_1(self) -> None:
+        """Port less than 1 is rejected."""
+        with pytest.raises(ConfigError, match="TCP port must be between 1 and 65535"):
+            TcpConfig(name="Test", host="example.com", port=0)
+
+    def test_rejects_port_greater_than_65535(self) -> None:
+        """Port greater than 65535 is rejected."""
+        with pytest.raises(ConfigError, match="TCP port must be between 1 and 65535"):
+            TcpConfig(name="Test", host="example.com", port=65536)
+
+    def test_accepts_port_of_1(self) -> None:
+        """Port 1 is accepted."""
+        tcp_config = TcpConfig(name="Test", host="example.com", port=1)
+        assert tcp_config.port == 1
+
+    def test_accepts_port_of_65535(self) -> None:
+        """Port 65535 is accepted."""
+        tcp_config = TcpConfig(name="Test", host="example.com", port=65535)
+        assert tcp_config.port == 65535
+
+    def test_rejects_timeout_less_than_1(self) -> None:
+        """Timeout less than 1 second is rejected."""
+        with pytest.raises(ConfigError, match="Timeout must be at least 1 second"):
+            TcpConfig(name="Test", host="example.com", port=80, timeout=0)
+
+
 class TestMonitorConfig:
     """Tests for MonitorConfig dataclass."""
 
@@ -382,10 +462,10 @@ class TestConfig:
         assert config.database.retention_days == 7
         assert config.api.port == 8080
 
-    def test_rejects_empty_urls_list(self) -> None:
-        """Config with no URLs is rejected."""
-        with pytest.raises(ConfigError, match="At least one URL must be configured"):
-            Config(urls=[])
+    def test_rejects_empty_urls_and_tcp_lists(self) -> None:
+        """Config with no URLs and no TCP targets is rejected."""
+        with pytest.raises(ConfigError, match="At least one URL or TCP target must be configured"):
+            Config(urls=[], tcp=[])
 
     def test_rejects_duplicate_url_names(self) -> None:
         """Config with duplicate URL names is rejected."""
@@ -393,7 +473,7 @@ class TestConfig:
             UrlConfig(name="Test", url="https://example1.com"),
             UrlConfig(name="Test", url="https://example2.com"),
         ]
-        with pytest.raises(ConfigError, match="Duplicate URL names found"):
+        with pytest.raises(ConfigError, match="Duplicate target names found"):
             Config(urls=urls)
 
     def test_allows_multiple_duplicate_names_to_be_detected(self) -> None:
@@ -404,8 +484,43 @@ class TestConfig:
             UrlConfig(name="Dup2", url="https://example3.com"),
             UrlConfig(name="Dup2", url="https://example4.com"),
         ]
-        with pytest.raises(ConfigError, match="Duplicate URL names found"):
+        with pytest.raises(ConfigError, match="Duplicate target names found"):
             Config(urls=urls)
+
+    def test_creates_config_with_tcp_only(self) -> None:
+        """Config can be created with only TCP targets."""
+        tcp = [
+            TcpConfig(name="DB", host="db.example.com", port=5432),
+        ]
+        config = Config(urls=[], tcp=tcp)
+        assert len(config.urls) == 0
+        assert len(config.tcp) == 1
+        assert config.tcp[0].name == "DB"
+
+    def test_creates_config_with_urls_and_tcp(self) -> None:
+        """Config can be created with both URLs and TCP targets."""
+        urls = [UrlConfig(name="API", url="https://api.example.com")]
+        tcp = [TcpConfig(name="DB", host="db.example.com", port=5432)]
+        config = Config(urls=urls, tcp=tcp)
+        assert len(config.urls) == 1
+        assert len(config.tcp) == 1
+
+    def test_all_targets_property(self) -> None:
+        """all_targets property returns combined URLs and TCP."""
+        urls = [UrlConfig(name="API", url="https://api.example.com")]
+        tcp = [TcpConfig(name="DB", host="db.example.com", port=5432)]
+        config = Config(urls=urls, tcp=tcp)
+        all_targets = config.all_targets
+        assert len(all_targets) == 2
+        assert all_targets[0].name == "API"
+        assert all_targets[1].name == "DB"
+
+    def test_rejects_duplicate_names_across_urls_and_tcp(self) -> None:
+        """Config rejects duplicate names between URLs and TCP."""
+        urls = [UrlConfig(name="Test", url="https://example.com")]
+        tcp = [TcpConfig(name="Test", host="db.example.com", port=5432)]
+        with pytest.raises(ConfigError, match="Duplicate target names found"):
+            Config(urls=urls, tcp=tcp)
 
 
 class TestLoadConfig:
@@ -459,12 +574,12 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="Configuration must be a YAML dictionary"):
             load_config(str(config_file))
 
-    def test_raises_error_when_urls_section_missing(self, config_dir: Path) -> None:
-        """ConfigError is raised when 'urls' section is missing."""
+    def test_raises_error_when_urls_and_tcp_sections_missing(self, config_dir: Path) -> None:
+        """ConfigError is raised when both 'urls' and 'tcp' sections are missing."""
         config_file = config_dir / "no_urls.yaml"
         config_file.write_text("monitor:\n  interval: 60")
 
-        with pytest.raises(ConfigError, match="must contain 'urls' section"):
+        with pytest.raises(ConfigError, match="must contain 'urls' or 'tcp' section"):
             load_config(str(config_file))
 
     def test_raises_error_when_urls_is_not_list(self, config_dir: Path) -> None:
