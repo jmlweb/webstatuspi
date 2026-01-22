@@ -661,3 +661,293 @@ class TestMaxWorkers:
         """MAX_WORKERS is set to a reasonable value for Pi 1B+."""
         assert MAX_WORKERS >= 2
         assert MAX_WORKERS <= 5
+
+
+class TestContentValidation:
+    """Tests for content validation (keyword and JSON path)."""
+
+    def test_keyword_validation_success(self) -> None:
+        """Keyword validation passes when keyword is found in response body."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"Status: OK")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.error_message is None
+
+    def test_keyword_validation_failure(self) -> None:
+        """Keyword validation fails when keyword is not found in response body."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="SUCCESS",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"Status: ERROR")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert result.status_code == 200  # HTTP request succeeded
+            assert "not found" in result.error_message
+
+    def test_keyword_validation_case_sensitive(self) -> None:
+        """Keyword validation is case-sensitive."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"Status: ok")  # lowercase
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert "not found" in result.error_message
+
+    def test_json_path_validation_success(self) -> None:
+        """JSON path validation passes when path exists with truthy value."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com/api/health",
+            timeout=5,
+            json_path="status.healthy",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b'{"status": {"healthy": true}}')
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.error_message is None
+
+    def test_json_path_validation_success_with_string_value(self) -> None:
+        """JSON path validation passes with truthy string value."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com/api/health",
+            timeout=5,
+            json_path="status",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b'{"status": "ok"}')
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.error_message is None
+
+    def test_json_path_validation_failure_missing_path(self) -> None:
+        """JSON path validation fails when path does not exist."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com/api/health",
+            timeout=5,
+            json_path="status.healthy",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b'{"status": {}}')
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert "not found" in result.error_message
+            assert "healthy" in result.error_message
+
+    def test_json_path_validation_failure_falsy_value(self) -> None:
+        """JSON path validation fails when value is falsy."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com/api/health",
+            timeout=5,
+            json_path="status.healthy",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b'{"status": {"healthy": false}}')
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert "falsy value" in result.error_message
+
+    def test_json_path_validation_failure_invalid_json(self) -> None:
+        """JSON path validation fails when response is not valid JSON."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com/api/health",
+            timeout=5,
+            json_path="status",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"Not JSON")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert "invalid JSON" in result.error_message
+
+    def test_validation_skipped_when_http_error(self) -> None:
+        """Content validation is skipped when HTTP request fails."""
+        import urllib.error
+
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(
+                url_config.url,
+                500,
+                "Internal Server Error",
+                {},
+                None,
+            )
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert result.status_code == 500
+            assert "500" in result.error_message
+            assert "keyword" not in result.error_message.lower()
+
+    def test_validation_handles_non_utf8_response(self) -> None:
+        """Content validation fails gracefully with non-UTF-8 response."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"\xff\xfe\xfd")  # Invalid UTF-8
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is False
+            assert "UTF-8" in result.error_message
+
+    def test_validation_limits_body_size(self) -> None:
+        """Content validation limits response body to MAX_BODY_SIZE."""
+        from webstatuspi.monitor import MAX_BODY_SIZE
+
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            # Create large response body
+            large_body = b"x" * (MAX_BODY_SIZE + 1000) + b"OK"
+            mock_response.read = MagicMock(return_value=large_body[:MAX_BODY_SIZE])
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            check_url(url_config)
+
+            # Verify read was called with MAX_BODY_SIZE limit
+            mock_response.read.assert_called_once_with(MAX_BODY_SIZE)
+
+    def test_no_validation_when_not_configured(self) -> None:
+        """No validation is performed when keyword and json_path are not set."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.is_up is True
+            assert result.error_message is None
+            # Verify read was not called
+            mock_response.read.assert_not_called()

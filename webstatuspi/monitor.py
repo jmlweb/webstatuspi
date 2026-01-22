@@ -1,5 +1,6 @@
 """URL monitoring loop with threaded health checks."""
 
+import json
 import logging
 import socket
 import sqlite3
@@ -62,6 +63,10 @@ INTERNET_CHECK_TIMEOUT = 3
 # Prevents repeated blocking DNS checks when internet is down.
 CONNECTIVITY_CACHE_SECONDS = 30
 
+# Maximum response body size to read for content validation (1MB).
+# Pi 1B+ memory constraint: prevent loading large responses into memory.
+MAX_BODY_SIZE = 1024 * 1024  # 1MB
+
 
 class _ConnectivityCache:
     """Simple cache for internet connectivity status.
@@ -99,6 +104,58 @@ class _ConnectivityCache:
 
 # Global connectivity cache instance
 _connectivity_cache = _ConnectivityCache()
+
+
+def _validate_keyword(body: str, keyword: str) -> tuple[bool, str | None]:
+    """Validate that response body contains the expected keyword.
+
+    Args:
+        body: Response body text.
+        keyword: Expected keyword to find in body (case-sensitive).
+
+    Returns:
+        Tuple of (is_valid, error_message). error_message is None if valid.
+    """
+    if keyword in body:
+        return True, None
+    return False, f"Keyword '{keyword}' not found in response body"
+
+
+def _validate_json_path(body: str, json_path: str) -> tuple[bool, str | None]:
+    """Validate that JSON response contains expected value at path.
+
+    Supports simple dot-notation paths like "status.healthy" or "data.success".
+    Expects the final value to be truthy (true, "ok", "healthy", etc.).
+
+    Args:
+        body: Response body text (should be JSON).
+        json_path: Dot-separated path to check (e.g., "status.healthy").
+
+    Returns:
+        Tuple of (is_valid, error_message). error_message is None if valid.
+    """
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as e:
+        return False, f"JSON validation failed: invalid JSON response ({e})"
+
+    # Navigate the path
+    keys = json_path.split(".")
+    current = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return False, f"JSON validation failed: path '{json_path}' not found (not a dict at '{key}')"
+        if key not in current:
+            return False, f"JSON validation failed: path '{json_path}' not found (missing key '{key}')"
+        current = current[key]
+
+    # Check if final value is truthy
+    # Accept: true, "ok", "healthy", "success", 1, etc.
+    # Reject: false, null, 0, empty string
+    if not current:
+        return False, f"JSON validation failed: path '{json_path}' has falsy value: {current!r}"
+
+    return True, None
 
 
 def check_internet_connectivity(
@@ -185,13 +242,38 @@ def check_url(url_config: UrlConfig, allow_private: bool = False) -> CheckResult
             # Extract status text (reason phrase) if available
             status_text = getattr(response, "reason", None)
 
+            # Perform content validation if configured
+            error_message = None
+            if is_up and (url_config.keyword or url_config.json_path):
+                # Read response body (limited to MAX_BODY_SIZE for Pi 1B+ memory)
+                body_bytes = response.read(MAX_BODY_SIZE)
+                try:
+                    body = body_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    is_up = False
+                    error_message = "Content validation failed: response is not valid UTF-8"
+                else:
+                    # Keyword validation
+                    if url_config.keyword:
+                        is_valid, validation_error = _validate_keyword(body, url_config.keyword)
+                        if not is_valid:
+                            is_up = False
+                            error_message = validation_error
+
+                    # JSON path validation (only if keyword validation passed or not configured)
+                    if is_up and url_config.json_path:
+                        is_valid, validation_error = _validate_json_path(body, url_config.json_path)
+                        if not is_valid:
+                            is_up = False
+                            error_message = validation_error
+
             return CheckResult(
                 url_name=url_config.name,
                 url=url_config.url,
                 status_code=status_code,
                 response_time_ms=elapsed_ms,
                 is_up=is_up,
-                error_message=None,
+                error_message=error_message,
                 checked_at=checked_at,
                 content_length=content_length,
                 server_header=server_header,

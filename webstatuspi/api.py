@@ -166,6 +166,81 @@ def _build_status_response(statuses: list[UrlStatus], internet_status: bool | No
     return response
 
 
+def _format_prometheus_metrics(statuses: list[UrlStatus]) -> str:
+    """Format URL statuses as Prometheus text format metrics.
+
+    Prometheus text format: https://prometheus.io/docs/instrumenting/exposition_formats/
+    Format: metric_name{label="value"} value timestamp
+
+    Args:
+        statuses: List of URL statuses to convert to metrics.
+
+    Returns:
+        Prometheus text format metrics string.
+    """
+    lines = []
+
+    # webstatuspi_uptime_percentage
+    lines.append("# HELP webstatuspi_uptime_percentage Uptime percentage for the last 24 hours")
+    lines.append("# TYPE webstatuspi_uptime_percentage gauge")
+    for status in statuses:
+        # Escape label values (replace " with \", \ with \\, newline with \n)
+        url_name = status.url_name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        lines.append(f'webstatuspi_uptime_percentage{{url_name="{url_name}",url="{url}"}} {status.uptime_24h}')
+
+    # webstatuspi_response_time_ms (avg, min, max)
+    lines.append("")
+    lines.append("# HELP webstatuspi_response_time_ms Response time metrics in milliseconds")
+    lines.append("# TYPE webstatuspi_response_time_ms gauge")
+    for status in statuses:
+        url_name = status.url_name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+        if status.avg_response_time_24h is not None:
+            lines.append(
+                f'webstatuspi_response_time_ms{{url_name="{url_name}",url="{url}",type="avg"}} '
+                f"{status.avg_response_time_24h}"
+            )
+        if status.min_response_time_24h is not None:
+            lines.append(
+                f'webstatuspi_response_time_ms{{url_name="{url_name}",url="{url}",type="min"}} '
+                f"{status.min_response_time_24h}"
+            )
+        if status.max_response_time_24h is not None:
+            lines.append(
+                f'webstatuspi_response_time_ms{{url_name="{url_name}",url="{url}",type="max"}} '
+                f"{status.max_response_time_24h}"
+            )
+
+    # webstatuspi_checks_total (success, failure)
+    lines.append("")
+    lines.append("# HELP webstatuspi_checks_total Total number of checks performed")
+    lines.append("# TYPE webstatuspi_checks_total counter")
+    for status in statuses:
+        url_name = status.url_name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+        # Calculate success and failure counts from uptime percentage
+        success_count = int(status.checks_24h * (status.uptime_24h / 100.0))
+        failure_count = status.checks_24h - success_count
+
+        lines.append(f'webstatuspi_checks_total{{url_name="{url_name}",url="{url}",status="success"}} {success_count}')
+        lines.append(f'webstatuspi_checks_total{{url_name="{url_name}",url="{url}",status="failure"}} {failure_count}')
+
+    # webstatuspi_last_check_timestamp
+    lines.append("")
+    lines.append("# HELP webstatuspi_last_check_timestamp Unix timestamp of last check")
+    lines.append("# TYPE webstatuspi_last_check_timestamp gauge")
+    for status in statuses:
+        url_name = status.url_name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        url = status.url.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        timestamp = int(status.last_check.timestamp())
+        lines.append(f'webstatuspi_last_check_timestamp{{url_name="{url_name}",url="{url}"}} {timestamp}')
+
+    return "\n".join(lines) + "\n"
+
+
 class StatusHandler(BaseHTTPRequestHandler):
     """HTTP request handler for status API endpoints."""
 
@@ -424,6 +499,23 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(png_data)
 
+    def _send_text(self, code: int, text: str, content_type: str = "text/plain") -> None:
+        """Send a plain text response with the given status code.
+
+        Args:
+            code: HTTP status code.
+            text: Plain text content.
+            content_type: Content-Type header value.
+        """
+        body = text.encode("utf-8")
+        self.send_response(code)
+        self._add_security_headers()
+        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         if not self._check_rate_limit():
@@ -448,6 +540,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                     self._handle_history_by_name(name)
                 else:
                     self._send_error_json(400, "Invalid URL name")
+            elif self.path == "/metrics":
+                self._handle_metrics()
             # PWA endpoints
             elif self.path == "/manifest.json":
                 self._send_manifest(MANIFEST_JSON)
@@ -580,6 +674,20 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_json(200, response)
         except DatabaseError as e:
             logger.error("Database error in /history/%s: %s", name, e)
+            self._send_error_json(500, "Database error")
+
+    def _handle_metrics(self) -> None:
+        """Handle GET /metrics endpoint - Prometheus text format metrics."""
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            statuses = get_latest_status(self.db_conn)
+            metrics = _format_prometheus_metrics(statuses)
+            self._send_text(200, metrics, "text/plain; version=0.0.4")
+        except DatabaseError as e:
+            logger.error("Database error in /metrics: %s", e)
             self._send_error_json(500, "Database error")
 
     def _handle_reset(self) -> None:

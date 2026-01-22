@@ -19,9 +19,23 @@ urls:
 
   - name: "JML"
     url: "https://jmlweb.es"
-  
+
   - name: "PLAYAS"
     url: "https://playasmurcia.com"
+
+  # Content validation examples:
+
+  # Keyword validation - check if response contains a specific string
+  # - name: "API_PROD"
+  #   url: "https://api.example.com/health"
+  #   timeout: 10
+  #   keyword: "OK"  # Case-sensitive substring check
+
+  # JSON path validation - check if JSON response has expected value at path
+  # - name: "API_STG"
+  #   url: "https://staging.example.com/api/status"
+  #   timeout: 10
+  #   json_path: "status.healthy"  # Checks if data.status.healthy is truthy
 
   # Add more URLs as needed:
   # - name: "MY_SERVICE"

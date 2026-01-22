@@ -187,6 +187,7 @@ The dashboard is a Progressive Web App that can be installed on your device for 
 | `GET` | `/status` | All URLs status |
 | `GET` | `/status/{name}` | Specific URL status |
 | `GET` | `/health` | Health check |
+| `GET` | `/metrics` | Prometheus metrics |
 
 ### Example Response
 
@@ -211,6 +212,127 @@ curl http://localhost:8080/status
   }
 }
 ```
+
+---
+
+## 📊 Prometheus Integration
+
+WebStatusPi exposes metrics in Prometheus text format, allowing you to integrate with your existing monitoring stack and create custom Grafana dashboards.
+
+### Metrics Endpoint
+
+**GET** `/metrics`
+
+Returns metrics in Prometheus exposition format:
+
+```bash
+curl http://localhost:8080/metrics
+```
+
+**Example output:**
+
+```prometheus
+# HELP webstatuspi_uptime_percentage Uptime percentage for the last 24 hours
+# TYPE webstatuspi_uptime_percentage gauge
+webstatuspi_uptime_percentage{url_name="MY_SITE",url="https://example.com"} 99.5
+
+# HELP webstatuspi_response_time_ms Response time metrics in milliseconds
+# TYPE webstatuspi_response_time_ms gauge
+webstatuspi_response_time_ms{url_name="MY_SITE",url="https://example.com",type="avg"} 150.0
+webstatuspi_response_time_ms{url_name="MY_SITE",url="https://example.com",type="min"} 120
+webstatuspi_response_time_ms{url_name="MY_SITE",url="https://example.com",type="max"} 200
+
+# HELP webstatuspi_checks_total Total number of checks performed
+# TYPE webstatuspi_checks_total counter
+webstatuspi_checks_total{url_name="MY_SITE",url="https://example.com",status="success"} 143
+webstatuspi_checks_total{url_name="MY_SITE",url="https://example.com",status="failure"} 1
+
+# HELP webstatuspi_last_check_timestamp Unix timestamp of last check
+# TYPE webstatuspi_last_check_timestamp gauge
+webstatuspi_last_check_timestamp{url_name="MY_SITE",url="https://example.com"} 1737544800
+```
+
+### Available Metrics
+
+| Metric | Type | Description | Labels |
+|--------|------|-------------|--------|
+| `webstatuspi_uptime_percentage` | gauge | Uptime percentage for the last 24 hours (0-100) | `url_name`, `url` |
+| `webstatuspi_response_time_ms` | gauge | Response time in milliseconds | `url_name`, `url`, `type` (avg/min/max) |
+| `webstatuspi_checks_total` | counter | Total number of checks performed | `url_name`, `url`, `status` (success/failure) |
+| `webstatuspi_last_check_timestamp` | gauge | Unix timestamp of last check | `url_name`, `url` |
+
+### Prometheus Configuration
+
+Add this scrape config to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: 'webstatuspi'
+    static_configs:
+      - targets: ['<raspberry-pi-ip>:8080']
+    metrics_path: /metrics
+    scrape_interval: 30s
+```
+
+### Example PromQL Queries
+
+**Average uptime across all URLs:**
+```promql
+avg(webstatuspi_uptime_percentage)
+```
+
+**URLs with uptime below 99%:**
+```promql
+webstatuspi_uptime_percentage < 99
+```
+
+**Average response time per URL:**
+```promql
+webstatuspi_response_time_ms{type="avg"}
+```
+
+**Total failures in last hour:**
+```promql
+increase(webstatuspi_checks_total{status="failure"}[1h])
+```
+
+**URLs not checked in last 5 minutes:**
+```promql
+(time() - webstatuspi_last_check_timestamp) > 300
+```
+
+### Grafana Dashboard
+
+Create custom Grafana dashboards using these metrics:
+
+**Example panels:**
+
+1. **Uptime Overview** (Gauge panel)
+   - Query: `avg(webstatuspi_uptime_percentage)`
+   - Thresholds: Red (<95%), Yellow (95-99%), Green (>99%)
+
+2. **Response Time by URL** (Graph panel)
+   - Query: `webstatuspi_response_time_ms{type="avg"}`
+   - Legend: `{{url_name}}`
+
+3. **Success Rate** (Stat panel)
+   - Query: `sum(webstatuspi_checks_total{status="success"}) / sum(webstatuspi_checks_total) * 100`
+
+4. **Failed Checks (Last Hour)** (Stat panel)
+   - Query: `increase(webstatuspi_checks_total{status="failure"}[1h])`
+
+5. **Check Status Table** (Table panel)
+   - Queries:
+     - `webstatuspi_uptime_percentage` (Uptime %)
+     - `webstatuspi_response_time_ms{type="avg"}` (Avg Response Time)
+     - `time() - webstatuspi_last_check_timestamp` (Last Check)
+
+### Integration Notes
+
+- **Scraping frequency**: Recommended 30-60 seconds to match typical check intervals
+- **Cardinality**: Low - one metric series per URL (typically 5-20 URLs)
+- **Performance**: Zero overhead - metrics are computed from existing database queries
+- **History**: Metrics reflect 24-hour aggregates from SQLite database
 
 ---
 
@@ -409,6 +531,48 @@ database:
   path: "./data/monitoring.db"
   retention_days: 7         # auto-cleanup old data
 ```
+
+### Content Validation
+
+Monitor not just HTTP status codes, but also response content. This helps detect when services return error pages with 200 status codes.
+
+**Keyword Validation** - Check if response body contains a specific string:
+
+```yaml
+urls:
+  - name: "API_PROD"
+    url: "https://api.example.com/health"
+    timeout: 10
+    keyword: "OK"  # Case-sensitive substring check
+```
+
+**JSON Path Validation** - Check if JSON response has expected value at path:
+
+```yaml
+urls:
+  - name: "API_STG"
+    url: "https://staging.example.com/api/status"
+    timeout: 10
+    json_path: "status.healthy"  # Checks if response.status.healthy is truthy
+```
+
+**How it works:**
+
+- Validation only runs if HTTP status is 2xx or 3xx
+- If validation fails, URL is marked as DOWN with error message
+- Response body limited to 1MB for memory efficiency (Pi 1B+)
+- Keyword check: case-sensitive substring match
+- JSON path: supports dot-notation (e.g., `"data.user.active"`)
+- JSON values must be truthy (true, "ok", 1, etc.)
+
+**Use cases:**
+
+| Scenario | Solution |
+|----------|----------|
+| API returns error page with 200 status | Use `keyword` to check for success message |
+| Health endpoint returns JSON status | Use `json_path` to check specific field |
+| CDN returns cached error page | Use `keyword` to verify expected content |
+| Backend returns maintenance page | Use `keyword` to detect unexpected content |
 
 ### Performance Tips
 

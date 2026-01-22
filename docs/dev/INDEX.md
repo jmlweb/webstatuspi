@@ -4,9 +4,9 @@
 
 ## Quick Stats
 
-- **Pending**: 6 tasks
+- **Pending**: 4 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 24 tasks
+- **Completed**: 26 tasks
 
 ## Current Focus
 
@@ -16,8 +16,6 @@
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| 024 | Prometheus Metrics Endpoint | API | P2 - Next | pending |
-| 025 | Content Validation (Keyword/JSON) | Core, Config, Database | P2 - Next | pending |
 | 026 | SSL Certificate Expiration Monitoring | Core, Config, Database, API | P3 | pending |
 | 027 | Custom Status Code Ranges | Config, Core | P3 | pending |
 | 028 | TCP Port Monitoring | Core, Config, Database | P4 | pending |
@@ -27,6 +25,8 @@
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 025 | Content Validation (Keyword/JSON) | Core, Config, Database | ✓ |
+| 024 | Prometheus Metrics Endpoint | API | ✓ |
 | 023 | PWA Dashboard | Frontend, Dashboard | ✓ |
 | 022 | Dashboard Detail Graphs | Frontend, Dashboard, API | ✓ |
 | 017 | Telegram Bot Integration Documentation | Docs | ✓ |

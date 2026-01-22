@@ -34,11 +34,18 @@ class MonitorConfig:
 
 @dataclass(frozen=True)
 class UrlConfig:
-    """Configuration for a single URL to monitor."""
+    """Configuration for a single URL to monitor.
+
+    Optional content validation:
+    - keyword: Check if response body contains this string (case-sensitive)
+    - json_path: Check if JSON response has expected value at this path (e.g., "status.healthy")
+    """
 
     name: str
     url: str
     timeout: int = 10
+    keyword: str | None = None
+    json_path: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -169,10 +176,15 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
     if url is None:
         raise ConfigError(f"URL entry {index} is missing 'url' field")
 
+    keyword = data.get("keyword")
+    json_path = data.get("json_path")
+
     return UrlConfig(
         name=str(name),
         url=str(url),
         timeout=int(data.get("timeout", 10)),
+        keyword=str(keyword) if keyword is not None else None,
+        json_path=str(json_path) if json_path is not None else None,
     )
 
 
