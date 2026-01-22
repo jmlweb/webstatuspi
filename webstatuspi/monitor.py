@@ -639,7 +639,7 @@ def check_dns(dns_config: DnsConfig) -> CheckResult:
             )
             if not infos:
                 raise socket.gaierror(socket.EAI_NONAME, "No IPv6 address found")
-            resolved_ip = infos[0][4][0]
+            resolved_ip = str(infos[0][4][0])
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
