@@ -41,7 +41,7 @@ def sample_status() -> UrlStatus:
         last_status_code=200,
         last_response_time_ms=150,
         last_error=None,
-        last_check=datetime(2026, 1, 17, 10, 30, 0),
+        last_check=datetime(2026, 1, 17, 10, 30, 0, tzinfo=UTC),
         checks_24h=24,
         uptime_24h=99.5,
     )
@@ -94,7 +94,7 @@ class TestUrlStatusToDict:
             last_status_code=None,
             last_response_time_ms=0,
             last_error="Connection refused",
-            last_check=datetime(2026, 1, 17, 10, 30, 0),
+            last_check=datetime(2026, 1, 17, 10, 30, 0, tzinfo=UTC),
             checks_24h=10,
             uptime_24h=50.0,
         )
@@ -114,7 +114,7 @@ class TestUrlStatusToDict:
             last_status_code=200,
             last_response_time_ms=100,
             last_error=None,
-            last_check=datetime(2026, 1, 17, 10, 30, 0),
+            last_check=datetime(2026, 1, 17, 10, 30, 0, tzinfo=UTC),
             checks_24h=3,
             uptime_24h=66.66666666666667,
         )
@@ -148,7 +148,7 @@ class TestBuildStatusResponse:
                 last_status_code=200 if i % 2 == 0 else 500,
                 last_response_time_ms=100,
                 last_error=None if i % 2 == 0 else "Error",
-                last_check=datetime(2026, 1, 17, 10, 30, 0),
+                last_check=datetime(2026, 1, 17, 10, 30, 0, tzinfo=UTC),
                 checks_24h=10,
                 uptime_24h=100.0 if i % 2 == 0 else 0.0,
             )
@@ -679,3 +679,166 @@ class TestResetEndpoint:
         status, body = self._delete(running_server, "/reset", headers={"CF-IPCountry": "US"})
         assert status == 403
         assert "not allowed" in body["error"]
+
+
+class TestPwaEndpoints:
+    """Tests for Progressive Web App (PWA) endpoints."""
+
+    @pytest.fixture
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
+        """Start a server and yield it, stopping after test."""
+        port = get_free_port()
+        config = ApiConfig(enabled=True, port=port)
+        server = ApiServer(config, db_conn)
+        server.start()
+        time.sleep(0.1)
+        yield server
+        server.stop()
+
+    def test_manifest_endpoint(self, running_server: ApiServer) -> None:
+        """GET /manifest.json returns valid manifest."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/manifest.json"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            assert response.status == 200
+            content_type = response.headers.get("Content-Type")
+            assert "application/manifest+json" in content_type
+
+            body = json.loads(response.read().decode("utf-8"))
+            # Required manifest fields
+            assert body["name"] == "WebStatusPi // SYSTEM MONITOR"
+            assert body["short_name"] == "WebStatusPi"
+            assert body["start_url"] == "/"
+            assert body["display"] == "standalone"
+            assert body["background_color"] == "#0a0a0f"
+            assert body["theme_color"] == "#00fff9"
+            # Icons
+            assert len(body["icons"]) >= 2
+            icon_sizes = [icon["sizes"] for icon in body["icons"]]
+            assert "192x192" in icon_sizes
+            assert "512x512" in icon_sizes
+
+    def test_manifest_caching(self, running_server: ApiServer) -> None:
+        """Manifest has appropriate cache headers."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/manifest.json"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            cache_control = response.headers.get("Cache-Control")
+            assert "max-age=3600" in cache_control
+
+    def test_service_worker_endpoint(self, running_server: ApiServer) -> None:
+        """GET /sw.js returns valid service worker."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/sw.js"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            assert response.status == 200
+            content_type = response.headers.get("Content-Type")
+            assert "application/javascript" in content_type
+
+            body = response.read().decode("utf-8")
+            # Service worker content
+            assert "SW_VERSION" in body
+            assert "addEventListener" in body
+            assert "install" in body
+            assert "activate" in body
+            assert "fetch" in body
+
+    def test_service_worker_no_cache(self, running_server: ApiServer) -> None:
+        """Service worker has no-cache headers for update detection."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/sw.js"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            cache_control = response.headers.get("Cache-Control")
+            assert "no-cache" in cache_control
+            assert "no-store" in cache_control
+
+    def test_icon_192_endpoint(self, running_server: ApiServer) -> None:
+        """GET /icon-192.png returns PNG image."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/icon-192.png"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            assert response.status == 200
+            content_type = response.headers.get("Content-Type")
+            assert "image/png" in content_type
+
+            body = response.read()
+            # PNG magic bytes
+            assert body[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_icon_512_endpoint(self, running_server: ApiServer) -> None:
+        """GET /icon-512.png returns PNG image."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/icon-512.png"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            assert response.status == 200
+            content_type = response.headers.get("Content-Type")
+            assert "image/png" in content_type
+
+            body = response.read()
+            # PNG magic bytes
+            assert body[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_icon_caching(self, running_server: ApiServer) -> None:
+        """Icons have long cache headers."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/icon-192.png"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            cache_control = response.headers.get("Cache-Control")
+            assert "max-age=604800" in cache_control
+            assert "immutable" in cache_control
+
+    def test_dashboard_has_pwa_meta_tags(self, running_server: ApiServer) -> None:
+        """Dashboard includes PWA meta tags and manifest link."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+
+            # PWA meta tags
+            assert 'name="theme-color"' in body
+            assert 'content="#00fff9"' in body
+            assert 'name="apple-mobile-web-app-capable"' in body
+            assert 'name="apple-mobile-web-app-title"' in body
+
+            # Manifest link
+            assert 'rel="manifest"' in body
+            assert 'href="/manifest.json"' in body
+
+            # Apple touch icon
+            assert 'rel="apple-touch-icon"' in body
+
+    def test_dashboard_has_service_worker_registration(self, running_server: ApiServer) -> None:
+        """Dashboard includes service worker registration code."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+
+            # Service worker registration
+            assert "serviceWorker" in body
+            assert "register('/sw.js')" in body
+
+    def test_dashboard_has_offline_detection(self, running_server: ApiServer) -> None:
+        """Dashboard includes offline detection code."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/"
+
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read().decode("utf-8")
+
+            # Offline banner
+            assert 'id="offlineBanner"' in body
+            assert "OFFLINE MODE" in body
+
+            # Online/offline event listeners
+            assert "addEventListener('online'" in body or 'addEventListener("online"' in body
+            assert "addEventListener('offline'" in body or 'addEventListener("offline"' in body

@@ -146,6 +146,34 @@ Click any card to see full check history with timestamps.
 - 🟢🔴 Color-coded status indicators
 - 📈 Response time graphs
 - 🕹️ Retro CRT aesthetic with scanlines
+- 📱 **PWA Support** - Install as app on mobile/desktop
+
+### 📱 Install as App (PWA)
+
+The dashboard is a Progressive Web App that can be installed on your device for quick access:
+
+**Desktop (Chrome/Edge):**
+1. Open the dashboard in your browser
+2. Click the install icon (⊕) in the address bar
+3. Click "Install"
+
+**Mobile (Android):**
+1. Open the dashboard in Chrome
+2. Tap the menu (⋮) → "Add to Home Screen"
+3. Tap "Install"
+
+**Mobile (iOS):**
+1. Open the dashboard in Safari
+2. Tap the share button (↑)
+3. Tap "Add to Home Screen"
+
+**PWA Features:**
+- Works offline (shows cached data when network unavailable)
+- App-like experience (no browser UI)
+- Automatic updates when new versions are deployed
+- Fast loading via Service Worker caching
+
+> **Note:** For production deployments, HTTPS is required for PWA features to work. On `localhost`, PWA works without HTTPS for development.
 
 ---
 

@@ -17,6 +17,12 @@ from ._dashboard import (
     CSP_NONCE_PLACEHOLDER,
     HTML_DASHBOARD,
 )
+from ._pwa import (
+    ICON_192_PNG,
+    ICON_512_PNG,
+    MANIFEST_JSON,
+    SERVICE_WORKER_JS,
+)
 from .config import ApiConfig
 from .database import (
     DatabaseError,
@@ -110,7 +116,7 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         "status_code": status.last_status_code,
         "response_time_ms": status.last_response_time_ms,
         "error": status.last_error,
-        "last_check": status.last_check.isoformat() + "Z",
+        "last_check": status.last_check.isoformat().replace("+00:00", "Z"),
         "checks_24h": status.checks_24h,
         "uptime_24h": round(status.uptime_24h, 2),
         "avg_response_time_24h": round(status.avg_response_time_24h, 2)
@@ -119,7 +125,9 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         "min_response_time_24h": status.min_response_time_24h,
         "max_response_time_24h": status.max_response_time_24h,
         "consecutive_failures": status.consecutive_failures,
-        "last_downtime": status.last_downtime.isoformat() + "Z" if status.last_downtime is not None else None,
+        "last_downtime": status.last_downtime.isoformat().replace("+00:00", "Z")
+        if status.last_downtime is not None
+        else None,
         "content_length": status.content_length,
         "server_header": status.server_header,
         "status_text": status.status_text,
@@ -221,6 +229,16 @@ class StatusHandler(BaseHTTPRequestHandler):
             return True
 
         client_ip = self._get_client_ip()
+
+        # Skip rate limiting for local/loopback addresses
+        try:
+            ip = ipaddress.ip_address(client_ip)
+            if ip.is_loopback or ip.is_private:
+                return True
+        except ValueError:
+            # Invalid IP format, proceed with rate limiting
+            pass
+
         if not self.rate_limiter.is_allowed(client_ip):
             logger.warning("Rate limit exceeded for %s", client_ip)
             self._send_error_json(429, "Rate limit exceeded. Try again later.")
@@ -257,7 +275,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             csp = (
                 f"default-src 'self'; "
                 f"script-src 'self' 'nonce-{nonce}'; "
-                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+                f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://fonts.googleapis.com; "
                 f"font-src 'self' https://fonts.gstatic.com; "
                 f"img-src 'self' data:; "
                 f"connect-src 'self'; "
@@ -364,6 +382,48 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_manifest(self, manifest: str) -> None:
+        """Send the PWA manifest JSON."""
+        body = manifest.encode("utf-8")
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "application/manifest+json")
+        self.send_header("Content-Length", str(len(body)))
+        # Cache manifest for 1 hour (will be invalidated by SW version change)
+        self.send_header("Cache-Control", "public, max-age=3600")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_service_worker(self, sw_js: str) -> None:
+        """Send the Service Worker JavaScript.
+
+        Service Workers must not be cached by the browser to enable updates.
+        The browser will byte-compare the SW on each registration.update().
+        """
+        body = sw_js.encode("utf-8")
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "application/javascript")
+        self.send_header("Content-Length", str(len(body)))
+        # SW must not be cached - browser handles update detection
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_png(self, png_data: bytes) -> None:
+        """Send a PNG image (for PWA icons)."""
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(png_data)))
+        # Cache icons for 1 week (immutable, versioned via manifest)
+        self.send_header("Cache-Control", "public, max-age=604800, immutable")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(png_data)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         if not self._check_rate_limit():
@@ -388,6 +448,15 @@ class StatusHandler(BaseHTTPRequestHandler):
                     self._handle_history_by_name(name)
                 else:
                     self._send_error_json(400, "Invalid URL name")
+            # PWA endpoints
+            elif self.path == "/manifest.json":
+                self._send_manifest(MANIFEST_JSON)
+            elif self.path == "/sw.js":
+                self._send_service_worker(SERVICE_WORKER_JS)
+            elif self.path == "/icon-192.png":
+                self._send_png(ICON_192_PNG)
+            elif self.path == "/icon-512.png":
+                self._send_png(ICON_512_PNG)
             else:
                 self._send_error_json(404, "Not found")
         except Exception as e:
@@ -498,7 +567,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 "name": name,
                 "checks": [
                     {
-                        "checked_at": c.checked_at.isoformat() + "Z",
+                        "checked_at": c.checked_at.isoformat().replace("+00:00", "Z"),
                         "is_up": c.is_up,
                         "status_code": c.status_code,
                         "response_time_ms": c.response_time_ms,

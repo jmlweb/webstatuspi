@@ -354,6 +354,64 @@ Not designed for:
 - Sub-second intervals (CPU overload)
 - High API traffic (single-threaded server)
 
+## Progressive Web App (PWA) Architecture
+
+The dashboard is a Progressive Web App, enabling offline access and app-like installation.
+
+### PWA Components
+
+```
+Client Browser
+├── manifest.json          # App metadata (name, icons, theme)
+├── sw.js                  # Service Worker (caching logic)
+├── icon-192.png          # App icon (192x192)
+├── icon-512.png          # App icon (512x512)
+└── / (dashboard)          # Main HTML with PWA meta tags
+```
+
+### Caching Strategy
+
+The Service Worker implements a hybrid caching strategy:
+
+| Resource Type | Strategy | Rationale |
+|---------------|----------|-----------|
+| Static assets (`/`, `/manifest.json`, icons) | Cache-first | Fast loading, versioned via SW_VERSION |
+| API endpoints (`/status`, `/history`) | Network-first | Fresh data preferred, cache fallback for offline |
+| Destructive endpoints (`/reset`) | Network-only | Never cached |
+
+### Cache Versioning
+
+```javascript
+const SW_VERSION = '1.0.0';  // Update when dashboard changes
+const CACHE_NAME = `webstatuspi-v${SW_VERSION}`;
+```
+
+When `SW_VERSION` changes:
+1. Browser detects new Service Worker
+2. New SW installs and caches assets
+3. On activation, old caches are deleted
+4. User sees updated dashboard
+
+### Offline Support
+
+- **Dashboard**: Served from cache when offline
+- **API data**: Last cached response shown
+- **Offline banner**: Visual indicator when network unavailable
+- **Auto-refresh**: Fetches fresh data when connection restored
+
+### Server-Side Implementation
+
+All PWA assets are embedded as Python string constants in `_pwa.py`:
+- Zero external file dependencies
+- Consistent with dashboard HTML embedding pattern
+- No additional server configuration required
+
+### HTTPS Requirement
+
+- **Development**: Works on `localhost` without HTTPS
+- **Production**: HTTPS required for Service Worker and install prompt
+- Recommend: Nginx reverse proxy with Let's Encrypt
+
 ## Future Architecture Considerations
 
 ### Phase 2: Hardware Integration
@@ -367,11 +425,9 @@ See [HARDWARE.md](HARDWARE.md) for detailed hardware specifications.
 
 ### Potential Enhancements (Not Implemented Yet)
 
-- **Log rotation**: Automatic cleanup of old check records
-- **Alerting**: Email/SMS notifications on failures
-- **Web dashboard**: HTML interface (instead of just JSON API)
 - **Multiple check methods**: Ping, TCP port checks, DNS lookups
 - **Response validation**: Check response body content, not just status code
+- **Push notifications**: Browser push notifications via Service Worker (PWA ready)
 
 ## Error Handling Strategy
 
