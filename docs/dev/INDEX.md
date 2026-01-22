@@ -4,19 +4,19 @@
 
 ## Quick Stats
 
-- **Pending**: 0 tasks
-- **In Progress**: 0 tasks
+- **Pending**: 1 task
+- **In Progress**: 1 task
 - **Completed**: 22 tasks
 
 ## Current Focus
 
-> No active task. Backlog empty.
+> Task #022: Dashboard Detail Modal - Graph Visualization Panel
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| - | (empty) | - | - | - |
+| 022 | Dashboard Detail Graphs | Frontend, Dashboard, API | P1 - Active | in_progress |
 
 ## Completed Tasks
 
