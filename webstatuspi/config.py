@@ -149,8 +149,46 @@ class TcpConfig:
         return f"tcp://{self.host}:{self.port}"
 
 
+# Valid DNS record types
+DNS_RECORD_TYPES = ("A", "AAAA")
+
+
+@dataclass(frozen=True)
+class DnsConfig:
+    """Configuration for a DNS resolution to monitor.
+
+    Used for monitoring DNS resolution of domain names.
+    Supports A (IPv4) and AAAA (IPv6) record types.
+    """
+
+    name: str
+    host: str
+    record_type: str = "A"  # A or AAAA
+    expected_ip: str | None = None  # Optional: verify resolved IP matches
+    timeout: int = 10
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ConfigError("DNS name cannot be empty")
+        if len(self.name) > 10:
+            raise ConfigError(f"DNS name '{self.name}' exceeds 10 characters (OLED display limit)")
+        if not self.host:
+            raise ConfigError(f"DNS host cannot be empty for '{self.name}'")
+        if self.record_type not in DNS_RECORD_TYPES:
+            raise ConfigError(
+                f"Invalid DNS record_type '{self.record_type}' for '{self.name}'. Must be one of: {DNS_RECORD_TYPES}"
+            )
+        if self.timeout < 1:
+            raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
+
+    @property
+    def url(self) -> str:
+        """Return a URL-like string for API consistency."""
+        return f"dns://{self.host}"
+
+
 # Union type for all target configurations
-TargetConfig = UrlConfig | TcpConfig
+TargetConfig = UrlConfig | TcpConfig | DnsConfig
 
 
 def _get_default_db_path() -> str:
@@ -242,6 +280,7 @@ class Config:
 
     urls: list[UrlConfig]
     tcp: list[TcpConfig] = field(default_factory=list)
+    dns: list[DnsConfig] = field(default_factory=list)
     monitor: MonitorConfig = field(default_factory=MonitorConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     display: DisplayConfig = field(default_factory=DisplayConfig)
@@ -249,18 +288,18 @@ class Config:
     alerts: AlertsConfig = field(default_factory=AlertsConfig)
 
     def __post_init__(self) -> None:
-        if not self.urls and not self.tcp:
-            raise ConfigError("At least one URL or TCP target must be configured")
-        # Check for duplicate names across both URLs and TCP targets
-        names = [url.name for url in self.urls] + [tcp.name for tcp in self.tcp]
+        if not self.urls and not self.tcp and not self.dns:
+            raise ConfigError("At least one URL, TCP, or DNS target must be configured")
+        # Check for duplicate names across all target types
+        names = [url.name for url in self.urls] + [tcp.name for tcp in self.tcp] + [dns.name for dns in self.dns]
         duplicates = [name for name in names if names.count(name) > 1]
         if duplicates:
             raise ConfigError(f"Duplicate target names found: {set(duplicates)}")
 
     @property
     def all_targets(self) -> list[TargetConfig]:
-        """Return all monitoring targets (URLs and TCP endpoints)."""
-        return list(self.urls) + list(self.tcp)
+        """Return all monitoring targets (URLs, TCP, and DNS endpoints)."""
+        return list(self.urls) + list(self.tcp) + list(self.dns)
 
 
 def _parse_url_config(data: dict, index: int) -> UrlConfig:
@@ -311,6 +350,30 @@ def _parse_tcp_config(data: dict, index: int) -> TcpConfig:
         name=str(name),
         host=str(host),
         port=int(port),
+        timeout=int(data.get("timeout", 10)),
+    )
+
+
+def _parse_dns_config(data: dict, index: int) -> DnsConfig:
+    """Parse a single DNS configuration entry."""
+    if not isinstance(data, dict):
+        raise ConfigError(f"DNS entry {index} must be a dictionary")
+
+    name = data.get("name")
+    host = data.get("host")
+
+    if name is None:
+        raise ConfigError(f"DNS entry {index} is missing 'name' field")
+    if host is None:
+        raise ConfigError(f"DNS entry {index} is missing 'host' field")
+
+    expected_ip = data.get("expected_ip")
+
+    return DnsConfig(
+        name=str(name),
+        host=str(host),
+        record_type=str(data.get("record_type", "A")),
+        expected_ip=str(expected_ip) if expected_ip is not None else None,
         timeout=int(data.get("timeout", 10)),
     )
 
@@ -486,28 +549,37 @@ def load_config(config_path: str) -> Config:
 
     urls_data = data.get("urls")
     tcp_data = data.get("tcp")
+    dns_data = data.get("dns")
 
-    # At least one of urls or tcp must be present
-    if urls_data is None and tcp_data is None:
-        raise ConfigError("Configuration must contain 'urls' or 'tcp' section")
+    # At least one of urls, tcp, or dns must be present
+    if urls_data is None and tcp_data is None and dns_data is None:
+        raise ConfigError("Configuration must contain 'urls', 'tcp', or 'dns' section")
 
-    # Parse URLs (optional if tcp is present)
+    # Parse URLs (optional if tcp or dns is present)
     urls: list[UrlConfig] = []
     if urls_data is not None:
         if not isinstance(urls_data, list):
             raise ConfigError("'urls' must be a list")
         urls = [_parse_url_config(url_data, i) for i, url_data in enumerate(urls_data)]
 
-    # Parse TCP targets (optional if urls is present)
+    # Parse TCP targets (optional)
     tcp: list[TcpConfig] = []
     if tcp_data is not None:
         if not isinstance(tcp_data, list):
             raise ConfigError("'tcp' must be a list")
         tcp = [_parse_tcp_config(tcp_entry, i) for i, tcp_entry in enumerate(tcp_data)]
 
+    # Parse DNS targets (optional)
+    dns: list[DnsConfig] = []
+    if dns_data is not None:
+        if not isinstance(dns_data, list):
+            raise ConfigError("'dns' must be a list")
+        dns = [_parse_dns_config(dns_entry, i) for i, dns_entry in enumerate(dns_data)]
+
     return Config(
         urls=urls,
         tcp=tcp,
+        dns=dns,
         monitor=_parse_monitor_config(data.get("monitor")),
         database=_parse_database_config(data.get("database")),
         display=_parse_display_config(data.get("display")),

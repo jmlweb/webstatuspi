@@ -74,6 +74,26 @@ tcp:
   #   port: 5672
   #   timeout: 5
 
+# DNS resolution monitoring - verify domain name resolution
+dns:
+  # Example: Basic DNS resolution check
+  # - name: "DNS_MAIN"
+  #   host: "example.com"
+  #   record_type: A  # A (IPv4) or AAAA (IPv6)
+  #   timeout: 5
+
+  # Example: DNS with expected IP verification
+  # - name: "DNS_API"
+  #   host: "api.example.com"
+  #   record_type: A
+  #   expected_ip: "192.0.2.1"  # Verify resolved IP matches
+
+  # Example: IPv6 resolution check
+  # - name: "DNS_V6"
+  #   host: "ipv6.example.com"
+  #   record_type: AAAA
+  #   timeout: 5
+
 database:
   path: "./data/status.db"  # SQLite database path
   retention_days: 7         # Delete checks older than this

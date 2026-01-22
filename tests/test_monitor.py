@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from webstatuspi.config import Config, DatabaseConfig, MonitorConfig, TcpConfig, UrlConfig
+from webstatuspi.config import Config, DatabaseConfig, DnsConfig, MonitorConfig, TcpConfig, UrlConfig
 from webstatuspi.database import init_db
 from webstatuspi.models import CheckResult
 from webstatuspi.monitor import (
@@ -17,6 +17,7 @@ from webstatuspi.monitor import (
     SSLCertInfo,
     _get_ssl_cert_info,
     _is_success_status,
+    check_dns,
     check_tcp,
     check_url,
 )
@@ -1211,6 +1212,142 @@ class TestCheckTcp:
 
             before = datetime.now(UTC)
             result = check_tcp(tcp_config)
+            after = datetime.now(UTC)
+
+            assert before <= result.checked_at <= after
+
+
+class TestCheckDns:
+    """Tests for check_dns function."""
+
+    def test_successful_dns_resolution_a_record(self) -> None:
+        """Successful DNS A record resolution marks target as up."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.return_value = "93.184.216.34"
+
+            result = check_dns(dns_config)
+
+            assert result.is_up is True
+            assert result.url_name == "DNS_TEST"
+            assert result.url == "dns://example.com"
+            assert result.status_code is None
+            assert result.error_message is None
+
+    def test_successful_dns_resolution_aaaa_record(self) -> None:
+        """Successful DNS AAAA record resolution marks target as up."""
+        import socket
+
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="AAAA",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.getaddrinfo") as mock_getaddrinfo:
+            mock_getaddrinfo.return_value = [
+                (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2606:2800:220:1:248:1893:25c8:1946", 0, 0, 0))
+            ]
+
+            result = check_dns(dns_config)
+
+            assert result.is_up is True
+            assert result.url_name == "DNS_TEST"
+
+    def test_dns_resolution_failure(self) -> None:
+        """DNS resolution failure marks target as down."""
+        import socket
+
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="nonexistent.invalid",
+            record_type="A",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.side_effect = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+            result = check_dns(dns_config)
+
+            assert result.is_up is False
+            assert "resolution failed" in result.error_message.lower()
+
+    def test_dns_expected_ip_mismatch(self) -> None:
+        """DNS resolution with IP mismatch marks target as down."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            expected_ip="192.0.2.1",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.return_value = "93.184.216.34"  # Different from expected
+
+            result = check_dns(dns_config)
+
+            assert result.is_up is False
+            assert "expected" in result.error_message.lower()
+            assert "93.184.216.34" in result.error_message
+
+    def test_dns_expected_ip_match(self) -> None:
+        """DNS resolution with matching IP marks target as up."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            expected_ip="93.184.216.34",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.return_value = "93.184.216.34"
+
+            result = check_dns(dns_config)
+
+            assert result.is_up is True
+            assert result.error_message is None
+
+    def test_dns_measures_response_time(self) -> None:
+        """DNS check measures resolution time in milliseconds."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.return_value = "93.184.216.34"
+
+            result = check_dns(dns_config)
+
+            assert isinstance(result.response_time_ms, int)
+            assert result.response_time_ms >= 0
+
+    def test_dns_sets_checked_at_timestamp(self) -> None:
+        """DNS check sets checked_at timestamp."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            timeout=5,
+        )
+
+        with patch("webstatuspi.monitor.socket.gethostbyname") as mock_resolve:
+            mock_resolve.return_value = "93.184.216.34"
+
+            before = datetime.now(UTC)
+            result = check_dns(dns_config)
             after = datetime.now(UTC)
 
             assert before <= result.checked_at <= after

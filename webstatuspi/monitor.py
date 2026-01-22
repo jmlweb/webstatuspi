@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from threading import Event, Thread
 from urllib.parse import urlparse
 
-from .config import Config, TargetConfig, TcpConfig, UrlConfig
+from .config import Config, DnsConfig, TargetConfig, TcpConfig, UrlConfig
 from .database import cleanup_old_checks, insert_check
 from .models import CheckResult
 from .security import SSRFError, validate_url_for_ssrf
@@ -610,14 +610,106 @@ def check_tcp(tcp_config: TcpConfig) -> CheckResult:
         )
 
 
+def check_dns(dns_config: DnsConfig) -> CheckResult:
+    """Perform a DNS resolution check for a hostname.
+
+    Resolves the hostname and measures resolution time. Optionally verifies
+    that the resolved IP matches an expected value.
+
+    Args:
+        dns_config: DNS target configuration (host, record_type, expected_ip).
+
+    Returns:
+        CheckResult with resolution status and timing information.
+    """
+    checked_at = datetime.now(UTC)
+    start = time.monotonic()
+
+    try:
+        if dns_config.record_type == "A":
+            # IPv4 resolution
+            resolved_ip = socket.gethostbyname(dns_config.host)
+        else:
+            # AAAA (IPv6) resolution
+            infos = socket.getaddrinfo(
+                dns_config.host,
+                None,
+                socket.AF_INET6,
+                socket.SOCK_STREAM,
+            )
+            if not infos:
+                raise socket.gaierror(socket.EAI_NONAME, "No IPv6 address found")
+            resolved_ip = infos[0][4][0]
+
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+
+        # Check if resolved IP matches expected value
+        if dns_config.expected_ip is not None and resolved_ip != dns_config.expected_ip:
+            return CheckResult(
+                url_name=dns_config.name,
+                url=dns_config.url,
+                status_code=None,
+                response_time_ms=elapsed_ms,
+                is_up=False,
+                error_message=f"Resolved {resolved_ip} but expected {dns_config.expected_ip}",
+                checked_at=checked_at,
+            )
+
+        return CheckResult(
+            url_name=dns_config.name,
+            url=dns_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=True,
+            error_message=None,
+            checked_at=checked_at,
+        )
+
+    except socket.gaierror as e:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=dns_config.name,
+            url=dns_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=f"DNS resolution failed: {e}",
+            checked_at=checked_at,
+        )
+
+    except TimeoutError:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=dns_config.name,
+            url=dns_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=f"DNS resolution timeout after {dns_config.timeout}s",
+            checked_at=checked_at,
+        )
+
+    except Exception as e:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return CheckResult(
+            url_name=dns_config.name,
+            url=dns_config.url,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            is_up=False,
+            error_message=str(e),
+            checked_at=checked_at,
+        )
+
+
 def check_target(target: TargetConfig, **kwargs) -> CheckResult:
-    """Check a target (URL or TCP) and return the result.
+    """Check a target (URL, TCP, or DNS) and return the result.
 
     Dispatcher function that routes to the appropriate check function
     based on target type.
 
     Args:
-        target: Target configuration (UrlConfig or TcpConfig).
+        target: Target configuration (UrlConfig, TcpConfig, or DnsConfig).
         **kwargs: Additional arguments passed to check_url (ssl_warning_days, allow_private).
 
     Returns:
@@ -625,12 +717,14 @@ def check_target(target: TargetConfig, **kwargs) -> CheckResult:
     """
     if isinstance(target, TcpConfig):
         return check_tcp(target)
+    elif isinstance(target, DnsConfig):
+        return check_dns(target)
     else:
         return check_url(target, **kwargs)
 
 
 class Monitor:
-    """Threaded monitor that checks URLs and TCP targets at a global interval.
+    """Threaded monitor that checks URLs, TCP, and DNS targets at a global interval.
 
     All targets are checked together at the configured monitor interval.
     Checks run concurrently using a thread pool, optimized for
@@ -683,9 +777,10 @@ class Monitor:
         self._thread = Thread(target=self._run_loop, daemon=True, name="monitor-loop")
         self._thread.start()
         logger.info(
-            "Monitor started with %d URLs and %d TCP targets",
+            "Monitor started with %d URLs, %d TCP, and %d DNS targets",
             len(self._config.urls),
             len(self._config.tcp),
+            len(self._config.dns),
         )
 
     def stop(self, timeout: float = 10.0) -> None:

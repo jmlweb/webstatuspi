@@ -10,6 +10,7 @@ from webstatuspi.config import (
     ConfigError,
     DatabaseConfig,
     DisplayConfig,
+    DnsConfig,
     MonitorConfig,
     TcpConfig,
     UrlConfig,
@@ -316,6 +317,87 @@ class TestTcpConfig:
             TcpConfig(name="Test", host="example.com", port=80, timeout=0)
 
 
+class TestDnsConfig:
+    """Tests for DnsConfig dataclass."""
+
+    def test_creates_valid_dns_config(self) -> None:
+        """Valid DNS configuration can be created."""
+        dns_config = DnsConfig(
+            name="DNS_TEST",
+            host="example.com",
+            record_type="A",
+            timeout=5,
+        )
+        assert dns_config.name == "DNS_TEST"
+        assert dns_config.host == "example.com"
+        assert dns_config.record_type == "A"
+        assert dns_config.timeout == 5
+
+    def test_dns_config_with_defaults(self) -> None:
+        """DnsConfig uses default values."""
+        dns_config = DnsConfig(
+            name="DNS",
+            host="example.com",
+        )
+        assert dns_config.timeout == 10
+        assert dns_config.record_type == "A"
+        assert dns_config.expected_ip is None
+
+    def test_dns_config_url_property(self) -> None:
+        """DnsConfig url property returns dns:// format."""
+        dns_config = DnsConfig(
+            name="DNS",
+            host="example.com",
+        )
+        assert dns_config.url == "dns://example.com"
+
+    def test_rejects_empty_name(self) -> None:
+        """Empty DNS name is rejected."""
+        with pytest.raises(ConfigError, match="DNS name cannot be empty"):
+            DnsConfig(name="", host="example.com")
+
+    def test_rejects_name_exceeding_10_chars(self) -> None:
+        """DNS name longer than 10 characters is rejected."""
+        with pytest.raises(ConfigError, match="exceeds 10 characters"):
+            DnsConfig(
+                name="VeryLongNameThatExceeds10",
+                host="example.com",
+            )
+
+    def test_rejects_empty_host(self) -> None:
+        """Empty DNS host is rejected."""
+        with pytest.raises(ConfigError, match="DNS host cannot be empty"):
+            DnsConfig(name="Test", host="")
+
+    def test_rejects_invalid_record_type(self) -> None:
+        """Invalid DNS record type is rejected."""
+        with pytest.raises(ConfigError, match="Invalid DNS record_type"):
+            DnsConfig(name="Test", host="example.com", record_type="MX")
+
+    def test_accepts_aaaa_record_type(self) -> None:
+        """AAAA record type is accepted."""
+        dns_config = DnsConfig(
+            name="Test",
+            host="example.com",
+            record_type="AAAA",
+        )
+        assert dns_config.record_type == "AAAA"
+
+    def test_accepts_expected_ip(self) -> None:
+        """expected_ip field is accepted."""
+        dns_config = DnsConfig(
+            name="Test",
+            host="example.com",
+            expected_ip="192.0.2.1",
+        )
+        assert dns_config.expected_ip == "192.0.2.1"
+
+    def test_rejects_timeout_less_than_1(self) -> None:
+        """Timeout less than 1 second is rejected."""
+        with pytest.raises(ConfigError, match="Timeout must be at least 1 second"):
+            DnsConfig(name="Test", host="example.com", timeout=0)
+
+
 class TestMonitorConfig:
     """Tests for MonitorConfig dataclass."""
 
@@ -462,10 +544,10 @@ class TestConfig:
         assert config.database.retention_days == 7
         assert config.api.port == 8080
 
-    def test_rejects_empty_urls_and_tcp_lists(self) -> None:
-        """Config with no URLs and no TCP targets is rejected."""
-        with pytest.raises(ConfigError, match="At least one URL or TCP target must be configured"):
-            Config(urls=[], tcp=[])
+    def test_rejects_empty_config(self) -> None:
+        """Config with no targets is rejected."""
+        with pytest.raises(ConfigError, match="At least one URL, TCP, or DNS target must be configured"):
+            Config(urls=[], tcp=[], dns=[])
 
     def test_rejects_duplicate_url_names(self) -> None:
         """Config with duplicate URL names is rejected."""
@@ -522,6 +604,32 @@ class TestConfig:
         with pytest.raises(ConfigError, match="Duplicate target names found"):
             Config(urls=urls, tcp=tcp)
 
+    def test_creates_config_with_dns_only(self) -> None:
+        """Config can be created with only DNS targets."""
+        dns = [DnsConfig(name="DNS", host="example.com")]
+        config = Config(urls=[], dns=dns)
+        assert len(config.urls) == 0
+        assert len(config.dns) == 1
+        assert config.dns[0].name == "DNS"
+
+    def test_creates_config_with_all_target_types(self) -> None:
+        """Config can be created with URLs, TCP, and DNS targets."""
+        urls = [UrlConfig(name="API", url="https://api.example.com")]
+        tcp = [TcpConfig(name="DB", host="db.example.com", port=5432)]
+        dns = [DnsConfig(name="DNS", host="example.com")]
+        config = Config(urls=urls, tcp=tcp, dns=dns)
+        assert len(config.urls) == 1
+        assert len(config.tcp) == 1
+        assert len(config.dns) == 1
+        assert len(config.all_targets) == 3
+
+    def test_rejects_duplicate_names_across_all_types(self) -> None:
+        """Config rejects duplicate names across URLs, TCP, and DNS."""
+        urls = [UrlConfig(name="Test", url="https://example.com")]
+        dns = [DnsConfig(name="Test", host="example.com")]
+        with pytest.raises(ConfigError, match="Duplicate target names found"):
+            Config(urls=urls, dns=dns)
+
 
 class TestLoadConfig:
     """Tests for load_config function."""
@@ -574,12 +682,12 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="Configuration must be a YAML dictionary"):
             load_config(str(config_file))
 
-    def test_raises_error_when_urls_and_tcp_sections_missing(self, config_dir: Path) -> None:
-        """ConfigError is raised when both 'urls' and 'tcp' sections are missing."""
+    def test_raises_error_when_no_target_sections(self, config_dir: Path) -> None:
+        """ConfigError is raised when no target sections are present."""
         config_file = config_dir / "no_urls.yaml"
         config_file.write_text("monitor:\n  interval: 60")
 
-        with pytest.raises(ConfigError, match="must contain 'urls' or 'tcp' section"):
+        with pytest.raises(ConfigError, match="must contain 'urls', 'tcp', or 'dns' section"):
             load_config(str(config_file))
 
     def test_raises_error_when_urls_is_not_list(self, config_dir: Path) -> None:

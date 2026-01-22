@@ -640,6 +640,45 @@ tcp:
 - Status code is `null` for TCP checks (no HTTP status)
 - URL format in API: `tcp://host:port`
 
+### DNS Resolution Monitoring
+
+Monitor DNS resolution for domain names to detect DNS propagation issues, server failures, or misconfigured records:
+
+```yaml
+dns:
+  # Basic DNS resolution check
+  - name: "DNS_MAIN"
+    host: "example.com"
+    record_type: A  # A (IPv4) or AAAA (IPv6)
+    timeout: 5
+
+  # Verify resolved IP matches expected value
+  - name: "DNS_API"
+    host: "api.example.com"
+    record_type: A
+    expected_ip: "192.0.2.1"
+```
+
+**How it works:**
+
+| Condition | Result |
+|-----------|--------|
+| DNS resolution succeeds | Target marked UP |
+| Resolution fails | Target marked DOWN with error |
+| Resolved IP doesn't match expected | Target marked DOWN with mismatch message |
+
+**Supported record types:**
+
+| Type | Description |
+|------|-------------|
+| `A` | IPv4 address resolution (default) |
+| `AAAA` | IPv6 address resolution |
+
+**Notes:**
+- DNS checks measure resolution time (response_time_ms)
+- Uses OS DNS resolver (no additional dependencies)
+- URL format in API: `dns://hostname`
+
 ### SSL Certificate Monitoring
 
 WebStatusPi automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.
