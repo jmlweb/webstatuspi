@@ -575,9 +575,15 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._send_png(ICON_512_PNG)
             else:
                 self._send_error_json(404, "Not found")
+        except (BrokenPipeError, ConnectionResetError):
+            # Client disconnected before response was sent - this is normal
+            logger.debug("Client disconnected: %s %s", self.command, self.path)
         except Exception as e:
             logger.exception("Error handling request: %s", e)
-            self._send_error_json(500, "Internal server error")
+            try:
+                self._send_error_json(500, "Internal server error")
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # Can't send error if client already disconnected
         finally:
             self._maybe_cleanup_rate_limiter()
 
@@ -591,9 +597,15 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._handle_reset()
             else:
                 self._send_error_json(404, "Not found")
+        except (BrokenPipeError, ConnectionResetError):
+            # Client disconnected before response was sent - this is normal
+            logger.debug("Client disconnected: %s %s", self.command, self.path)
         except Exception as e:
             logger.exception("Error handling DELETE request: %s", e)
-            self._send_error_json(500, "Internal server error")
+            try:
+                self._send_error_json(500, "Internal server error")
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # Can't send error if client already disconnected
         finally:
             self._maybe_cleanup_rate_limiter()
 
