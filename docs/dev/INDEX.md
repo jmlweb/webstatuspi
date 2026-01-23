@@ -1,10 +1,10 @@
 # WebStatusPi - Development Status
 
-> **New here?** Read [AGENTS.md](AGENTS.md) for workflow rules.
+> **New here?** Read [WORKFLOW.md](WORKFLOW.md) for workflow rules.
 
 ## Quick Stats
 
-- **Pending**: 3 tasks
+- **Pending**: 8 tasks
 - **In Progress**: 1 task
 - **Completed**: 30 tasks
 
@@ -19,6 +19,11 @@
 | 032 | Latency Degradation Alerts | Core, Config, Alerts | P2 | in_progress |
 | 030 | Configurable User-Agent | Core, Config | P3 | pending |
 | 033 | Heartbeat (Dead Man's Snitch) | DevOps, Config, Core | P3 | pending |
+| 034 | Modal Prefetch on Hover | Frontend | P3 | pending |
+| 035 | Request Deduplication | Frontend | P3 | pending |
+| 036 | Debounce Polling Inactive Tabs | Frontend | P3 | pending |
+| 037 | Lazy Chart Rendering | Frontend | P3 | pending |
+| 038 | Resource Hints Prefetch | Frontend | P3 | pending |
 | 031 | Periodic SQLite VACUUM | Database, Config | P4 | pending |
 
 ## Completed Tasks
@@ -58,7 +63,7 @@
 
 ## Quick Links
 
-- [Workflow Rules](AGENTS.md)
+- [Workflow Rules](WORKFLOW.md)
 - [Learnings Log](LEARNINGS.md)
 - [Backlog Tasks](backlog/)
 - [Completed Tasks](done/)

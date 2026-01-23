@@ -39,6 +39,9 @@ If you cannot proceed:
 
 ## Commands Reference
 
+> **Note**: These commands are defined as skills in `.claude/commands/` and are invoked
+> with `/command-name` during a Claude Code session.
+
 | Command | Description |
 |---------|-------------|
 | `/start-task XXX` | Mark task as in_progress, update INDEX |
@@ -48,6 +51,27 @@ If you cannot proceed:
 | `/dev-status` | Show current status from INDEX.md |
 | `/check-task XXX` | Verify task status matches reality |
 | `/next-task` | Suggest next priority task |
+| `/add-task` | Groom and add a new task to the backlog |
+| `/sync-docs` | Verify documentation matches implementation |
+| `/test` | Run tests with coverage report |
+| `/lint` | Run linters (flake8, mypy) on Python code |
+| `/deploy` | Deploy to Raspberry Pi via git pull |
+
+## Slices (System Areas)
+
+Tasks are categorized by slice to indicate which parts of the system they affect:
+
+| Slice | Description | Key Files |
+|-------|-------------|-----------|
+| **Core** | Main monitoring logic | `monitor.py`, `checker.py` |
+| **Config** | Configuration and validation | `config.py`, `config.yaml` |
+| **Database** | Persistence layer | `database.py`, `models.py` |
+| **API** | HTTP server and endpoints | `api.py`, `_dashboard.py` |
+| **Alerts** | Alert system | `alerter.py`, webhooks |
+| **Frontend** | Dashboard HTML/CSS/JS | `_dashboard.py`, static assets |
+| **Testing** | Unit and integration tests | `tests/` |
+| **DevOps** | CI/CD, deployment, systemd | `.github/`, `systemd/` |
+| **Docs** | Documentation | `docs/`, `README.md` |
 
 ## Priority Levels
 
@@ -78,7 +102,7 @@ If you cannot proceed:
 ```
 docs/dev/
 ├── INDEX.md        # Current status (dynamic)
-├── AGENTS.md       # This file - workflow rules (static)
+├── WORKFLOW.md     # This file - workflow rules (static)
 ├── LEARNINGS.md    # Knowledge base
 ├── backlog/        # Pending tasks
 │   └── XXX-task-name.md
