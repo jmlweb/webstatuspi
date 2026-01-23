@@ -16,146 +16,105 @@ Deploy the application to a Raspberry Pi by pulling from git.
 ## Prerequisites
 
 - SSH key authentication configured (see `AGENTS.md`)
-- `.env.local` file configured
-- Repository cloned on Pi at `$PI_PROJECT_PATH`
+- `.env.local` file with: `PI_SSH_HOST`, `PI_SSH_USER`, `PI_SSH_PORT` (optional, default 22)
+- Repository cloned on Pi at `/home/pi/webstatuspi`
 
 ## Workflow
 
-### 1. Load Configuration
+### 1. Check Local State
 
 ```bash
-source .env.local
-
-# Validate required variables
-if [[ -z "$PI_SSH_HOST" || -z "$PI_SSH_USER" ]]; then
-    echo "Error: Configure .env.local first"
-    exit 1
-fi
-
-PI_PROJECT_PATH="${PI_PROJECT_PATH:-/home/pi/webstatuspi}"
-PI_SERVICE_NAME="${PI_SERVICE_NAME:-webstatuspi}"
-```
-
-### 2. Validate Local State
-
-```bash
-# Check for uncommitted changes
 git status --porcelain
-```
-
-If uncommitted changes:
-```
-⚠️ Uncommitted changes detected - these won't be deployed
-
-Options:
-1. Commit first (/commit)
-2. Continue anyway (only pushed commits will deploy)
-3. Abort
-```
-
-### 3. Ensure Changes Are Pushed
-
-```bash
-# Check if local is ahead of remote
 git status -sb
 ```
 
-If ahead of remote:
-```
-⚠️ You have unpushed commits
+If uncommitted changes, warn user and ask to commit first or continue.
+If unpushed commits, ask to push first.
 
-Push now? (yes/no)
-```
+### 2. Deploy via SSH
 
-If yes: `git push`
-
-### 4. Deploy via Git Pull
+**IMPORTANT**: Use direct SSH, not `./scripts/ssh-pi.sh` (the script doesn't work well with heredoc).
 
 ```bash
-./scripts/ssh-pi.sh << 'EOF'
-cd $PI_PROJECT_PATH || exit 1
-
-echo "📥 Pulling latest changes..."
+source .env.local
+ssh -p ${PI_SSH_PORT:-22} ${PI_SSH_USER}@${PI_SSH_HOST} << 'EOF'
+cd /home/pi/webstatuspi || exit 1
+echo "Pulling changes..."
 git fetch origin
-git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
-
-echo "📦 Installing dependencies..."
-if [ -f requirements.txt ]; then
-    ./venv/bin/pip install -q -r requirements.txt
-fi
-
-echo "✅ Deploy complete"
+git reset --hard origin/main
+echo "Done. Latest commit:"
 git log -1 --oneline
 EOF
 ```
 
-### 5. Restart Service
+### 3. Restart Service
 
 ```bash
-./scripts/ssh-pi.sh "sudo systemctl restart $PI_SERVICE_NAME 2>/dev/null || echo 'Service not configured'"
+source .env.local
+ssh -p ${PI_SSH_PORT:-22} ${PI_SSH_USER}@${PI_SSH_HOST} "sudo systemctl restart webstatuspi"
 ```
 
-### 6. Verify Deployment
+### 4. Verify Deployment
+
+Wait 2-3 seconds for service to start, then verify:
 
 ```bash
-./scripts/ssh-pi.sh "curl -s http://localhost:8080/api/health 2>/dev/null || echo 'API not responding yet...'"
+curl -s http://webstatuspi.lan:8080/status | jq '.summary'
 ```
 
-### 7. Report Status
+Expected output:
+```json
+{
+  "total": 4,
+  "up": 4,
+  "down": 0
+}
+```
+
+### 5. Report Status
 
 ```
-✅ Deployed to Pi
+Deployed to Pi
 
 Branch: main
 Commit: abc1234 feat: add new feature
 Service: restarted
-API: healthy
 ```
 
-## First-Time Setup on Pi
+## Complete Deploy Command
 
-If the repo isn't cloned yet on the Pi:
+For quick reference, here's the full deploy sequence:
 
 ```bash
-./scripts/ssh-pi.sh << 'EOF'
-# Clone the repository
-git clone https://github.com/USER/webstatuspi.git $PI_PROJECT_PATH
-cd $PI_PROJECT_PATH
+# 1. Push changes
+git push origin main
 
-# Create virtual environment
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
-
-# Create data directory
-mkdir -p data
+# 2. Deploy to Pi
+source .env.local && ssh -p ${PI_SSH_PORT:-22} ${PI_SSH_USER}@${PI_SSH_HOST} << 'EOF'
+cd /home/pi/webstatuspi || exit 1
+git fetch origin
+git reset --hard origin/main
 EOF
+
+# 3. Restart service
+source .env.local && ssh -p ${PI_SSH_PORT:-22} ${PI_SSH_USER}@${PI_SSH_HOST} "sudo systemctl restart webstatuspi"
+
+# 4. Verify (wait 2-3 seconds first)
+sleep 3 && curl -s http://webstatuspi.lan:8080/status | jq '.summary'
 ```
 
 ## Error Handling
 
-- **SSH failed**: Check `.env.local` and SSH key setup
-- **Git pull failed**: Check if repo is cloned on Pi
-- **Service restart failed**: Check systemd configuration
-- **API not responding**: Check application logs on Pi
+| Error | Cause | Solution |
+|-------|-------|----------|
+| SSH connection refused | Pi not reachable | Check network, verify `PI_SSH_HOST` |
+| Permission denied | SSH key not configured | Run `ssh-copy-id` to Pi |
+| Service restart failed | systemd not configured | Check `/etc/systemd/system/webstatuspi.service` |
+| API not responding | Service crashed | Check logs: `journalctl -u webstatuspi -n 50` |
 
-## Quick Deploy (After Push)
+## Notes
 
-The typical workflow:
-
-```bash
-# 1. Make changes locally
-# 2. Commit
-/commit
-
-# 3. Push to GitHub
-git push
-
-# 4. Deploy to Pi
-/deploy
-```
-
-## Security Notes
-
-- Uses SSH key authentication only
-- No credentials in code or commits
-- Git pull over HTTPS (no SSH keys needed on Pi for GitHub)
+- The Pi project path is `/home/pi/webstatuspi` (hardcoded, not configurable)
+- Service name is `webstatuspi` (systemd unit)
+- API runs on port 8080
+- Use `webstatuspi.lan` or the Pi's IP address to access the dashboard
