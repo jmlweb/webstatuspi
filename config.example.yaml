@@ -117,6 +117,7 @@ dns:
 database:
   path: "./data/status.db"  # SQLite database path
   retention_days: 7         # Delete checks older than this
+  vacuum_interval_days: 7   # Run VACUUM to reclaim space every N days (0 to disable)
 
 display:
   enabled: true       # Enable OLED display (future feature)

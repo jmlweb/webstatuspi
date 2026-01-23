@@ -195,6 +195,34 @@ This file captures lessons learned during development. Each learning has a uniqu
 **Learning**: When the dashboard already fetches all URL statuses via `get_latest_status()` with caching, per-URL queries like `get_latest_status_by_name()` can first check the main status cache instead of running an independent expensive query. This "cache-first" strategy means modal data loads in < 100ms when the dashboard has been viewed recently (cache populated), rather than 45-75 seconds for uncached queries. Same pattern works for history data with a per-URL TTL cache.
 **Action**: Modified `get_latest_status_by_name()` to check `_status_cache` before running DB query. Added `_history_cache` for per-URL history with 30-second TTL. Both caches are invalidated when new checks are inserted. Modal now opens in < 2 seconds.
 
+### L024: requestAnimationFrame enables non-blocking incremental rendering
+**Date**: 2026-01-24
+**Task**: #037 Lazy Chart Rendering
+**Context**: Modal open time was slow due to rendering all 4 charts synchronously on data fetch, blocking the UI thread.
+**Learning**: Using `requestAnimationFrame` in a recursive pattern allows rendering multiple charts incrementally without blocking the main thread. Charts render one per frame, making modal content visible immediately while charts load progressively. This pattern is especially important on resource-constrained devices like RPi 1B+ where chart rendering can be CPU-intensive.
+**Action**: Implemented `renderAllChartsLazy()` with recursive `requestAnimationFrame` calls. Charts only render when Analytics tab is active, and rendered state is tracked to avoid re-rendering.
+
+### L025: Resource hints with event capturing reduce event listener overhead
+**Date**: 2026-01-24
+**Task**: #038 Resource Hints Prefetch
+**Context**: Adding prefetch hints on card hover to optimize modal load times.
+**Learning**: Using event capturing (`addEventListener(..., true)`) on the container allows a single listener to handle all card hovers via event delegation. `mouseenter` with capturing is more efficient than `mouseover` for hover detection on dynamically created elements. `touchstart` with `passive: true` improves scroll performance on mobile by signaling that `preventDefault()` won't be called.
+**Action**: Added single `mouseenter` listener with capturing on cards container. Added `touchstart` with `passive: true` for mobile support. Both trigger `addPrefetchHint()` to create resource hints.
+
+### L026: Metadata table pattern simplifies persistent state tracking
+**Date**: 2026-01-24
+**Task**: #031 Periodic SQLite VACUUM
+**Context**: Needed to track last VACUUM timestamp to implement interval-based scheduling.
+**Learning**: Using a simple key-value `_metadata` table (`CREATE TABLE _metadata (key TEXT PRIMARY KEY, value TEXT)`) provides a clean pattern for tracking maintenance operations like last VACUUM timestamp. This approach avoids creating separate tables for each maintenance operation. `INSERT OR REPLACE` syntax makes metadata updates idempotent. Storing timestamps as ISO format strings (`datetime.now(UTC).isoformat()`) ensures consistency and timezone safety.
+**Action**: Created `_metadata` table in `init_db()`. Implemented `_get_metadata()` and `_set_metadata()` helpers. Used to track `last_vacuum` timestamp for interval-based VACUUM scheduling.
+
+### L027: VACUUM after cleanup maximizes space reclamation
+**Date**: 2026-01-24
+**Task**: #031 Periodic SQLite VACUUM
+**Context**: Implementing periodic VACUUM to reclaim disk space after old records are deleted.
+**Learning**: Running VACUUM immediately after `cleanup_old_checks()` ensures maximum benefit because DELETE operations just freed pages. This timing minimizes database downtime since cleanup and VACUUM happen during the same low-activity period. On Raspberry Pi with limited storage, this pattern is critical for preventing database file growth over time.
+**Action**: Modified `monitor.py::_run_cleanup()` to call `maybe_vacuum()` after cleanup. Added `vacuum_interval_days` config option (default: 7, 0 to disable).
+
 ---
 
 ## Learning Template

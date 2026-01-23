@@ -1062,11 +1062,18 @@ class Monitor:
                 logger.error("Check callback failed: %s", e)
 
     def _run_cleanup(self) -> None:
-        """Run periodic cleanup of old check records."""
+        """Run periodic cleanup of old check records and VACUUM if due."""
         retention_days = self._config.database.retention_days
         try:
             deleted = cleanup_old_checks(self._db_conn, retention_days)
             if deleted > 0:
                 logger.info("Cleaned up %d old check records", deleted)
+
+            # Run VACUUM if interval has passed (after cleanup for optimal space reclamation)
+            from webstatuspi.database import maybe_vacuum
+
+            vacuum_interval_days = self._config.database.vacuum_interval_days
+            maybe_vacuum(self._db_conn, vacuum_interval_days)
+
         except Exception as e:
             logger.error("Cleanup failed: %s", e)

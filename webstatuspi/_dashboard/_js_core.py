@@ -260,6 +260,7 @@ JS_CORE = """
         let currentUrlData = null;
         let lastFocusedElement = null;  // Track element that opened modal
         const inFlightRequests = new Map();  // Track pending requests to deduplicate
+        const renderedCharts = new Set();  // Track which charts have been rendered
 
         // Focus trap helper - gets all focusable elements in a container
         function getFocusableElements(container) {
@@ -351,6 +352,9 @@ JS_CORE = """
             // Remove focus trap handler
             modal.removeEventListener('keydown', historyModalKeyHandler);
 
+            // Clear rendered charts state so they render fresh on next open
+            renderedCharts.clear();
+
             // Return focus to the element that opened the modal
             if (lastFocusedElement) {
                 lastFocusedElement.focus();
@@ -384,8 +388,14 @@ JS_CORE = """
                     }
 
                     const data = await historyResponse.json();
+                    currentUrlData = data;  // Store data for lazy chart rendering
                     renderHistoryTable(data.checks);
-                    renderAllCharts(data.checks);
+
+                    // Only render charts if Analytics tab is active
+                    const graphsTab = document.getElementById('graphsTab');
+                    if (graphsTab && graphsTab.classList.contains('active')) {
+                        renderAllChartsLazy(data.checks);
+                    }
                 } catch (error) {
                     console.error('Error fetching history:', error);
                     document.getElementById('historyTableBody').innerHTML =
@@ -601,6 +611,11 @@ JS_CORE = """
                 historyTabBtn.classList.remove('active');
                 graphsTabBtn.setAttribute('aria-selected', 'true');
                 historyTabBtn.setAttribute('aria-selected', 'false');
+
+                // Lazy render charts when switching to Analytics tab
+                if (currentUrlData && renderedCharts.size === 0) {
+                    renderAllChartsLazy(currentUrlData.checks);
+                }
             } else {
                 graphsTab.classList.remove('active');
                 historyTab.classList.add('active');
@@ -669,6 +684,81 @@ JS_CORE = """
                 }
             }
         });
+
+        // Prefetch API endpoints on card hover (mouseenter uses event capturing for better performance)
+        document.getElementById('cardsContainer').addEventListener('mouseenter', function(e) {
+            const card = e.target.closest('.card');
+            if (card && card.dataset.urlName) {
+                addPrefetchHint(card.dataset.urlName);
+            }
+        }, true);
+
+        // Touch support for mobile devices
+        document.getElementById('cardsContainer').addEventListener('touchstart', function(e) {
+            const card = e.target.closest('.card');
+            if (card && card.dataset.urlName) {
+                addPrefetchHint(card.dataset.urlName);
+            }
+        }, { passive: true });
+
+        // ============================================
+        // Resource Hints for API Prefetching
+        // ============================================
+        function addPrefetchHint(urlName) {
+            const encoded = encodeURIComponent(urlName);
+            // Check if hints already exist for this URL
+            if (document.querySelector(`link[href*="${encoded}"]`)) return;
+
+            // Prefetch status endpoint
+            const statusLink = document.createElement('link');
+            statusLink.rel = 'prefetch';
+            statusLink.href = '/status/' + encoded;
+            statusLink.as = 'fetch';
+            document.head.appendChild(statusLink);
+
+            // Prefetch history endpoint
+            const historyLink = document.createElement('link');
+            historyLink.rel = 'prefetch';
+            historyLink.href = '/history/' + encoded;
+            historyLink.as = 'fetch';
+            document.head.appendChild(historyLink);
+        }
+
+        // ============================================
+        // Lazy Chart Rendering
+        // ============================================
+        function renderAllChartsLazy(checks) {
+            // Render charts incrementally using requestAnimationFrame
+            const charts = [
+                { id: 'responseTimeChart', fn: renderResponseTimeChart },
+                { id: 'uptimeChart', fn: renderUptimeChart },
+                { id: 'statusCodeChart', fn: renderStatusCodeChart },
+                { id: 'latencyHistogram', fn: renderLatencyHistogram }
+            ];
+
+            let chartIndex = 0;
+
+            function renderNext() {
+                if (chartIndex >= charts.length) return;
+
+                requestAnimationFrame(() => {
+                    const chart = charts[chartIndex];
+                    const container = document.getElementById(chart.id);
+                    if (container && !renderedCharts.has(chart.id)) {
+                        // Reverse for chronological order (for time-based charts)
+                        const chronologicalChecks = chart.id === 'responseTimeChart' || chart.id === 'uptimeChart'
+                            ? [...checks].reverse()
+                            : checks;
+                        chart.fn(container, chronologicalChecks);
+                        renderedCharts.add(chart.id);
+                    }
+                    chartIndex++;
+                    renderNext();
+                });
+            }
+
+            renderNext();
+        }
 
         // ============================================
         // Service Worker Registration

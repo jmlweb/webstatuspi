@@ -236,10 +236,13 @@ class DatabaseConfig:
 
     path: str = DEFAULT_DB_PATH
     retention_days: int = 7
+    vacuum_interval_days: int = 7  # 0 to disable periodic VACUUM
 
     def __post_init__(self) -> None:
         if self.retention_days < 1:
             raise ConfigError("Database retention_days must be at least 1")
+        if self.vacuum_interval_days < 0:
+            raise ConfigError("Database vacuum_interval_days must be non-negative (0 to disable)")
 
 
 @dataclass(frozen=True)

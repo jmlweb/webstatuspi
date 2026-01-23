@@ -1,12 +1,12 @@
 # Task #037: Lazy Chart Rendering
 
 ## Metadata
-- **Status**: pending
+- **Status**: completed
 - **Priority**: P3
 - **Slice**: Dashboard, WPO
 - **Created**: 2026-01-23
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-24
+- **Completed**: 2026-01-24
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,11 +14,11 @@
 **User Story**: As a dashboard user, I want charts to render only when I view the Analytics tab so that the modal opens faster.
 
 **Acceptance Criteria**:
-- [ ] Charts render only when Analytics tab is active
-- [ ] Charts render incrementally using `requestAnimationFrame`
-- [ ] Track rendered charts to avoid re-rendering
-- [ ] Clear rendered state when modal closes
-- [ ] Trigger chart rendering when switching to Analytics tab
+- [x] Charts render only when Analytics tab is active
+- [x] Charts render incrementally using `requestAnimationFrame`
+- [x] Track rendered charts to avoid re-rendering
+- [x] Clear rendered state when modal closes
+- [x] Trigger chart rendering when switching to Analytics tab
 
 ## Implementation Notes
 
@@ -91,8 +91,17 @@ None
 
 ## Progress Log
 
-(empty)
+**2026-01-24**:
+- Implemented `renderAllChartsLazy()` function with `requestAnimationFrame` for incremental rendering
+- Added `renderedCharts` Set to track which charts have been rendered
+- Modified `fetchHistory()` to conditionally render charts only when Analytics tab is active
+- Updated `switchTab()` to trigger lazy rendering when switching to Analytics tab
+- Modified `closeModal()` to clear rendered charts state for fresh rendering on next open
+- All 399 tests pass
 
 ## Learnings
 
-(empty)
+**L024: requestAnimationFrame enables non-blocking incremental rendering**
+- Using `requestAnimationFrame` in a recursive pattern allows rendering multiple charts incrementally without blocking the main thread
+- Charts render one per frame, making modal content visible immediately while charts load progressively
+- This pattern is especially important on resource-constrained devices like RPi 1B+ where chart rendering can be CPU-intensive

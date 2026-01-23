@@ -253,6 +253,14 @@ def init_db(db_path: str) -> sqlite3.Connection:
             ON checks(url_name, checked_at)
         """)
 
+        # Metadata table for tracking maintenance operations (e.g., last VACUUM)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS _metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+
         conn.commit()
         return conn
 
@@ -848,6 +856,105 @@ def cleanup_old_checks(conn: sqlite3.Connection, retention_days: int) -> int:
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to cleanup old checks: {e}")
+
+
+def _get_metadata(conn: sqlite3.Connection, key: str) -> str | None:
+    """Get metadata value by key.
+
+    Args:
+        conn: Database connection.
+        key: Metadata key.
+
+    Returns:
+        Metadata value or None if key doesn't exist.
+    """
+    try:
+        with _db_lock:
+            cursor = conn.execute("SELECT value FROM _metadata WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            return row[0] if row else None
+    except sqlite3.Error:
+        return None
+
+
+def _set_metadata(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Set metadata value by key (insert or update).
+
+    Args:
+        conn: Database connection.
+        key: Metadata key.
+        value: Metadata value.
+    """
+    try:
+        with _db_lock:
+            conn.execute(
+                "INSERT OR REPLACE INTO _metadata (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to set metadata: {e}")
+
+
+def maybe_vacuum(conn: sqlite3.Connection, vacuum_interval_days: int) -> bool:
+    """Run VACUUM if configured interval has passed.
+
+    VACUUM rebuilds the database file, reclaiming space freed by DELETE operations
+    and defragmenting pages for better query performance.
+
+    Thread-safe: acquires global lock before database access.
+
+    Args:
+        conn: Database connection.
+        vacuum_interval_days: Run VACUUM if this many days have passed since last VACUUM.
+                              Set to 0 to disable periodic VACUUM.
+
+    Returns:
+        True if VACUUM was performed, False otherwise.
+
+    Raises:
+        DatabaseError: If VACUUM fails.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if vacuum_interval_days <= 0:
+        return False
+
+    try:
+        # Get last VACUUM timestamp
+        last_vacuum_str = _get_metadata(conn, "last_vacuum")
+
+        should_vacuum = False
+        if last_vacuum_str is None:
+            should_vacuum = True
+        else:
+            try:
+                last_vacuum = datetime.fromisoformat(last_vacuum_str)
+                days_since = (datetime.now(UTC) - last_vacuum).days
+                should_vacuum = days_since >= vacuum_interval_days
+            except ValueError:
+                # Invalid timestamp - treat as never vacuumed
+                should_vacuum = True
+
+        if should_vacuum:
+            logger.info("Running VACUUM on database (interval: %d days)", vacuum_interval_days)
+
+            with _db_lock:
+                conn.execute("VACUUM")
+                conn.commit()
+
+            # Record VACUUM timestamp
+            _set_metadata(conn, "last_vacuum", datetime.now(UTC).isoformat())
+
+            logger.info("VACUUM completed successfully")
+            return True
+
+        return False
+
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to run VACUUM: {e}")
 
 
 def get_url_names(conn: sqlite3.Connection) -> list[str]:

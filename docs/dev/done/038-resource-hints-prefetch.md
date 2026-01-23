@@ -1,12 +1,12 @@
 # Task #038: Resource Hints for API Prefetching
 
 ## Metadata
-- **Status**: pending
+- **Status**: completed
 - **Priority**: P3
 - **Slice**: Dashboard, WPO
 - **Created**: 2026-01-23
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-24
+- **Completed**: 2026-01-24
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,9 +14,9 @@
 **User Story**: As a dashboard user, I want the browser to prefetch API endpoints when I hover over cards so that DNS resolution and connection setup happen before I click.
 
 **Acceptance Criteria**:
-- [ ] Add `<link rel="prefetch">` hints on card hover
-- [ ] Avoid duplicate hints for the same URL
-- [ ] Hints point to `/status/<name>` and `/history/<name>` endpoints
+- [x] Add `<link rel="prefetch">` hints on card hover
+- [x] Avoid duplicate hints for the same URL
+- [x] Hints point to `/status/<name>` and `/history/<name>` endpoints
 
 ## Implementation Notes
 
@@ -78,8 +78,17 @@ None - can be implemented independently
 
 ## Progress Log
 
-(empty)
+**2026-01-24**:
+- Implemented `addPrefetchHint()` function to create `<link rel="prefetch">` elements
+- Added duplicate detection using `document.querySelector()` to avoid redundant hints
+- Added `mouseenter` event listener with event capturing for better performance
+- Added `touchstart` event listener with `passive: true` for mobile support
+- Prefetch hints created for both `/status/<name>` and `/history/<name>` endpoints
+- All 399 tests pass
 
 ## Learnings
 
-(empty)
+**L025: Resource hints with event capturing reduce event listener overhead**
+- Using event capturing (`addEventListener(..., true)`) on the container allows a single listener to handle all card hovers via event delegation
+- `mouseenter` with capturing is more efficient than `mouseover` for hover detection on dynamically created elements
+- `touchstart` with `passive: true` improves scroll performance on mobile by signaling that `preventDefault()` won't be called
