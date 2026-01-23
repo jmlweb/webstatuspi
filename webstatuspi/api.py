@@ -504,7 +504,9 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/javascript")
         self.send_header("Content-Length", str(len(body)))
         # SW must not be cached - browser handles update detection
+        # CDN-Cache-Control is respected by Cloudflare to bypass edge caching
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("CDN-Cache-Control", "no-store")
         self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
