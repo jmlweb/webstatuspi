@@ -264,11 +264,10 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
     try:
         since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
-        with _db_lock:
-            rows = conn.execute(
-                """
-                WITH latest_checks AS (
-                    SELECT
+        rows = conn.execute(
+            """
+            WITH latest_checks AS (
+                SELECT
                         url_name,
                         url,
                         status_code,
@@ -392,8 +391,8 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                 WHERE l.rn = 1
                 ORDER BY l.url_name
                 """,
-                (since_24h, since_24h, since_24h, since_24h),
-            ).fetchall()
+            (since_24h, since_24h, since_24h, since_24h),
+        ).fetchall()
 
         result = [
             UrlStatus(
@@ -506,10 +505,9 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
     try:
         since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
-        with _db_lock:
-            row = conn.execute(
-                """
-                WITH latest_check AS (
+        row = conn.execute(
+            """
+            WITH latest_check AS (
                     SELECT
                         url_name,
                         url,
@@ -611,20 +609,20 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                     COALESCE(cf.failures, 0) as consecutive_failures
                 FROM latest_check l, stats_24h s, percentiles_24h p, variance_24h v, last_downtime d, consecutive_failures cf
                 """,
-                (
-                    url_name,
-                    url_name,
-                    since_24h,
-                    url_name,
-                    since_24h,
-                    url_name,
-                    since_24h,
-                    url_name,
-                    since_24h,
-                    url_name,
-                    url_name,
-                ),
-            ).fetchone()
+            (
+                url_name,
+                url_name,
+                since_24h,
+                url_name,
+                since_24h,
+                url_name,
+                since_24h,
+                url_name,
+                since_24h,
+                url_name,
+                url_name,
+            ),
+        ).fetchone()
 
         if row is None:
             return None
@@ -701,8 +699,7 @@ def get_history(
             query += " LIMIT ?"
             params = (url_name, since.isoformat(), limit)
 
-        with _db_lock:
-            rows = conn.execute(query, params).fetchall()
+        rows = conn.execute(query, params).fetchall()
 
         return [
             CheckResult(
@@ -778,8 +775,7 @@ def get_url_names(conn: sqlite3.Connection) -> list[str]:
         DatabaseError: If the query fails.
     """
     try:
-        with _db_lock:
-            rows = conn.execute("SELECT DISTINCT url_name FROM checks ORDER BY url_name").fetchall()
+        rows = conn.execute("SELECT DISTINCT url_name FROM checks ORDER BY url_name").fetchall()
         return [row["url_name"] for row in rows]
 
     except sqlite3.Error as e:
