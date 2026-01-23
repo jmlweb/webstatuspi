@@ -9,7 +9,7 @@ import threading
 import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import unquote
 
@@ -808,7 +808,7 @@ class ApiServer:
         self.config = config
         self.db_conn = db_conn
         self.internet_status_getter = internet_status_getter
-        self._server: HTTPServer | None = None
+        self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
         self._rate_limiter = RateLimiter()
@@ -830,7 +830,7 @@ class ApiServer:
                 self._rate_limiter,
                 self.internet_status_getter,
             )
-            self._server = HTTPServer(("", self.config.port), handler_class)
+            self._server = ThreadingHTTPServer(("", self.config.port), handler_class)
             self._server.timeout = 1.0  # Allow periodic shutdown checks
 
             self._shutdown_event.clear()
