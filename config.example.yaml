@@ -49,6 +49,19 @@ urls:
   #   timeout: 10
   #   success_codes: ["200-299", 400]  # Accept 2xx range and 400
 
+  # Latency degradation alerts - alert when response time exceeds threshold
+  # - name: "CRITICAL_API"
+  #   url: "https://api.example.com/health"
+  #   timeout: 10
+  #   latency_threshold_ms: 2000        # Alert if response time exceeds 2000ms
+  #   latency_consecutive_checks: 3     # Must exceed threshold 3 times in a row (default: 3)
+  #
+  # - name: "PAYMENT_API"
+  #   url: "https://payments.example.com"
+  #   timeout: 10
+  #   latency_threshold_ms: 1000        # Alert if response time exceeds 1000ms
+  #   latency_consecutive_checks: 5      # Require 5 consecutive slow checks before alerting
+
   # Add more URLs as needed:
   # - name: "MY_SERVICE"
   #   url: "http://localhost:3000/health"

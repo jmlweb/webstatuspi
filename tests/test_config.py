@@ -165,6 +165,80 @@ class TestUrlConfig:
         )
         assert url_config.success_codes is None
 
+    def test_accepts_latency_threshold(self) -> None:
+        """UrlConfig accepts latency_threshold_ms configuration."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            latency_threshold_ms=2000,
+        )
+        assert url_config.latency_threshold_ms == 2000
+
+    def test_latency_threshold_defaults_none(self) -> None:
+        """UrlConfig defaults latency_threshold_ms to None."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+        )
+        assert url_config.latency_threshold_ms is None
+
+    def test_latency_consecutive_checks_defaults_3(self) -> None:
+        """UrlConfig defaults latency_consecutive_checks to 3."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            latency_threshold_ms=1000,
+        )
+        assert url_config.latency_consecutive_checks == 3
+
+    def test_accepts_custom_latency_consecutive_checks(self) -> None:
+        """UrlConfig accepts custom latency_consecutive_checks value."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            latency_threshold_ms=1000,
+            latency_consecutive_checks=5,
+        )
+        assert url_config.latency_consecutive_checks == 5
+
+    def test_rejects_latency_threshold_less_than_1(self) -> None:
+        """Latency threshold less than 1ms is rejected."""
+        with pytest.raises(ConfigError, match="Latency threshold must be at least 1ms"):
+            UrlConfig(
+                name="Test",
+                url="https://example.com",
+                latency_threshold_ms=0,
+            )
+
+    def test_accepts_latency_threshold_of_1(self) -> None:
+        """Latency threshold of 1ms is accepted."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            latency_threshold_ms=1,
+        )
+        assert url_config.latency_threshold_ms == 1
+
+    def test_rejects_latency_consecutive_checks_less_than_1(self) -> None:
+        """Latency consecutive checks less than 1 is rejected."""
+        with pytest.raises(ConfigError, match="Latency consecutive checks must be at least 1"):
+            UrlConfig(
+                name="Test",
+                url="https://example.com",
+                latency_threshold_ms=1000,
+                latency_consecutive_checks=0,
+            )
+
+    def test_accepts_latency_consecutive_checks_of_1(self) -> None:
+        """Latency consecutive checks of 1 is accepted."""
+        url_config = UrlConfig(
+            name="Test",
+            url="https://example.com",
+            latency_threshold_ms=1000,
+            latency_consecutive_checks=1,
+        )
+        assert url_config.latency_consecutive_checks == 1
+
 
 class TestParseSuccessCodes:
     """Tests for _parse_success_codes function."""
@@ -753,6 +827,40 @@ class TestLoadConfig:
 
         assert config.urls[0].timeout == 5
         assert config.urls[1].timeout == 30
+
+    def test_loads_config_with_latency_threshold(self, config_dir: Path) -> None:
+        """URL latency threshold values are parsed correctly."""
+        config_file = config_dir / "latency_threshold.yaml"
+        config_file.write_text(
+            "urls:\n"
+            "  - name: Critical\n"
+            "    url: https://example1.com\n"
+            "    latency_threshold_ms: 2000\n"
+            "    latency_consecutive_checks: 3\n"
+            "  - name: Payment\n"
+            "    url: https://example2.com\n"
+            "    latency_threshold_ms: 1000\n"
+            "    latency_consecutive_checks: 5"
+        )
+
+        config = load_config(str(config_file))
+
+        assert config.urls[0].latency_threshold_ms == 2000
+        assert config.urls[0].latency_consecutive_checks == 3
+        assert config.urls[1].latency_threshold_ms == 1000
+        assert config.urls[1].latency_consecutive_checks == 5
+
+    def test_loads_config_with_latency_defaults(self, config_dir: Path) -> None:
+        """URL latency settings use defaults when not specified."""
+        config_file = config_dir / "latency_defaults.yaml"
+        config_file.write_text(
+            "urls:\n" "  - name: Test\n" "    url: https://example.com\n" "    latency_threshold_ms: 1500"
+        )
+
+        config = load_config(str(config_file))
+
+        assert config.urls[0].latency_threshold_ms == 1500
+        assert config.urls[0].latency_consecutive_checks == 3  # Default value
 
     def test_raises_error_for_invalid_url_in_loaded_config(
         self,

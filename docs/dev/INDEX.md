@@ -4,19 +4,22 @@
 
 ## Quick Stats
 
-- **Pending**: 0 tasks
-- **In Progress**: 0 tasks
+- **Pending**: 3 tasks
+- **In Progress**: 1 task
 - **Completed**: 30 tasks
 
 ## Current Focus
 
-> No active task - backlog is empty!
+> **Task #032**: Latency Degradation Alerts (Core, Config, Alerts, P2)
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| - | (No pending tasks) | - | - | - |
+| 032 | Latency Degradation Alerts | Core, Config, Alerts | P2 | in_progress |
+| 030 | Configurable User-Agent | Core, Config | P3 | pending |
+| 033 | Heartbeat (Dead Man's Snitch) | DevOps, Config, Core | P3 | pending |
+| 031 | Periodic SQLite VACUUM | Database, Config | P4 | pending |
 
 ## Completed Tasks
 

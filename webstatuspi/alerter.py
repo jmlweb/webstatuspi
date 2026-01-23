@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import requests
 
-from webstatuspi.config import AlertsConfig, WebhookConfig
+from webstatuspi.config import AlertsConfig, UrlConfig, WebhookConfig
 from webstatuspi.models import CheckResult
 from webstatuspi.security import SSRFError, validate_url_for_ssrf
 
@@ -21,6 +21,8 @@ class StateTracker:
 
     last_state: dict[str, bool] = field(default_factory=dict)  # {url_name: is_up}
     last_alert_time: dict[str, float] = field(default_factory=dict)  # {url_name: timestamp}
+    consecutive_slow: dict[str, int] = field(default_factory=dict)  # {url_name: count}
+    is_latency_alert_active: dict[str, bool] = field(default_factory=dict)  # {url_name: bool}
 
 
 class Alerter:
@@ -76,6 +78,46 @@ class Alerter:
 
             # Update state
             self._state_tracker.last_state[result.url_name] = result.is_up
+
+    def check_latency_alert(
+        self,
+        url_config: UrlConfig,
+        response_time_ms: int,
+    ) -> None:
+        """Check if latency alert should be triggered or cleared.
+
+        Args:
+            url_config: URL configuration with latency threshold settings.
+            response_time_ms: Current response time in milliseconds.
+        """
+        if url_config.latency_threshold_ms is None:
+            return
+
+        with self._lock:
+            threshold = url_config.latency_threshold_ms
+            required = url_config.latency_consecutive_checks
+
+            url_name = url_config.name
+            consecutive_slow = self._state_tracker.consecutive_slow.get(url_name, 0)
+            is_alert_active = self._state_tracker.is_latency_alert_active.get(url_name, False)
+
+            if response_time_ms > threshold:
+                consecutive_slow += 1
+                self._state_tracker.consecutive_slow[url_name] = consecutive_slow
+
+                # Trigger alert if threshold reached and not already active
+                if consecutive_slow >= required and not is_alert_active:
+                    self._state_tracker.is_latency_alert_active[url_name] = True
+                    self._send_latency_webhook(url_config, response_time_ms, consecutive_slow, "latency_high")
+            else:
+                # Latency is normal - clear alert if active
+                if is_alert_active:
+                    self._state_tracker.is_latency_alert_active[url_name] = False
+                    self._state_tracker.consecutive_slow[url_name] = 0
+                    self._send_latency_webhook(url_config, response_time_ms, 0, "latency_normal")
+                else:
+                    # Reset counter if not in alert state
+                    self._state_tracker.consecutive_slow[url_name] = 0
 
     def _should_alert(self, result: CheckResult) -> bool:
         """Check if we should send an alert for this result.
@@ -198,6 +240,98 @@ class Alerter:
             },
             "previous_status": "up" if previous_state else "down" if previous_state is not None else None,
         }
+
+    def _send_latency_webhook(
+        self,
+        url_config: UrlConfig,
+        response_time_ms: int,
+        consecutive_checks: int,
+        event_type: str,
+    ) -> None:
+        """Send a latency alert webhook.
+
+        Args:
+            url_config: URL configuration with latency settings.
+            response_time_ms: Current response time in milliseconds.
+            consecutive_checks: Number of consecutive slow checks.
+            event_type: Event type ("latency_high" or "latency_normal").
+        """
+        for webhook in self._config.webhooks:
+            if not webhook.enabled:
+                continue
+
+            # Check cooldown
+            if not self._is_cooldown_expired(url_config.name, webhook.cooldown_seconds):
+                logger.debug(
+                    "Webhook cooldown active for %s latency alert, skipping",
+                    url_config.name,
+                )
+                continue
+
+            # SSRF protection: validate webhook URL before sending
+            try:
+                validate_url_for_ssrf(webhook.url)
+            except SSRFError as e:
+                logger.error(
+                    "Webhook URL validation failed for %s: %s",
+                    webhook.url,
+                    e,
+                )
+                continue
+
+            payload = {
+                "event": event_type,
+                "url": {
+                    "name": url_config.name,
+                    "url": url_config.url,
+                },
+                "latency": {
+                    "current_ms": response_time_ms,
+                    "threshold_ms": url_config.latency_threshold_ms,
+                    "consecutive_checks": consecutive_checks,
+                },
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+
+            retry_count = 0
+            while retry_count <= self._max_retries:
+                try:
+                    response = requests.post(
+                        webhook.url,
+                        json=payload,
+                        timeout=10,
+                    )
+                    response.raise_for_status()
+
+                    logger.info(
+                        "Latency webhook sent successfully for %s (%s) to %s",
+                        url_config.name,
+                        event_type,
+                        webhook.url,
+                    )
+                    self._state_tracker.last_alert_time[url_config.name] = time.time()
+                    return
+
+                except requests.RequestException as e:
+                    retry_count += 1
+                    if retry_count <= self._max_retries:
+                        delay = self._retry_delay * (2 ** (retry_count - 1))
+                        logger.warning(
+                            "Latency webhook failed for %s (attempt %d/%d, retrying in %ds): %s",
+                            url_config.name,
+                            retry_count,
+                            self._max_retries + 1,
+                            delay,
+                            e,
+                        )
+                        time.sleep(delay)
+                    else:
+                        logger.error(
+                            "Latency webhook failed for %s after %d attempts: %s",
+                            url_config.name,
+                            retry_count,
+                            e,
+                        )
 
     def test_webhooks(self) -> dict[str, bool]:
         """Test all configured webhooks by sending a test payload.

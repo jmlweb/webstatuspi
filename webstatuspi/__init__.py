@@ -46,6 +46,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     from .api import ApiError, ApiServer
     from .config import ConfigError, load_config
     from .database import DatabaseError, init_db
+    from .models import CheckResult
     from .monitor import Monitor
 
     # 1. Load configuration
@@ -75,8 +76,21 @@ def _cmd_run(args: argparse.Namespace) -> None:
     if config.alerts.webhooks:
         logger.info("Alerts configured with %d webhook(s)", len(config.alerts.webhooks))
 
-    # 5. Start components
-    monitor = Monitor(config, db_conn, on_check=alerter.process_check_result)
+    # 5. Create callback that handles both up/down and latency alerts
+    def on_check_callback(result: CheckResult) -> None:
+        """Callback that processes check results for both up/down and latency alerts."""
+        # Process up/down state changes
+        alerter.process_check_result(result)
+
+        # Process latency alerts (only for URL checks with latency threshold configured)
+        # Find matching URL config by name
+        for url_config in config.urls:
+            if url_config.name == result.url_name and url_config.latency_threshold_ms is not None:
+                alerter.check_latency_alert(url_config, result.response_time_ms)
+                break
+
+    # 6. Start components
+    monitor = Monitor(config, db_conn, on_check=on_check_callback)
     api_server: ApiServer | None = None
 
     try:

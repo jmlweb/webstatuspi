@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from webstatuspi.alerter import Alerter, StateTracker
-from webstatuspi.config import AlertsConfig, WebhookConfig
+from webstatuspi.config import AlertsConfig, UrlConfig, WebhookConfig
 from webstatuspi.models import CheckResult
 
 
@@ -338,3 +338,194 @@ class TestAlerter:
         assert hasattr(alerter._lock, "release")
         assert callable(alerter._lock.acquire)
         assert callable(alerter._lock.release)
+
+
+class TestLatencyAlerts:
+    """Tests for latency degradation alerts."""
+
+    @pytest.fixture
+    def webhook_config(self) -> AlertsConfig:
+        """Create test webhook configuration."""
+        webhook = WebhookConfig(
+            url="https://example.com/webhook",
+            enabled=True,
+            on_failure=True,
+            on_recovery=True,
+            cooldown_seconds=0,  # No cooldown for testing
+        )
+        return AlertsConfig(webhooks=[webhook])
+
+    @pytest.fixture
+    def alerter(self, webhook_config: AlertsConfig) -> Alerter:
+        """Create test alerter instance."""
+        return Alerter(webhook_config, max_retries=0, retry_delay=0)
+
+    @pytest.fixture
+    def url_config_with_threshold(self) -> UrlConfig:
+        """Create URL config with latency threshold."""
+        return UrlConfig(
+            name="test_url",
+            url="https://example.com",
+            latency_threshold_ms=1000,
+            latency_consecutive_checks=3,
+        )
+
+    @pytest.fixture
+    def url_config_no_threshold(self) -> UrlConfig:
+        """Create URL config without latency threshold."""
+        return UrlConfig(
+            name="test_url",
+            url="https://example.com",
+        )
+
+    def test_latency_check_no_threshold(self, alerter: Alerter, url_config_no_threshold: UrlConfig) -> None:
+        """Test that latency check is skipped when no threshold configured."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            alerter.check_latency_alert(url_config_no_threshold, 2000)
+            mock_send.assert_not_called()
+
+    def test_latency_below_threshold_no_alert(self, alerter: Alerter, url_config_with_threshold: UrlConfig) -> None:
+        """Test that latency below threshold doesn't trigger alert."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            alerter.check_latency_alert(url_config_with_threshold, 500)  # Below 1000ms threshold
+            mock_send.assert_not_called()
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 0
+
+    def test_latency_above_threshold_increments_counter(
+        self, alerter: Alerter, url_config_with_threshold: UrlConfig
+    ) -> None:
+        """Test that latency above threshold increments counter but doesn't alert immediately."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # First check above threshold
+            alerter.check_latency_alert(url_config_with_threshold, 1500)  # Above 1000ms threshold
+            mock_send.assert_not_called()
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 1
+
+            # Second check above threshold
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            mock_send.assert_not_called()
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 2
+
+    def test_latency_alert_triggered_after_consecutive_checks(
+        self, alerter: Alerter, url_config_with_threshold: UrlConfig
+    ) -> None:
+        """Test that alert is triggered after required consecutive checks."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # First two checks above threshold (no alert yet)
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert mock_send.call_count == 0
+
+            # Third check above threshold (should trigger alert)
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert mock_send.call_count == 1
+
+            # Verify alert payload
+            call_args = mock_send.call_args
+            assert call_args[0][0] == url_config_with_threshold  # url_config
+            assert call_args[0][1] == 1500  # response_time_ms
+            assert call_args[0][2] == 3  # consecutive_checks
+            assert call_args[0][3] == "latency_high"  # event_type
+
+            # Verify state
+            assert alerter._state_tracker.is_latency_alert_active.get("test_url", False) is True
+
+    def test_latency_alert_not_retriggered_while_active(
+        self, alerter: Alerter, url_config_with_threshold: UrlConfig
+    ) -> None:
+        """Test that alert is not retriggered while already active."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # Trigger alert
+            for _ in range(3):
+                alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert mock_send.call_count == 1
+
+            # Additional checks above threshold should not retrigger
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert mock_send.call_count == 1  # Still only one call
+
+    def test_latency_normal_alert_when_recovered(self, alerter: Alerter, url_config_with_threshold: UrlConfig) -> None:
+        """Test that latency_normal alert is sent when latency recovers."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # Trigger latency_high alert
+            for _ in range(3):
+                alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert mock_send.call_count == 1
+            assert mock_send.call_args[0][3] == "latency_high"
+
+            # Latency returns to normal
+            alerter.check_latency_alert(url_config_with_threshold, 500)  # Below threshold
+            assert mock_send.call_count == 2
+            assert mock_send.call_args[0][3] == "latency_normal"
+
+            # Verify state is cleared
+            assert alerter._state_tracker.is_latency_alert_active.get("test_url", False) is False
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 0
+
+    def test_latency_counter_reset_on_normal(self, alerter: Alerter, url_config_with_threshold: UrlConfig) -> None:
+        """Test that counter resets when latency returns to normal before alert."""
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # Two checks above threshold
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 2
+
+            # Latency returns to normal (before alert threshold)
+            alerter.check_latency_alert(url_config_with_threshold, 500)
+            assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 0
+            mock_send.assert_not_called()  # No alert since we never reached threshold
+
+    @patch("webstatuspi.alerter.requests.post")
+    def test_send_latency_webhook_success(
+        self, mock_post: Mock, alerter: Alerter, url_config_with_threshold: UrlConfig
+    ) -> None:
+        """Test successful latency webhook delivery."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        # Trigger alert
+        for _ in range(3):
+            alerter.check_latency_alert(url_config_with_threshold, 1500)
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert args[0] == "https://example.com/webhook"
+        assert kwargs["timeout"] == 10
+
+        payload = kwargs["json"]
+        assert payload["event"] == "latency_high"
+        assert payload["url"]["name"] == "test_url"
+        assert payload["url"]["url"] == "https://example.com"
+        assert payload["latency"]["current_ms"] == 1500
+        assert payload["latency"]["threshold_ms"] == 1000
+        assert payload["latency"]["consecutive_checks"] == 3
+        assert "timestamp" in payload
+
+    def test_latency_alert_custom_consecutive_checks(self) -> None:
+        """Test latency alert with custom consecutive checks requirement."""
+        webhook = WebhookConfig(
+            url="https://example.com/webhook",
+            enabled=True,
+            cooldown_seconds=0,
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[webhook]), max_retries=0, retry_delay=0)
+
+        url_config = UrlConfig(
+            name="test_url",
+            url="https://example.com",
+            latency_threshold_ms=1000,
+            latency_consecutive_checks=5,  # Require 5 consecutive checks
+        )
+
+        with patch.object(alerter, "_send_latency_webhook") as mock_send:
+            # Four checks above threshold (no alert yet)
+            for _ in range(4):
+                alerter.check_latency_alert(url_config, 1500)
+            assert mock_send.call_count == 0
+
+            # Fifth check triggers alert
+            alerter.check_latency_alert(url_config, 1500)
+            assert mock_send.call_count == 1
+            assert mock_send.call_args[0][2] == 5  # consecutive_checks

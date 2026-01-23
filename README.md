@@ -419,6 +419,61 @@ Every alert sends this JSON structure:
 }
 ```
 
+### Latency Degradation Alerts
+
+Monitor response times and get alerted when services become slow, even if they're still responding successfully. This helps detect performance degradation before it causes a complete outage.
+
+#### Setup Latency Monitoring
+
+Add latency thresholds to any URL in your configuration:
+
+```yaml
+urls:
+  - name: "CRITICAL_API"
+    url: "https://api.example.com/health"
+    latency_threshold_ms: 2000        # Alert if response time exceeds 2000ms
+    latency_consecutive_checks: 3     # Must exceed threshold 3 times in a row (default: 3)
+
+  - name: "PAYMENT_API"
+    url: "https://payments.example.com"
+    latency_threshold_ms: 1000         # Alert if response time exceeds 1000ms
+    latency_consecutive_checks: 5      # Require 5 consecutive slow checks before alerting
+```
+
+#### How It Works
+
+1. **Threshold Detection**: After each check, if the response time exceeds `latency_threshold_ms`, a counter increments.
+2. **Alert Trigger**: When the counter reaches `latency_consecutive_checks`, a `latency_high` alert is sent.
+3. **Recovery**: When latency returns below the threshold, a `latency_normal` alert is sent and the counter resets.
+
+This prevents false positives from temporary network spikes while catching sustained performance issues.
+
+#### Latency Alert Payload
+
+Latency alerts use the same webhook infrastructure as up/down alerts, but with a different event type:
+
+```json
+{
+  "event": "latency_high",
+  "url": {
+    "name": "CRITICAL_API",
+    "url": "https://api.example.com/health"
+  },
+  "latency": {
+    "current_ms": 2500,
+    "threshold_ms": 2000,
+    "consecutive_checks": 3
+  },
+  "timestamp": "2026-01-23T10:30:00Z"
+}
+```
+
+**Event Types:**
+- `latency_high`: Triggered when latency exceeds threshold for configured consecutive checks
+- `latency_normal`: Triggered when latency returns below threshold after an active alert
+
+**Note**: Latency alerts respect the same `cooldown_seconds` setting as up/down alerts to prevent spam.
+
 ### Configuration Options
 
 ```yaml

@@ -104,6 +104,10 @@ class UrlConfig:
     SSL certificate monitoring:
     - verify_ssl: Whether to check SSL certificate info (default: True for HTTPS URLs).
                   Set to False to skip SSL cert checks and reduce latency on slow hardware.
+
+    Latency alerting:
+    - latency_threshold_ms: Alert if response time exceeds this threshold (milliseconds).
+    - latency_consecutive_checks: Number of consecutive checks that must exceed threshold to trigger alert (default: 3).
     """
 
     name: str
@@ -113,6 +117,8 @@ class UrlConfig:
     json_path: str | None = None
     success_codes: list[int | tuple[int, int]] | None = None
     verify_ssl: bool = True
+    latency_threshold_ms: int | None = None
+    latency_consecutive_checks: int = 3
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -125,6 +131,10 @@ class UrlConfig:
             raise ConfigError(f"URL must start with http:// or https:// for '{self.name}'")
         if self.timeout < 1:
             raise ConfigError(f"Timeout must be at least 1 second for '{self.name}'")
+        if self.latency_threshold_ms is not None and self.latency_threshold_ms < 1:
+            raise ConfigError(f"Latency threshold must be at least 1ms for '{self.name}'")
+        if self.latency_consecutive_checks < 1:
+            raise ConfigError(f"Latency consecutive checks must be at least 1 for '{self.name}'")
 
 
 @dataclass(frozen=True)
@@ -328,6 +338,9 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
     success_codes_raw = data.get("success_codes")
     success_codes = _parse_success_codes(success_codes_raw)
 
+    latency_threshold_ms = data.get("latency_threshold_ms")
+    latency_consecutive_checks = data.get("latency_consecutive_checks", 3)
+
     return UrlConfig(
         name=str(name),
         url=str(url),
@@ -336,6 +349,8 @@ def _parse_url_config(data: dict, index: int) -> UrlConfig:
         json_path=str(json_path) if json_path is not None else None,
         success_codes=success_codes,
         verify_ssl=bool(data.get("verify_ssl", True)),
+        latency_threshold_ms=int(latency_threshold_ms) if latency_threshold_ms is not None else None,
+        latency_consecutive_checks=int(latency_consecutive_checks),
     )
 
 
