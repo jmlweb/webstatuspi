@@ -372,8 +372,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             csp = (
                 f"default-src 'self'; "
                 f"script-src 'self' 'nonce-{nonce}'; "
-                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
-                f"font-src 'self' https://fonts.gstatic.com; "
+                f"style-src 'self' 'nonce-{nonce}'; "
+                f"font-src 'self'; "
                 f"img-src 'self' data:; "
                 f"connect-src 'self'; "
                 f"object-src 'none'; "

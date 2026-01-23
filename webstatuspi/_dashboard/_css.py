@@ -29,9 +29,8 @@ CSS_STYLES = """
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            /* Use fallback fonts first to prevent FOIT (Flash of Invisible Text) */
-            /* JetBrains Mono will swap in when loaded due to display=swap parameter */
-            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            /* Use system monospace fonts for zero-dependency deployment */
+            font-family: 'Fira Code', 'Consolas', 'Monaco', 'Menlo', monospace;
             background: var(--bg-dark);
             color: var(--text);
             min-height: 100vh;

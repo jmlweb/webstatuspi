@@ -31,14 +31,6 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
     <!-- PWA manifest and icons -->
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <!-- Preconnect to Google Fonts for faster font loading -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Load fonts asynchronously to avoid blocking render -->
-    <link rel="stylesheet" media="print" id="googleFonts"
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap">
-    <noscript><link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"></noscript>
     <style nonce="__CSP_NONCE__">{css}
     </style>
 </head>
