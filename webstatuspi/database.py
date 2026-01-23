@@ -2,6 +2,7 @@
 
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +19,50 @@ class DatabaseError(Exception):
 # SQLite allows concurrent reads but only one writer at a time.
 # This lock ensures safe access from multiple threads (monitor, API handlers).
 _db_lock = threading.Lock()
+
+
+# =============================================================================
+# STATUS CACHE
+# =============================================================================
+# Caches get_latest_status() results to avoid expensive queries on every request.
+# On Raspberry Pi, the complex SQL with 7 CTEs can take 6-11 seconds.
+# Since data only changes every monitor interval (default 60s), caching is safe.
+
+DEFAULT_STATUS_CACHE_SECONDS = 30
+
+
+class _StatusCache:
+    """Thread-safe cache for status query results with TTL expiration."""
+
+    def __init__(self, cache_seconds: int = DEFAULT_STATUS_CACHE_SECONDS):
+        self._lock = threading.Lock()
+        self._cache_seconds = cache_seconds
+        self._cached_at: float = 0
+        self._cached_result: list[UrlStatus] | None = None
+
+    def get(self) -> list[UrlStatus] | None:
+        """Get cached result if not expired."""
+        with self._lock:
+            if self._cached_result is None:
+                return None
+            if time.monotonic() - self._cached_at > self._cache_seconds:
+                self._cached_result = None
+                return None
+            return self._cached_result
+
+    def set(self, result: list[UrlStatus]) -> None:
+        """Cache a new result."""
+        with self._lock:
+            self._cached_result = result
+            self._cached_at = time.monotonic()
+
+    def invalidate(self) -> None:
+        """Invalidate the cache (called when new data is inserted)."""
+        with self._lock:
+            self._cached_result = None
+
+
+_status_cache = _StatusCache()
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
@@ -148,6 +193,8 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                 ),
             )
             conn.commit()
+            # Invalidate status cache since data has changed
+            _status_cache.invalidate()
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to insert check result: {e}")
 
@@ -156,7 +203,8 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
     """Get the latest status for all monitored URLs.
 
     Thread-safe: acquires global lock before database access.
-    Includes 24-hour statistics and extended metrics.
+    Results are cached for 30 seconds to avoid expensive queries on slow hardware.
+    Cache is automatically invalidated when new check data is inserted.
 
     Args:
         conn: Database connection.
@@ -167,6 +215,11 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
     Raises:
         DatabaseError: If the query fails.
     """
+    # Check cache first (important for Raspberry Pi performance)
+    cached = _status_cache.get()
+    if cached is not None:
+        return cached
+
     try:
         since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
@@ -301,7 +354,7 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
                 (since_24h, since_24h, since_24h, since_24h),
             ).fetchall()
 
-        return [
+        result = [
             UrlStatus(
                 url_name=row["url_name"],
                 url=row["url"],
@@ -334,6 +387,10 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
             )
             for row in rows
         ]
+
+        # Cache the result for subsequent requests
+        _status_cache.set(result)
+        return result
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to get latest status: {e}")

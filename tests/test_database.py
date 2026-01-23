@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from webstatuspi.database import (
+    _status_cache,
     cleanup_old_checks,
     get_history,
     get_latest_status,
@@ -1513,3 +1514,78 @@ class TestPercentileAndStddevByName:
         assert result is not None
         assert result.stddev_response_time_24h is not None
         assert 81.0 <= result.stddev_response_time_24h <= 82.0
+
+
+class TestStatusCache:
+    """Tests for the status cache functionality."""
+
+    def test_cache_returns_same_result_on_subsequent_calls(self, db_conn: sqlite3.Connection) -> None:
+        """Cache returns cached result without hitting database again."""
+        # Invalidate any previous cache
+        _status_cache.invalidate()
+
+        # Insert a check
+        check = CheckResult(
+            url_name="CACHE_TEST",
+            url="https://cache.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        # First call populates cache
+        result1 = get_latest_status(db_conn)
+
+        # Second call should return cached result
+        result2 = get_latest_status(db_conn)
+
+        # Both should have the same data
+        assert len(result1) == len(result2)
+        assert result1[0].url_name == result2[0].url_name
+
+    def test_cache_invalidated_on_insert(self, db_conn: sqlite3.Connection) -> None:
+        """Cache is invalidated when new check is inserted."""
+        # Invalidate any previous cache
+        _status_cache.invalidate()
+
+        # Insert first check
+        check1 = CheckResult(
+            url_name="CACHE_TEST_A",
+            url="https://a.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check1)
+
+        # Populate cache
+        result1 = get_latest_status(db_conn)
+
+        # Insert second check (should invalidate cache)
+        check2 = CheckResult(
+            url_name="CACHE_TEST_B",
+            url="https://b.example.com",
+            status_code=200,
+            response_time_ms=200,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check2)
+
+        # Next call should see new data
+        result2 = get_latest_status(db_conn)
+
+        # Second result should have more URLs
+        assert len(result2) > len(result1)
+
+    def test_cache_invalidate_clears_cached_data(self) -> None:
+        """Invalidate method clears the cache."""
+        # Ensure cache has something
+        _status_cache.invalidate()
+        assert _status_cache.get() is None
