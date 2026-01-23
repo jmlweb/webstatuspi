@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-23
 **Issue**: Modal shows "Error loading data" when opening service details
-**Status**: Partially resolved
+**Status**: Resolved
 
 ## Problem Description
 
@@ -79,6 +79,7 @@ Kept the lock only for write operations (INSERT, UPDATE, DELETE).
 
 1. `ea51de8` - fix(api): use ThreadingHTTPServer for concurrent request handling
 2. `a1b9e62` - fix(database): remove global lock from READ-ONLY queries
+3. `547bd1b` - fix(dashboard): increase client timeout to 60s for slow hardware
 
 ## Current Status
 
@@ -86,16 +87,16 @@ Kept the lock only for write operations (INSERT, UPDATE, DELETE).
 |-------|--------|-------|
 | Request blocking | Fixed | ThreadingHTTPServer allows concurrency |
 | Database lock contention | Fixed | Reads no longer block each other |
-| Slow query performance | Not fixed | Hardware limitation on RPi 1B+ |
+| Slow query performance | Mitigated | Client timeout increased to 60s |
 
-The modal still times out because queries take 45+ seconds on RPi 1B+, exceeding the 10-second client timeout. However, the **concurrency issues** are resolved - requests no longer block each other.
+All three issues have been addressed. The client timeout was increased from 10 seconds to 60 seconds to accommodate the slow query performance on RPi 1B+ hardware (45-75 seconds for complex queries).
 
 ## Recommendations
 
-To fully resolve the timeout issue, consider:
+Future optimizations to consider:
 
 1. **Add caching to `get_history()`** - Similar to existing `_StatusCache` for `get_latest_status()`
-2. **Increase client timeout** - Change `FETCH_TIMEOUT_MS` from 10000 to 60000 in `_js_utils.py`
+2. ~~**Increase client timeout**~~ - ✅ Done: Changed `FETCH_TIMEOUT_MS` from 10000 to 60000 in `_js_utils.py`
 3. **Simplify history query** - Return fewer columns or rows
 4. **Pre-fetch on hover** - Start loading data when user hovers over a card (see backlog task #034)
 

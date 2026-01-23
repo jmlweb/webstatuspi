@@ -5,7 +5,7 @@ This module contains formatting and helper functions used across the dashboard.
 
 JS_UTILS = """
         const POLL_INTERVAL = 10000;
-        const FETCH_TIMEOUT_MS = 10000;  // 10 second timeout for API requests
+        const FETCH_TIMEOUT_MS = 60000;  // 60 second timeout for slow RPi hardware
         let isUpdating = false;
 
         // Helper function to fetch with timeout
