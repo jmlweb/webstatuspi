@@ -1383,12 +1383,12 @@ class TestSSLCertExtraction:
             mock_sock.__exit__ = MagicMock(return_value=False)
             mock_conn.return_value = mock_sock
 
-            with patch("webstatuspi.monitor.ssl.create_default_context") as mock_ctx:
+            with patch("webstatuspi.monitor._create_ssl_context") as mock_ctx:
                 mock_context = MagicMock()
                 mock_context.wrap_socket.return_value = mock_ssl_sock
                 mock_ctx.return_value = mock_context
 
-                ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+                ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5, use_cache=False)
 
         assert error is None
         assert ssl_info is not None
@@ -1403,7 +1403,7 @@ class TestSSLCertExtraction:
         with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
             mock_conn.side_effect = ssl.SSLError("Connection refused")
 
-            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5, use_cache=False)
 
         assert ssl_info is None
         assert "SSL error" in error
@@ -1413,7 +1413,7 @@ class TestSSLCertExtraction:
         with patch("webstatuspi.monitor.socket.create_connection") as mock_conn:
             mock_conn.side_effect = TimeoutError("timed out")
 
-            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5)
+            ssl_info, error = _get_ssl_cert_info("https://example.com", timeout=5, use_cache=False)
 
         assert ssl_info is None
         assert "timeout" in error.lower()
