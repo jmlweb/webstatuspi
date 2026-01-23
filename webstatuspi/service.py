@@ -1,4 +1,4 @@
-"""Systemd service installation for WebStatusPi."""
+"""Systemd service installation for WebStatusπ."""
 
 import getpass
 import os
@@ -11,7 +11,7 @@ SERVICE_PATH = Path("/etc/systemd/system/webstatuspi.service")
 
 SERVICE_TEMPLATE = """\
 [Unit]
-Description=WebStatusPi URL Monitor
+Description=WebStatusπ URL Monitor
 After=network-online.target
 Wants=network-online.target
 

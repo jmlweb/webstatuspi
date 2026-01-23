@@ -1,6 +1,6 @@
-# Testing Documentation - WebStatusPi
+# Testing Documentation - WebStatusπ
 
-Testing strategies and tools for developing WebStatusPi without requiring physical Raspberry Pi hardware.
+Testing strategies and tools for developing WebStatusπ without requiring physical Raspberry Pi hardware.
 
 ## Quick Reference
 

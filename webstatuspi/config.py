@@ -25,6 +25,7 @@ class MonitorConfig:
     interval: int = 60  # seconds between check cycles
     ssl_warning_days: int = 30  # days before expiration to warn about SSL certificates
     ssl_cache_seconds: int = 3600  # cache SSL cert info for 1 hour (reduces SSL handshakes)
+    default_user_agent: str = "WebStatusPi/0.1"  # default User-Agent header for HTTP requests
 
     def __post_init__(self) -> None:
         if self.interval < MIN_MONITOR_INTERVAL:
@@ -36,6 +37,8 @@ class MonitorConfig:
             raise ConfigError(f"SSL warning days must be non-negative (got {self.ssl_warning_days})")
         if self.ssl_cache_seconds < 0:
             raise ConfigError(f"SSL cache seconds must be non-negative (got {self.ssl_cache_seconds})")
+        if not self.default_user_agent:
+            raise ConfigError("Default User-Agent cannot be empty")
 
 
 def _parse_success_codes(codes: list | None) -> list[int | tuple[int, int]] | None:
@@ -108,6 +111,9 @@ class UrlConfig:
     Latency alerting:
     - latency_threshold_ms: Alert if response time exceeds this threshold (milliseconds).
     - latency_consecutive_checks: Number of consecutive checks that must exceed threshold to trigger alert (default: 3).
+
+    Custom User-Agent:
+    - user_agent: Override the default User-Agent header for this URL. Useful for bypassing WAFs.
     """
 
     name: str
@@ -119,6 +125,7 @@ class UrlConfig:
     verify_ssl: bool = True
     latency_threshold_ms: int | None = None
     latency_consecutive_checks: int = 3
+    user_agent: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -282,6 +289,27 @@ class WebhookConfig:
 
 
 @dataclass(frozen=True)
+class HeartbeatConfig:
+    """Configuration for heartbeat monitoring (Dead Man's Snitch style)."""
+
+    enabled: bool = False
+    url: str = ""
+    interval_seconds: int = 300
+    timeout_seconds: int = 10
+
+    def __post_init__(self) -> None:
+        if self.enabled:
+            if not self.url:
+                raise ConfigError("Heartbeat URL is required when heartbeat is enabled")
+            if not self.url.startswith(("http://", "https://")):
+                raise ConfigError(f"Heartbeat URL must start with http:// or https://, got '{self.url}'")
+            if self.interval_seconds < 1:
+                raise ConfigError(f"Heartbeat interval must be at least 1 second, got {self.interval_seconds}")
+            if self.timeout_seconds < 1:
+                raise ConfigError(f"Heartbeat timeout must be at least 1 second, got {self.timeout_seconds}")
+
+
+@dataclass(frozen=True)
 class AlertsConfig:
     """Configuration for alert mechanisms."""
 
@@ -304,6 +332,7 @@ class Config:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     alerts: AlertsConfig = field(default_factory=AlertsConfig)
+    heartbeat: HeartbeatConfig = field(default_factory=HeartbeatConfig)
 
     def __post_init__(self) -> None:
         if not self.urls and not self.tcp and not self.dns:
@@ -494,6 +523,21 @@ def _parse_alerts_config(data: dict | None) -> AlertsConfig:
     return AlertsConfig(webhooks=webhooks)
 
 
+def _parse_heartbeat_config(data: dict | None) -> HeartbeatConfig:
+    """Parse heartbeat configuration section."""
+    if data is None:
+        return HeartbeatConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'heartbeat' section must be a dictionary")
+
+    return HeartbeatConfig(
+        enabled=data.get("enabled", False),
+        url=data.get("url", ""),
+        interval_seconds=data.get("interval_seconds", 300),
+        timeout_seconds=data.get("timeout_seconds", 10),
+    )
+
+
 def _apply_env_overrides(config_data: dict) -> dict:
     """Apply environment variable overrides to configuration.
 
@@ -610,4 +654,5 @@ def load_config(config_path: str) -> Config:
         display=_parse_display_config(data.get("display")),
         api=_parse_api_config(data.get("api")),
         alerts=_parse_alerts_config(data.get("alerts")),
+        heartbeat=_parse_heartbeat_config(data.get("heartbeat")),
     )

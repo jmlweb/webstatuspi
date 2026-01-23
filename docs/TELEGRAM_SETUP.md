@@ -13,7 +13,7 @@ Get instant push notifications on your phone when monitored URLs go down or reco
 
 **Requirements:**
 - Telegram account (mobile or desktop app)
-- WebStatusPi with webhook alerts enabled
+- WebStatusπ with webhook alerts enabled
 - Internet connection from your Raspberry Pi
 
 ## Quick Setup (5 minutes)
@@ -61,7 +61,7 @@ Use this token to access the HTTP API:
 
 ### Step 3: Set Up a Webhook Relay
 
-WebStatusPi sends a generic JSON payload that isn't directly compatible with Telegram's API. You need a relay service to transform the payload.
+WebStatusπ sends a generic JSON payload that isn't directly compatible with Telegram's API. You need a relay service to transform the payload.
 
 #### Option A: Pipedream (Free, Recommended)
 
@@ -134,7 +134,7 @@ If you prefer self-hosting, [n8n](https://n8n.io) is a great option.
 4. Map the fields from the webhook to the Telegram message
 5. Copy the webhook URL
 
-### Step 4: Configure WebStatusPi
+### Step 4: Configure WebStatusπ
 
 Add the relay webhook URL to your `config.yaml`:
 
@@ -201,7 +201,7 @@ Time: 1/21/2026, 10:30:15 AM
 ### Messages not arriving
 
 1. **Check the relay service logs** (Pipedream, n8n, etc.)
-2. **Verify WebStatusPi is sending webhooks:**
+2. **Verify WebStatusπ is sending webhooks:**
    ```bash
    webstatuspi test-alert --verbose
    ```
@@ -265,7 +265,7 @@ alerts:
 
 ## Webhook Payload Reference
 
-WebStatusPi sends this JSON structure to your relay service:
+WebStatusπ sends this JSON structure to your relay service:
 
 ```json
 {

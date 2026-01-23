@@ -1,6 +1,6 @@
-# Mocking GPIO, I2C, and OLED - WebStatusPi
+# Mocking GPIO, I2C, and OLED - WebStatusπ
 
-Mock implementations for running WebStatusPi code without physical hardware.
+Mock implementations for running WebStatusπ code without physical hardware.
 
 ## Environment Detection
 

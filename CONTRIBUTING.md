@@ -1,6 +1,6 @@
-# Contributing to WebStatusPi
+# Contributing to WebStatusπ
 
-Thank you for your interest in contributing to WebStatusPi! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to WebStatusπ! This document provides guidelines for contributing to the project.
 
 ## Table of Contents
 

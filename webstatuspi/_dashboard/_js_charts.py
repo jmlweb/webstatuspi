@@ -267,6 +267,12 @@ JS_CHARTS = """
                 new Date(a.checked_at) - new Date(b.checked_at)
             );
 
+            // Calculate uptime percentage and downtime periods for aria-label
+            const upCount = sortedChecks.filter(c => c.is_up).length;
+            const uptimePercent = ((upCount / sortedChecks.length) * 100).toFixed(1);
+            const downtimePeriods = sortedChecks.filter(c => !c.is_up).length;
+            const ariaLabel = `Uptime: ${uptimePercent}% over the last 24 hours. ${downtimePeriods} downtime period${downtimePeriods !== 1 ? 's' : ''} detected.`;
+
             // Calculate time range
             const times = sortedChecks.map(c => new Date(c.checked_at).getTime());
             const minTime = Math.min(...times);
@@ -278,7 +284,8 @@ JS_CHARTS = """
             // Create SVG
             const svg = createSvgElement('svg', {
                 viewBox: `0 0 ${width} ${height}`,
-                preserveAspectRatio: 'xMidYMid meet'
+                preserveAspectRatio: 'xMidYMid meet',
+                'aria-label': ariaLabel
             });
 
             // Draw axis

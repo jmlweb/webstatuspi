@@ -1,4 +1,4 @@
-# Hardware Load Analysis - WebStatusPi
+# Hardware Load Analysis - WebStatusπ
 
 **Date**: 2026-01-17 (Updated)
 **Hardware Target**: Raspberry Pi 1B+

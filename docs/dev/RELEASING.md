@@ -1,10 +1,10 @@
-# Releasing WebStatusPi
+# Releasing WebStatusπ
 
-This document describes the release process for WebStatusPi.
+This document describes the release process for WebStatusπ.
 
 ## Overview
 
-WebStatusPi uses GitHub Actions for automated releases. When a version tag is pushed, the release workflow automatically:
+WebStatusπ uses GitHub Actions for automated releases. When a version tag is pushed, the release workflow automatically:
 
 1. Builds the Python package (wheel and source distribution)
 2. Generates a changelog from commit history

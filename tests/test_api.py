@@ -366,7 +366,7 @@ class TestApiEndpoints:
             assert "text/html" in content_type
             body = response.read().decode("utf-8")
             assert "<!DOCTYPE html>" in body
-            assert "WebStatusPi" in body
+            assert "WebStatusπ" in body
 
     def test_dashboard_contains_required_elements(self, running_server: ApiServer) -> None:
         """Dashboard HTML contains all required UI elements."""
@@ -965,8 +965,8 @@ class TestPwaEndpoints:
 
             body = json.loads(response.read().decode("utf-8"))
             # Required manifest fields
-            assert body["name"] == "WebStatusPi // SYSTEM MONITOR"
-            assert body["short_name"] == "WebStatusPi"
+            assert body["name"] == "WebStatusπ // SYSTEM MONITOR"
+            assert body["short_name"] == "WebStatusπ"
             assert body["start_url"] == "/"
             assert body["display"] == "standalone"
             assert body["background_color"] == "#0a0a0f"

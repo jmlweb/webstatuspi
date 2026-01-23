@@ -1,12 +1,12 @@
 # Task #032: Latency Degradation Alerts
 
 ## Metadata
-- **Status**: in_progress
+- **Status**: completed
 - **Priority**: P2
 - **Slice**: Core, Config, Alerts
 - **Created**: 2026-01-23
 - **Started**: 2026-01-23
-- **Completed**: -
+- **Completed**: 2026-01-23
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,14 +14,14 @@
 **User Story**: As a system administrator, I want to receive alerts when a service's response time exceeds a threshold for a sustained period so that I can detect performance degradation before it causes a complete outage.
 
 **Acceptance Criteria**:
-- [ ] Config schema supports latency threshold per URL
-- [ ] Config schema supports sustained period (consecutive checks or time window)
-- [ ] Alert is triggered when latency exceeds threshold for the configured period
-- [ ] Alert is cleared when latency returns to normal
-- [ ] Latency alerts use existing webhook infrastructure
-- [ ] New event types: `latency_high` and `latency_normal`
-- [ ] Unit tests for latency threshold logic
-- [ ] Documentation added to README.md with examples
+- [x] Config schema supports latency threshold per URL
+- [x] Config schema supports sustained period (consecutive checks or time window)
+- [x] Alert is triggered when latency exceeds threshold for the configured period
+- [x] Alert is cleared when latency returns to normal
+- [x] Latency alerts use existing webhook infrastructure
+- [x] New event types: `latency_high` and `latency_normal`
+- [x] Unit tests for latency threshold logic
+- [x] Documentation added to README.md with examples
 
 ## Implementation Notes
 

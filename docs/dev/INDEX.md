@@ -1,27 +1,21 @@
-# WebStatusPi - Development Status
+# WebStatusπ - Development Status
 
 > **New here?** Read [WORKFLOW.md](WORKFLOW.md) for workflow rules.
 
 ## Quick Stats
 
-- **Pending**: 8 tasks
-- **In Progress**: 1 task
-- **Completed**: 30 tasks
+- **Pending**: 4 tasks
+- **In Progress**: 0 tasks
+- **Completed**: 36 tasks
 
 ## Current Focus
 
-> **Task #032**: Latency Degradation Alerts (Core, Config, Alerts, P2)
+> No active task. All P2 tasks completed. Remaining: 4 P3/P4 tasks
 
 ## Backlog (Priority Order)
 
 | # | Task | Slice | Priority | Status |
 |---|------|-------|----------|--------|
-| 032 | Latency Degradation Alerts | Core, Config, Alerts | P2 | in_progress |
-| 030 | Configurable User-Agent | Core, Config | P3 | pending |
-| 033 | Heartbeat (Dead Man's Snitch) | DevOps, Config, Core | P3 | pending |
-| 034 | Modal Prefetch on Hover | Frontend | P3 | pending |
-| 035 | Request Deduplication | Frontend | P3 | pending |
-| 036 | Debounce Polling Inactive Tabs | Frontend | P3 | pending |
 | 037 | Lazy Chart Rendering | Frontend | P3 | pending |
 | 038 | Resource Hints Prefetch | Frontend | P3 | pending |
 | 031 | Periodic SQLite VACUUM | Database, Config | P4 | pending |
@@ -30,6 +24,12 @@
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 036 | Debounce Polling Inactive Tabs | Frontend | ✓ |
+| 035 | Request Deduplication | Frontend | ✓ |
+| 033 | Heartbeat (Dead Man's Snitch) | DevOps, Config, Core | ✓ |
+| 032 | Latency Degradation Alerts | Core, Config, Alerts | ✓ |
+| 030 | Configurable User-Agent | Core, Config | ✓ |
+| 034 | Modal Prefetch on Hover | Frontend | ✓ (superseded) |
 | 029 | DNS Monitoring | Core, Config, Database | ✓ |
 | 028 | TCP Port Monitoring | Core, Config, Database | ✓ |
 | 027 | Custom Status Code Ranges | Config, Core | ✓ |

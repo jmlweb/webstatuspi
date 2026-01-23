@@ -1,4 +1,4 @@
-"""WebStatusPi - Lightweight web monitoring for Raspberry Pi."""
+"""WebStatusπ - Lightweight web monitoring for Raspberry Pi."""
 
 import argparse
 import logging
@@ -39,13 +39,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     _setup_logging(args.verbose)
 
-    logger.info("WebStatusPi %s starting...", __version__)
+    logger.info("WebStatusπ %s starting...", __version__)
 
     # Import here to avoid circular imports and allow logging setup first
     from .alerter import Alerter
     from .api import ApiError, ApiServer
     from .config import ConfigError, load_config
     from .database import DatabaseError, init_db
+    from .heartbeat import Heartbeat
     from .models import CheckResult
     from .monitor import Monitor
 
@@ -92,9 +93,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
     # 6. Start components
     monitor = Monitor(config, db_conn, on_check=on_check_callback)
     api_server: ApiServer | None = None
+    heartbeat: Heartbeat | None = None
 
     try:
         monitor.start()
+
+        # Start heartbeat if configured
+        heartbeat = Heartbeat(config.heartbeat)
+        heartbeat.start()
 
         if config.api.enabled:
             try:
@@ -110,17 +116,20 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
         logger.info("All components started, waiting for shutdown signal...")
 
-        # 6. Wait for shutdown signal
+        # 7. Wait for shutdown signal
         _shutdown_event.wait()
 
     except KeyboardInterrupt:
         # Backup handler if signal doesn't work
         logger.info("Keyboard interrupt received")
     finally:
-        # 7. Cleanup - stop all components
+        # 8. Cleanup - stop all components
         logger.info("Shutting down components...")
 
         monitor.stop()
+
+        if heartbeat is not None:
+            heartbeat.stop()
 
         if api_server is not None:
             api_server.stop()
@@ -250,7 +259,7 @@ def _cmd_test_alert(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main entry point for the webstatuspi package."""
-    parser = argparse.ArgumentParser(description="WebStatusPi - Lightweight web monitoring for Raspberry Pi")
+    parser = argparse.ArgumentParser(description="WebStatusπ - Lightweight web monitoring for Raspberry Pi")
     parser.add_argument(
         "--version",
         action="version",

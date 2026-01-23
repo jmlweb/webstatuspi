@@ -1,4 +1,4 @@
-"""Setup script for WebStatusPi."""
+"""Setup script for WebStatusπ."""
 
 from setuptools import setup
 

@@ -1,4 +1,4 @@
-# Unit Tests - WebStatusPi
+# Unit Tests - WebStatusπ
 
 Unit testing strategies using `pytest` and `unittest.mock` without requiring hardware.
 

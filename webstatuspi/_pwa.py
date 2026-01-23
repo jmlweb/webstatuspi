@@ -40,8 +40,8 @@ PWA_VERSION = _compute_pwa_version()
 # Uses cyberpunk theme colors matching the dashboard.
 
 MANIFEST_JSON = f"""{{
-  "name": "WebStatusPi // SYSTEM MONITOR",
-  "short_name": "WebStatusPi",
+  "name": "WebStatusπ // SYSTEM MONITOR",
+  "short_name": "WebStatusπ",
   "description": "Lightweight web monitoring dashboard for Raspberry Pi",
   "version": "{PWA_VERSION}",
   "start_url": "/",
@@ -83,7 +83,7 @@ MANIFEST_JSON = f"""{{
 # - API endpoints (/status, /history): Network-first with cache fallback
 # - Other endpoints (/reset): Network-only (no caching for destructive ops)
 
-SERVICE_WORKER_JS = f"""// Service Worker for WebStatusPi PWA
+SERVICE_WORKER_JS = f"""// Service Worker for WebStatusπ PWA
 // Version: {PWA_VERSION} - Auto-computed from dashboard content hash
 
 const SW_VERSION = '{PWA_VERSION}';

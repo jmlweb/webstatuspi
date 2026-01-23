@@ -25,7 +25,7 @@ Read `docs/dev/INDEX.md` and parse:
 ### 2. Display Status
 
 ```
-## WebStatusPi Development Status
+## WebStatusπ Development Status
 
 ### Quick Stats
 ┌──────────────┬───────┐

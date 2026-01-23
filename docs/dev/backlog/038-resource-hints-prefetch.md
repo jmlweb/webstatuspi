@@ -7,7 +7,7 @@
 - **Created**: 2026-01-23
 - **Started**: -
 - **Completed**: -
-- **Blocked by**: 034
+- **Blocked by**: -
 
 ## Vertical Slice Definition
 
@@ -43,7 +43,25 @@ function addPrefetchHint(urlName) {
 
 ### Integrate with hover/touch listeners
 
-Call `addPrefetchHint(urlName)` alongside `prefetchModalData(urlName)` in the event handlers from Task #034.
+Add hover/touch event listeners to cards and call `addPrefetchHint(urlName)` when user hovers or touches a card.
+
+```javascript
+// Add to card event listeners
+document.getElementById('cardsContainer').addEventListener('mouseenter', function(e) {
+    const card = e.target.closest('.card');
+    if (card?.dataset.urlName) {
+        addPrefetchHint(card.dataset.urlName);
+    }
+}, true);
+
+// Touch support for mobile
+document.getElementById('cardsContainer').addEventListener('touchstart', function(e) {
+    const card = e.target.closest('.card');
+    if (card?.dataset.urlName) {
+        addPrefetchHint(card.dataset.urlName);
+    }
+}, { passive: true });
+```
 
 ## Expected Impact
 
@@ -56,7 +74,7 @@ Call `addPrefetchHint(urlName)` alongside `prefetchModalData(urlName)` in the ev
 
 ## Dependencies
 
-- Task #034 (Modal Prefetch on Hover) - shares the same event listeners
+None - can be implemented independently
 
 ## Progress Log
 

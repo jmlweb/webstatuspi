@@ -1,12 +1,12 @@
 # Task #036: Debounce Polling During Inactive Tabs
 
 ## Metadata
-- **Status**: pending
+- **Status**: completed
 - **Priority**: P2
 - **Slice**: Dashboard, WPO
 - **Created**: 2026-01-23
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-23
+- **Completed**: 2026-01-23
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,10 +14,10 @@
 **User Story**: As a mobile user, I want the dashboard to reduce polling when the tab is inactive so that battery and network resources are conserved.
 
 **Acceptance Criteria**:
-- [ ] Detect tab visibility changes via `visibilitychange` event
-- [ ] Slow polling to 5x interval when tab is inactive
-- [ ] Resume normal polling immediately when tab becomes active
-- [ ] Fetch fresh data immediately when tab becomes active
+- [x] Detect tab visibility changes via `visibilitychange` event
+- [x] Slow polling to 5x interval when tab is inactive
+- [x] Resume normal polling immediately when tab becomes active
+- [x] Fetch fresh data immediately when tab becomes active
 
 ## Implementation Notes
 
@@ -72,7 +72,18 @@ None
 
 ## Progress Log
 
-(empty)
+### 2026-01-23 - Implementation Complete
+
+- ✅ Added `isTabActive` and `pollInterval` variables to track visibility state
+- ✅ Implemented `startPolling()` function that adjusts interval based on tab visibility
+- ✅ Added `visibilitychange` event listener to detect tab state changes
+- ✅ When tab becomes active: fetches immediately and restarts fast polling
+- ✅ When tab becomes inactive: slows polling to 5x interval (50s instead of 10s)
+
+**Implementation approach:**
+- Uses `document.hidden` to check visibility state
+- Restarts polling with new interval when state changes
+- Only fetches when tab is active (skips fetch during inactive polling)
 
 ## Learnings
 

@@ -1,4 +1,4 @@
-# WebStatusPi Configuration
+# WebStatusπ Configuration
 # Copy this file to config.yaml and customize for your environment
 #
 # Usage:
@@ -8,6 +8,7 @@
 monitor:
   interval: 60  # seconds between check cycles (default: 60)
   ssl_warning_days: 30  # days before expiration to warn about SSL certs (default: 30)
+  # default_user_agent: "Mozilla/5.0 (compatible; WebStatusPi/1.0; +https://github.com/user/webstatuspi)"  # Default User-Agent for all requests
 
 urls:
   - name: "UB_APP"
@@ -61,6 +62,12 @@ urls:
   #   timeout: 10
   #   latency_threshold_ms: 1000        # Alert if response time exceeds 1000ms
   #   latency_consecutive_checks: 5      # Require 5 consecutive slow checks before alerting
+
+  # Custom User-Agent override - useful for bypassing WAFs
+  # - name: "API_WAF"
+  #   url: "https://api.example.com/health"
+  #   timeout: 10
+  #   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"  # Override User-Agent for this URL
 
   # Add more URLs as needed:
   # - name: "MY_SERVICE"
@@ -155,3 +162,11 @@ alerts:
 # - WEBSTATUSPI_API_ENABLED: Override api.enabled (true/false)
 # - WEBSTATUSPI_DB_PATH: Override database.path
 # - WEBSTATUSPI_DB_RETENTION_DAYS: Override database.retention_days
+
+# Heartbeat monitoring - ping external service to confirm WebStatusPi is running
+# If the service doesnt receive a ping, it alerts you that monitoring has stopped
+# heartbeat:
+#   enabled: true
+#   url: "https://hc-ping.com/your-uuid-here"  # Healthchecks.io, Dead Mans Snitch, etc.
+#   interval_seconds: 300   # Send ping every 5 minutes (default: 300)
+#   timeout_seconds: 10     # Request timeout (default: 10)

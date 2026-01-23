@@ -1,10 +1,10 @@
-# Architecture Documentation - WebStatusPi
+# Architecture Documentation - WebStatusπ
 
-This document describes the system architecture, design decisions, and data flow for WebStatusPi. For hardware specifications, see [HARDWARE.md](HARDWARE.md).
+This document describes the system architecture, design decisions, and data flow for WebStatusπ. For hardware specifications, see [HARDWARE.md](HARDWARE.md).
 
 ## System Overview
 
-WebStatusPi is a lightweight web monitoring system designed specifically for Raspberry Pi 1B+. It monitors configured URLs, tracks success/failure statistics, and provides a JSON API for accessing monitoring data.
+WebStatusπ is a lightweight web monitoring system designed specifically for Raspberry Pi 1B+. It monitors configured URLs, tracks success/failure statistics, and provides a JSON API for accessing monitoring data.
 
 **Hardware Target**: Raspberry Pi 1B+ (512MB RAM, single-core 700MHz ARM11)
 

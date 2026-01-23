@@ -1,12 +1,12 @@
 # Task #035: Request Deduplication
 
 ## Metadata
-- **Status**: pending
+- **Status**: completed
 - **Priority**: P2
 - **Slice**: Dashboard, WPO
 - **Created**: 2026-01-23
-- **Started**: -
-- **Completed**: -
+- **Started**: 2026-01-23
+- **Completed**: 2026-01-23
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -14,10 +14,10 @@
 **User Story**: As a dashboard user, I want rapid clicks on the same card to share a single network request so that resources are not wasted on duplicate requests.
 
 **Acceptance Criteria**:
-- [ ] Track in-flight requests per URL name
-- [ ] Return existing promise if request already in flight
-- [ ] Clean up tracking on request completion (success or failure)
-- [ ] All concurrent callers receive the same response
+- [x] Track in-flight requests per URL name
+- [x] Return existing promise if request already in flight
+- [x] Clean up tracking on request completion (success or failure)
+- [x] All concurrent callers receive the same response
 
 ## Implementation Notes
 
@@ -73,7 +73,17 @@ None
 
 ## Progress Log
 
-(empty)
+### 2026-01-23 - Implementation Complete
+
+- ✅ Added `inFlightRequests` Map to track pending requests per URL name
+- ✅ Modified `fetchHistory()` to check for existing promises before creating new requests
+- ✅ Implemented cleanup in finally block to remove tracking when request completes
+- ✅ All concurrent clicks on same card now share single network request
+
+**Implementation approach:**
+- Used Map instead of object for better key handling
+- Wrapped fetch logic in async IIFE to ensure cleanup via finally
+- Returns existing promise immediately if request already in flight
 
 ## Learnings
 

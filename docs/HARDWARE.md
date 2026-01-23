@@ -1,6 +1,6 @@
-# Hardware Specifications - WebStatusPi
+# Hardware Specifications - WebStatusπ
 
-This document describes the hardware components, GPIO pin assignments, and display UI specifications for WebStatusPi. These features are planned for Phase 2 and should NOT be implemented until requested.
+This document describes the hardware components, GPIO pin assignments, and display UI specifications for WebStatusπ. These features are planned for Phase 2 and should NOT be implemented until requested.
 
 ## Target Environment
 

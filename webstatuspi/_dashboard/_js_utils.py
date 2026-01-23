@@ -38,6 +38,17 @@ JS_UTILS = """
             return ms + 'ms';
         }
 
+        function formatResponseTimeWithWarning(ms) {
+            if (ms === null || ms === undefined || ms === 0) return '---';
+            let prefix = '';
+            if (ms >= 1000) {
+                prefix = '<span class="latency-warning-prefix danger" aria-label="High latency warning">[!]</span>';
+            } else if (ms >= 500) {
+                prefix = '<span class="latency-warning-prefix warning" aria-label="Elevated latency warning">[!]</span>';
+            }
+            return prefix + ms + 'ms';
+        }
+
         function formatUptime(uptime) {
             if (uptime === null || uptime === undefined) return '---';
             return uptime.toFixed(1) + '%';

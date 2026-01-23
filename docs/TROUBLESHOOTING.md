@@ -1,6 +1,6 @@
-# Troubleshooting Guide - WebStatusPi
+# Troubleshooting Guide - WebStatusπ
 
-Common issues and solutions when running WebStatusPi on Raspberry Pi.
+Common issues and solutions when running WebStatusπ on Raspberry Pi.
 
 ## Rate Limiting (HTTP 429)
 
@@ -431,7 +431,7 @@ database:
 
 ## Service Won't Start on Boot
 
-**Symptoms**: WebStatusPi doesn't start automatically after reboot.
+**Symptoms**: WebStatusπ doesn't start automatically after reboot.
 
 **Solutions**:
 
@@ -463,7 +463,7 @@ If automatic installation fails, create `/etc/systemd/system/webstatuspi.service
 
 ```ini
 [Unit]
-Description=WebStatusPi URL Monitor
+Description=WebStatusπ URL Monitor
 After=network-online.target
 Wants=network-online.target
 
@@ -568,13 +568,13 @@ Common chat ID issues:
 
 ### 3. Check Relay Service
 
-WebStatusPi sends generic webhooks that need transformation for Telegram. Verify your relay service (Pipedream, n8n, etc.) is:
+WebStatusπ sends generic webhooks that need transformation for Telegram. Verify your relay service (Pipedream, n8n, etc.) is:
 - Running and receiving webhooks
 - Properly configured with your bot token and chat ID
 - Not hitting rate limits
 
 ```bash
-# Test WebStatusPi webhook delivery
+# Test WebStatusπ webhook delivery
 webstatuspi test-alert --verbose
 ```
 

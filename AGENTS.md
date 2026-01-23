@@ -1,8 +1,8 @@
-# WebStatusPi - Project Rules
+# WebStatusπ - Project Rules
 
 ## Project Overview
 
-WebStatusPi is a lightweight web monitoring system designed for Raspberry Pi 1B+. It monitors configured URLs, tracks success/failure statistics, and provides a JSON API.
+WebStatusπ is a lightweight web monitoring system designed for Raspberry Pi 1B+. It monitors configured URLs, tracks success/failure statistics, and provides a JSON API.
 
 **Hardware Target**: Raspberry Pi 1B+ (512MB RAM, single-core 700MHz ARM11)
 

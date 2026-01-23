@@ -1,4 +1,4 @@
-# Docker/QEMU Emulation - WebStatusPi
+# Docker/QEMU Emulation - WebStatusπ
 
 Optional ARM emulation for full Raspberry Pi environment simulation.
 

@@ -8,7 +8,7 @@ CSS_STYLES = """
         :root {
             --bg-dark: #0a0a0f;
             --bg-panel: #12121a;
-            --cyan: #00fff9;
+            --cyan: #00fff9;  /* Bright cyan - WCAG AA compliant against dark backgrounds */
             --magenta: #ff00ff;
             --yellow: #f0ff00;
             --orange: #ff8800;
@@ -122,6 +122,11 @@ CSS_STYLES = """
             letter-spacing: 0.2em;
             color: var(--cyan);
             text-shadow: 0 0 10px var(--cyan), 0 0 20px var(--cyan);
+        }
+
+        .logo-text {
+            font-weight: 600;
+            letter-spacing: 0.1em;
         }
 
         .live-indicator {
@@ -286,6 +291,7 @@ CSS_STYLES = """
 
         .card-header {
             display: flex;
+            justify-content: flex-start;
             align-items: center;
             gap: 0.75rem;
             margin-bottom: 1rem;
@@ -333,6 +339,8 @@ CSS_STYLES = """
             text-overflow: ellipsis;
             white-space: nowrap;
             text-shadow: 0 0 8px var(--cyan), 0 0 16px rgba(0, 255, 249, 0.4);
+            text-align: left;
+            margin-left: 0;
         }
 
         .card.down .card-name {
@@ -374,6 +382,23 @@ CSS_STYLES = """
             font-variant-numeric: tabular-nums;
             text-shadow: 0 0 8px rgba(224, 224, 224, 0.3);
             line-height: 1.2;
+        }
+
+        /* Latency warning prefix styling */
+        .latency-warning-prefix {
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-right: 0.25rem;
+        }
+
+        .latency-warning-prefix.warning {
+            color: var(--yellow);
+            text-shadow: 0 0 6px var(--yellow);
+        }
+
+        .latency-warning-prefix.danger {
+            color: var(--red);
+            text-shadow: 0 0 6px var(--red);
         }
 
         .metric-empty {
@@ -646,8 +671,8 @@ CSS_STYLES = """
             background: none;
             border: 1px solid var(--text-dim);
             color: var(--text-dim);
-            width: 32px;
-            height: 32px;
+            width: 44px;
+            height: 44px;
             font-size: 1.2rem;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -787,6 +812,23 @@ CSS_STYLES = """
             text-shadow: 0 0 6px var(--cyan);
         }
 
+        /* Percentile visual hierarchy */
+        .modal-metric-item[data-metric="p50"] .modal-metric-value {
+            opacity: 0.7;
+            font-weight: 500;
+        }
+
+        .modal-metric-item[data-metric="p95"] .modal-metric-value {
+            font-weight: 600;
+        }
+
+        .modal-metric-item[data-metric="p99"] .modal-metric-value {
+            color: var(--orange);
+            text-shadow: 0 0 8px var(--orange);
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+
         .modal-value-green {
             color: var(--green);
             text-shadow: 0 0 6px var(--green);
@@ -830,6 +872,7 @@ CSS_STYLES = """
         .history-table td {
             padding: 10px var(--box-padding);
             border-bottom: 1px solid var(--border);
+            line-height: 1.5;
         }
 
         .history-table tr:hover td {
@@ -1111,6 +1154,10 @@ CSS_STYLES = """
             margin-bottom: -1px;
             position: relative;
             transition: all 0.2s ease;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .modal-tab:hover:not(.active) {
@@ -1170,6 +1217,8 @@ CSS_STYLES = """
             cursor: pointer;
             transition: all 0.2s ease;
             margin-left: 1rem;
+            min-height: 44px;
+            min-width: 44px;
         }
 
         .reset-button:hover {

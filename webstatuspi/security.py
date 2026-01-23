@@ -1,4 +1,4 @@
-"""Security utilities for WebStatusPi."""
+"""Security utilities for WebStatusπ."""
 
 import ipaddress
 import logging

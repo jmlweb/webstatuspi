@@ -9,7 +9,7 @@
   <a href="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml"><img src="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
 </p>
 
-<h1 align="center">🖥️ WebStatusPi</h1>
+<h1 align="center">🖥️ WebStatusπ</h1>
 
 <p align="center">
   <strong>Ultra-lightweight web monitoring for Raspberry Pi</strong><br>
@@ -22,7 +22,7 @@
 
 ---
 
-## ✨ Why WebStatusPi?
+## ✨ Why WebStatusπ?
 
 | Feature | Benefit |
 |---------|---------|
@@ -34,13 +34,13 @@
 
 ### Resource Comparison
 
-How does WebStatusPi compare to popular alternatives?
+How does WebStatusπ compare to popular alternatives?
 
 **Runtime Performance** (Docker benchmark: 5 URLs, 60s interval, 10 samples)
 
 | Tool | RAM Usage | CPU Usage | Docker Image |
 |------|-----------|-----------|--------------|
-| **WebStatusPi** | **17 MB** | 0.2% | 61 MB |
+| **WebStatusπ** | **17 MB** | 0.2% | 61 MB |
 | Statping-ng | 30 MB | 0.5% | 58 MB |
 | Uptime Kuma | 114 MB | 0.2% | 439 MB |
 
@@ -48,11 +48,11 @@ How does WebStatusPi compare to popular alternatives?
 
 | Tool | Install Size | Requires |
 |------|--------------|----------|
-| **WebStatusPi** | **~1 MB** | Nothing (uses system Python) |
+| **WebStatusπ** | **~1 MB** | Nothing (uses system Python) |
 | Statping-ng | ~58 MB | Go binary |
 | Uptime Kuma | ~150 MB | Node.js runtime |
 
-*WebStatusPi leverages the Python already installed on Raspberry Pi OS. Run `./benchmark/benchmark.sh` to reproduce the runtime benchmark.*
+*WebStatusπ leverages the Python already installed on Raspberry Pi OS. Run `./benchmark/benchmark.sh` to reproduce the runtime benchmark.*
 
 ---
 
@@ -250,7 +250,7 @@ curl -X DELETE http://localhost:8080/reset \
 
 ## 📊 Prometheus Integration
 
-WebStatusPi exposes metrics in Prometheus text format, allowing you to integrate with your existing monitoring stack and create custom Grafana dashboards.
+WebStatusπ exposes metrics in Prometheus text format, allowing you to integrate with your existing monitoring stack and create custom Grafana dashboards.
 
 ### Metrics Endpoint
 
@@ -528,7 +528,7 @@ curl -X POST https://example.com/webhook \
 ```
 
 **Option 2: HMAC Signature (Future)**
-WebStatusPi may support HMAC-SHA256 signatures in future versions.
+WebStatusπ may support HMAC-SHA256 signatures in future versions.
 
 ### Example: Slack Integration
 
@@ -769,7 +769,7 @@ dns:
 
 ### SSL Certificate Monitoring
 
-WebStatusPi automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.
+WebStatusπ automatically monitors SSL certificates for all HTTPS URLs. No additional configuration is required.
 
 **What's monitored:**
 
@@ -842,7 +842,7 @@ Environment variables take precedence over `config.yaml` values.
 
 ## 🔒 Security Features
 
-WebStatusPi includes several security measures:
+WebStatusπ includes several security measures:
 
 | Feature | Description |
 |---------|-------------|

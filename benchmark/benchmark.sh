@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Benchmark: WebStatusPi vs Uptime Kuma vs Statping-ng
+# Benchmark: WebStatusπ vs Uptime Kuma vs Statping-ng
 #
 # Measures RAM and CPU usage under identical conditions:
 # - 5 URLs monitored every 60 seconds
@@ -31,7 +31,7 @@ RESULTS_FILE="benchmark-results.txt"
 
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║           WebStatusPi Benchmark vs Alternatives              ║"
+echo "║           WebStatusπ Benchmark vs Alternatives              ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -65,7 +65,7 @@ check_service() {
     fi
 }
 
-check_service "WebStatusPi" "http://localhost:8081/health" || true
+check_service "WebStatusπ" "http://localhost:8081/health" || true
 check_service "Uptime Kuma" "http://localhost:8082" || true
 check_service "Statping" "http://localhost:8083" || true
 
@@ -84,7 +84,7 @@ for i in $(seq 1 $SAMPLES); do
     # Get stats in one call
     stats=$(docker stats --no-stream --format "{{.Name}},{{.MemUsage}},{{.CPUPerc}}" 2>/dev/null)
 
-    # Parse WebStatusPi
+    # Parse WebStatusπ
     wsp_line=$(echo "$stats" | grep "bench-webstatuspi" || echo ",,")
     wsp_mem+=("$(echo "$wsp_line" | cut -d',' -f2 | cut -d'/' -f1 | tr -d ' ')")
     wsp_cpu+=("$(echo "$wsp_line" | cut -d',' -f3 | tr -d '%')")
@@ -152,7 +152,7 @@ echo -e "${CYAN}║${NC} Workload: 5 URLs, 60s interval, $SAMPLES samples       
 echo -e "${CYAN}╠════════════════╦═════════════╦═════════════╦═════════════════╣${NC}"
 echo -e "${CYAN}║${NC} Tool           ${CYAN}║${NC} RAM (avg)   ${CYAN}║${NC} CPU (avg)   ${CYAN}║${NC} Image Size      ${CYAN}║${NC}"
 echo -e "${CYAN}╠════════════════╬═════════════╬═════════════╬═════════════════╣${NC}"
-printf "${CYAN}║${NC} %-14s ${CYAN}║${NC} %9s MB ${CYAN}║${NC} %9s%% ${CYAN}║${NC} %-15s ${CYAN}║${NC}\n" "WebStatusPi" "$wsp_avg_mem" "$wsp_avg_cpu" "$wsp_size"
+printf "${CYAN}║${NC} %-14s ${CYAN}║${NC} %9s MB ${CYAN}║${NC} %9s%% ${CYAN}║${NC} %-15s ${CYAN}║${NC}\n" "WebStatusπ" "$wsp_avg_mem" "$wsp_avg_cpu" "$wsp_size"
 printf "${CYAN}║${NC} %-14s ${CYAN}║${NC} %9s MB ${CYAN}║${NC} %9s%% ${CYAN}║${NC} %-15s ${CYAN}║${NC}\n" "Uptime Kuma" "$uk_avg_mem" "$uk_avg_cpu" "$uk_size"
 printf "${CYAN}║${NC} %-14s ${CYAN}║${NC} %9s MB ${CYAN}║${NC} %9s%% ${CYAN}║${NC} %-15s ${CYAN}║${NC}\n" "Statping-ng" "$sp_avg_mem" "$sp_avg_cpu" "$sp_size"
 echo -e "${CYAN}╚════════════════╩═════════════╩═════════════╩═════════════════╝${NC}"
@@ -171,13 +171,13 @@ echo -e "${CYAN}╚════════════════╩═══�
     echo ""
     echo "| Tool | RAM (avg) | CPU (avg) | Image Size |"
     echo "|------|-----------|-----------|------------|"
-    echo "| WebStatusPi | ${wsp_avg_mem} MB | ${wsp_avg_cpu}% | $wsp_size |"
+    echo "| WebStatusπ | ${wsp_avg_mem} MB | ${wsp_avg_cpu}% | $wsp_size |"
     echo "| Uptime Kuma | ${uk_avg_mem} MB | ${uk_avg_cpu}% | $uk_size |"
     echo "| Statping-ng | ${sp_avg_mem} MB | ${sp_avg_cpu}% | $sp_size |"
     echo ""
     echo "## Raw Data"
     echo ""
-    echo "### WebStatusPi"
+    echo "### WebStatusπ"
     echo "Memory samples: ${wsp_mem[*]}"
     echo "CPU samples: ${wsp_cpu[*]}"
     echo ""

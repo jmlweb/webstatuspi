@@ -1,6 +1,6 @@
 # Development Workflow Rules
 
-Rules and conventions for AI agents working on WebStatusPi tasks.
+Rules and conventions for AI agents working on WebStatusπ tasks.
 
 ## Entry Point
 

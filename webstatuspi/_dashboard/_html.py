@@ -26,8 +26,8 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="WebStatusPi">
-    <title>WebStatusPi // SYSTEM MONITOR</title>
+    <meta name="apple-mobile-web-app-title" content="WebStatusπ">
+    <title>WebStatusπ // SYSTEM MONITOR</title>
     <!-- PWA manifest and icons -->
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-192.png">
@@ -42,7 +42,7 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
     </div>
     <div class="scanline-overlay" aria-hidden="true"></div>
     <header role="banner">
-        <h1>&lt;WebStatusPi/&gt;</h1>
+        <h1><span class="logo-bracket">&lt;</span><span class="logo-text">WebStatusπ</span><span class="logo-bracket">/&gt;</span></h1>
         <div class="live-indicator" role="status" aria-live="polite" aria-label="Live feed status">
             <span class="live-dot" id="liveDot" aria-hidden="true"></span>
             <span id="liveStatusText">// LIVE FEED [10 sec]</span>
@@ -114,15 +114,15 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
                     <div class="modal-metrics-group">
                         <span class="modal-metrics-title">PERCENTILES</span>
                         <div class="modal-metrics-row">
-                            <span class="modal-metric-item">
+                            <span class="modal-metric-item" data-metric="p50">
                                 <span class="modal-metric-label">P50:</span>
                                 <span class="modal-metric-value" id="modalP50">---</span>
                             </span>
-                            <span class="modal-metric-item">
+                            <span class="modal-metric-item" data-metric="p95">
                                 <span class="modal-metric-label">P95:</span>
                                 <span class="modal-metric-value" id="modalP95">---</span>
                             </span>
-                            <span class="modal-metric-item">
+                            <span class="modal-metric-item" data-metric="p99">
                                 <span class="modal-metric-label">P99:</span>
                                 <span class="modal-metric-value" id="modalP99">---</span>
                             </span>

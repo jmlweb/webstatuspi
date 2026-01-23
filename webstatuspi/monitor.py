@@ -448,6 +448,7 @@ def check_url(
     url_config: UrlConfig,
     allow_private: bool = False,
     ssl_warning_days: int = DEFAULT_SSL_WARNING_DAYS,
+    default_user_agent: str = "WebStatusPi/0.1",
 ) -> CheckResult:
     """Perform a single HTTP health check on a URL.
 
@@ -455,6 +456,7 @@ def check_url(
         url_config: Configuration for the URL to check.
         allow_private: If True, allow private IPs (for testing only).
         ssl_warning_days: Days before expiration to log SSL certificate warnings.
+        default_user_agent: Default User-Agent header (can be overridden per URL).
 
     Returns:
         CheckResult with status, response time, and any error details.
@@ -505,10 +507,12 @@ def check_url(
                 )
 
     try:
+        # Use per-URL user_agent override if configured, else use default
+        user_agent = url_config.user_agent or default_user_agent
         request = urllib.request.Request(
             url_config.url,
             method="GET",
-            headers={"User-Agent": "WebStatusPi/0.1"},
+            headers={"User-Agent": user_agent},
         )
         with _opener.open(request, timeout=url_config.timeout) as response:
             elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -819,7 +823,7 @@ def check_target(target: TargetConfig, **kwargs) -> CheckResult:
 
     Args:
         target: Target configuration (UrlConfig, TcpConfig, or DnsConfig).
-        **kwargs: Additional arguments passed to check_url (ssl_warning_days, allow_private).
+        **kwargs: Additional arguments passed to check functions (ssl_warning_days, allow_private, default_user_agent).
 
     Returns:
         CheckResult with status and timing information.
@@ -978,9 +982,16 @@ class Monitor:
 
         # Collect all results first
         ssl_warning_days = self._config.monitor.ssl_warning_days
+        default_user_agent = self._config.monitor.default_user_agent
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {
-                executor.submit(check_target, target, allow_private=False, ssl_warning_days=ssl_warning_days): target
+                executor.submit(
+                    check_target,
+                    target,
+                    allow_private=False,
+                    ssl_warning_days=ssl_warning_days,
+                    default_user_agent=default_user_agent,
+                ): target
                 for target in targets
             }
 

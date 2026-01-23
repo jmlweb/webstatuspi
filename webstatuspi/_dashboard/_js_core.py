@@ -79,7 +79,7 @@ JS_CORE = """
                         </div>
                         <div class="metric">
                             <div class="metric-label">Latency</div>
-                            <div class="metric-value">${formatResponseTime(url.response_time_ms)}</div>
+                            <div class="metric-value">${formatResponseTimeWithWarning(url.response_time_ms)}</div>
                             <div class="progress-bar" role="progressbar"
                                 aria-valuenow="${url.response_time_ms || 0}"
                                 aria-valuemin="0" aria-valuemax="2000"
@@ -194,6 +194,37 @@ JS_CORE = """
             }
         }
 
+        // Tab visibility tracking for adaptive polling
+        let pollInterval = null;
+        let isTabActive = !document.hidden;
+
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+
+            // Poll every 10s when active, 50s when inactive
+            const interval = isTabActive ? POLL_INTERVAL : POLL_INTERVAL * 5;
+
+            pollInterval = setInterval(() => {
+                if (isTabActive) {
+                    fetchStatus();
+                }
+            }, interval);
+        }
+
+        // Detect tab visibility changes
+        document.addEventListener('visibilitychange', () => {
+            isTabActive = !document.hidden;
+
+            if (isTabActive) {
+                // Tab became active - fetch immediately and restart polling
+                fetchStatus();
+                startPolling();
+            } else {
+                // Tab became inactive - slow down polling
+                startPolling();
+            }
+        });
+
         function initializeDashboardData() {
             // Enable Google Fonts stylesheet (CSP-compliant async loading)
             const fontLink = document.getElementById('googleFonts');
@@ -219,8 +250,8 @@ JS_CORE = """
                 fetchStatus();  // Fallback if no initial data element
             }
 
-            // Start polling for updates
-            setInterval(fetchStatus, POLL_INTERVAL);
+            // Start adaptive polling
+            startPolling();
         }
 
         initializeDashboard();
@@ -228,6 +259,7 @@ JS_CORE = """
         // Modal functionality
         let currentUrlData = null;
         let lastFocusedElement = null;  // Track element that opened modal
+        const inFlightRequests = new Map();  // Track pending requests to deduplicate
 
         // Focus trap helper - gets all focusable elements in a container
         function getFocusableElements(container) {
@@ -327,35 +359,50 @@ JS_CORE = """
         }
 
         async function fetchHistory(urlName) {
-            // Show loading state in charts
-            clearAllCharts();
-
-            try {
-                // Fetch current status for summary
-                const statusResponse = await fetchWithTimeout('/status/' + encodeURIComponent(urlName));
-                if (statusResponse.ok) {
-                    const statusData = await statusResponse.json();
-                    updateModalSummary(statusData);
-                }
-
-                // Fetch history
-                const historyResponse = await fetchWithTimeout('/history/' + encodeURIComponent(urlName));
-                if (!historyResponse.ok) {
-                    throw new Error('Failed to fetch history');
-                }
-
-                const data = await historyResponse.json();
-                renderHistoryTable(data.checks);
-                renderAllCharts(data.checks);
-            } catch (error) {
-                console.error('Error fetching history:', error);
-                document.getElementById('historyTableBody').innerHTML =
-                    '<tr><td colspan="5" class="history-empty">// ERROR: FAILED_TO_LOAD_HISTORY</td></tr>';
-                // Show error state in charts
-                ['responseTimeChart', 'uptimeChart', 'statusCodeChart', 'latencyHistogram'].forEach(id => {
-                    showEmptyState(document.getElementById(id), 'Error loading data');
-                });
+            // Return existing promise if request already in flight
+            if (inFlightRequests.has(urlName)) {
+                return inFlightRequests.get(urlName);
             }
+
+            // Create promise for this request
+            const requestPromise = (async () => {
+                // Show loading state in charts
+                clearAllCharts();
+
+                try {
+                    // Fetch current status for summary
+                    const statusResponse = await fetchWithTimeout('/status/' + encodeURIComponent(urlName));
+                    if (statusResponse.ok) {
+                        const statusData = await statusResponse.json();
+                        updateModalSummary(statusData);
+                    }
+
+                    // Fetch history
+                    const historyResponse = await fetchWithTimeout('/history/' + encodeURIComponent(urlName));
+                    if (!historyResponse.ok) {
+                        throw new Error('Failed to fetch history');
+                    }
+
+                    const data = await historyResponse.json();
+                    renderHistoryTable(data.checks);
+                    renderAllCharts(data.checks);
+                } catch (error) {
+                    console.error('Error fetching history:', error);
+                    document.getElementById('historyTableBody').innerHTML =
+                        '<tr><td colspan="5" class="history-empty">// ERROR: FAILED_TO_LOAD_HISTORY</td></tr>';
+                    // Show error state in charts
+                    ['responseTimeChart', 'uptimeChart', 'statusCodeChart', 'latencyHistogram'].forEach(id => {
+                        showEmptyState(document.getElementById(id), 'Error loading data');
+                    });
+                } finally {
+                    // Clean up tracking when request completes
+                    inFlightRequests.delete(urlName);
+                }
+            })();
+
+            // Track the promise
+            inFlightRequests.set(urlName, requestPromise);
+            return requestPromise;
         }
 
         function updateModalSummary(data) {
