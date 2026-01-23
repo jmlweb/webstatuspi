@@ -11,9 +11,15 @@ JS_UTILS = """
         // Helper function to fetch with timeout
         async function fetchWithTimeout(url, options = {}) {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            const timeout = setTimeout(() => {
+                controller.abort(new DOMException('Request timed out after ' + FETCH_TIMEOUT_MS + 'ms', 'TimeoutError'));
+            }, FETCH_TIMEOUT_MS);
             try {
-                const response = await fetch(url, { ...options, signal: controller.signal });
+                // Don't pass signal if options already has one (avoid conflict)
+                const fetchOptions = options.signal
+                    ? options
+                    : { ...options, signal: controller.signal };
+                const response = await fetch(url, fetchOptions);
                 return response;
             } finally {
                 clearTimeout(timeout);
