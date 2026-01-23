@@ -173,6 +173,46 @@ def _build_status_response(statuses: list[UrlStatus], internet_status: bool | No
     return response
 
 
+def _generate_badge_svg(label: str, state: str) -> str:
+    """Generate a shields.io-style SVG badge for status.
+
+    Args:
+        label: The left side label (e.g., "status" or service name).
+        state: The status state (e.g., "up", "down", "degraded", "unknown").
+
+    Returns:
+        SVG string representing the badge.
+    """
+    colors = {
+        "up": "#4c1",  # green
+        "down": "#e05d44",  # red
+        "degraded": "#dfb317",  # yellow
+        "unknown": "#9f9f9f",  # gray
+    }
+    color = colors.get(state.lower(), colors["unknown"])
+    text = state.upper()
+
+    # Shields.io style badge
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="90" height="20">
+  <linearGradient id="b" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <mask id="a"><rect width="90" height="20" rx="3" fill="#fff"/></mask>
+  <g mask="url(#a)">
+    <rect width="45" height="20" fill="#555"/>
+    <rect x="45" width="45" height="20" fill="{color}"/>
+    <rect width="90" height="20" fill="url(#b)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="11">
+    <text x="22.5" y="15" fill="#010101" fill-opacity=".3">{label}</text>
+    <text x="22.5" y="14">{label}</text>
+    <text x="67.5" y="15" fill="#010101" fill-opacity=".3">{text}</text>
+    <text x="67.5" y="14">{text}</text>
+  </g>
+</svg>"""
+
+
 def _format_prometheus_metrics(statuses: list[UrlStatus]) -> str:
     """Format URL statuses as Prometheus text format metrics.
 
@@ -540,6 +580,22 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_svg(self, svg: str) -> None:
+        """Send an SVG image response with caching headers.
+
+        Args:
+            svg: SVG content as string.
+        """
+        body = svg.encode("utf-8")
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "image/svg+xml")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=60")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         if not self._check_rate_limit():
@@ -566,6 +622,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                     self._send_error_json(400, "Invalid URL name")
             elif self.path == "/metrics":
                 self._handle_metrics()
+            elif self.path == "/badge.svg":
+                self._handle_badge()
+            elif self.path.startswith("/badge.svg?"):
+                # Extract url query parameter
+                query_string = self.path[11:]  # Remove "/badge.svg?"
+                params = {}
+                for param in query_string.split("&"):
+                    if "=" in param:
+                        key, value = param.split("=", 1)
+                        params[unquote(key)] = unquote(value)
+                    else:
+                        params[unquote(param)] = ""
+                url_param = params.get("url")
+                if url_param:
+                    # Validate the URL name
+                    validated_name = self._validate_url_name(url_param)
+                    if validated_name:
+                        self._handle_badge(validated_name)
+                    else:
+                        self._send_error_json(400, "Invalid URL name")
+                else:
+                    self._handle_badge()
             # PWA endpoints
             elif self.path == "/manifest.json":
                 self._send_manifest(MANIFEST_JSON)
@@ -724,6 +802,49 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_text(200, metrics, "text/plain; version=0.0.4")
         except DatabaseError as e:
             logger.error("Database error in /metrics: %s", e)
+            self._send_error_json(500, "Database error")
+
+    def _handle_badge(self, url_name: str | None = None) -> None:
+        """Handle GET /badge.svg endpoint - returns status badge as SVG.
+
+        Args:
+            url_name: Optional URL name for service-specific badge.
+                     If None, returns overall system status.
+        """
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            if url_name:
+                # Get status for specific service
+                status = get_latest_status_by_name(self.db_conn, url_name)
+                if status is None:
+                    self._send_error_json(404, f"URL '{url_name}' not found")
+                    return
+                label = url_name
+                state = "up" if status.is_up else "down"
+            else:
+                # Get overall system status
+                statuses = get_latest_status(self.db_conn)
+                if not statuses:
+                    label = "status"
+                    state = "unknown"
+                else:
+                    up_count = sum(1 for s in statuses if s.is_up)
+                    total = len(statuses)
+                    label = "status"
+                    if up_count == total:
+                        state = "up"
+                    elif up_count == 0:
+                        state = "down"
+                    else:
+                        state = "degraded"
+
+            svg = _generate_badge_svg(label, state)
+            self._send_svg(svg)
+        except DatabaseError as e:
+            logger.error("Database error in /badge.svg: %s", e)
             self._send_error_json(500, "Database error")
 
     def _handle_reset(self) -> None:

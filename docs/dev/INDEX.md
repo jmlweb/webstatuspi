@@ -6,7 +6,7 @@
 
 - **Pending**: 0 tasks
 - **In Progress**: 0 tasks
-- **Completed**: 39 tasks
+- **Completed**: 43 tasks
 
 ## Current Focus
 
@@ -20,6 +20,7 @@
 
 | # | Task | Slice | Status |
 |---|------|-------|--------|
+| 042 | Status Badge SVG Endpoint | Backend, API | ✓ |
 | 037 | Lazy Chart Rendering | Frontend, WPO | ✓ |
 | 038 | Resource Hints Prefetch | Frontend, WPO | ✓ |
 | 031 | Periodic SQLite VACUUM | Database, Config | ✓ |
