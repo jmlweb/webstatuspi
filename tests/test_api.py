@@ -18,16 +18,26 @@ from webstatuspi.api import (
     _url_status_to_dict,
 )
 from webstatuspi.config import ApiConfig
-from webstatuspi.database import init_db, insert_check
+from webstatuspi.database import _status_cache, init_db, insert_check
 from webstatuspi.models import CheckResult, UrlStatus
 
 
 @pytest.fixture
 def db_conn(tmp_path: Path) -> sqlite3.Connection:
     """Create a database connection with initialized tables."""
+    # Clear cache before test to avoid stale state from previous tests
+    _status_cache._cached_result = None
+    _status_cache._revalidating = False
+
     db_path = str(tmp_path / "test.db")
     conn = init_db(db_path)
     yield conn
+
+    # Clear cache and wait briefly for any background threads to finish
+    _status_cache._cached_result = None
+    _status_cache._revalidating = False
+    time.sleep(0.05)  # Allow background threads to complete or fail gracefully
+
     conn.close()
 
 

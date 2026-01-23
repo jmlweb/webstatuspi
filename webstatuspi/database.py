@@ -22,44 +22,91 @@ _db_lock = threading.Lock()
 
 
 # =============================================================================
-# STATUS CACHE
+# STATUS CACHE (Stale-While-Revalidate)
 # =============================================================================
 # Caches get_latest_status() results to avoid expensive queries on every request.
 # On Raspberry Pi, the complex SQL with 7 CTEs can take 6-11 seconds.
-# Since data only changes every monitor interval (default 60s), caching is safe.
+#
+# Strategy: Stale-While-Revalidate
+# - Fresh (< 30s): Return cached data immediately
+# - Stale (30s-300s): Return cached data immediately, revalidate in background
+# - Expired (> 300s): Block and fetch fresh data
+#
+# This ensures NO user ever waits for the slow query after the first request.
 
-DEFAULT_STATUS_CACHE_SECONDS = 30
+DEFAULT_FRESH_SECONDS = 30  # Data considered "fresh" for 30 seconds
+DEFAULT_STALE_SECONDS = 300  # Data usable (stale) for up to 5 minutes
 
 
 class _StatusCache:
-    """Thread-safe cache for status query results with TTL expiration."""
+    """Thread-safe cache with stale-while-revalidate strategy."""
 
-    def __init__(self, cache_seconds: int = DEFAULT_STATUS_CACHE_SECONDS):
+    def __init__(
+        self,
+        fresh_seconds: int = DEFAULT_FRESH_SECONDS,
+        stale_seconds: int = DEFAULT_STALE_SECONDS,
+    ):
         self._lock = threading.Lock()
-        self._cache_seconds = cache_seconds
+        self._fresh_seconds = fresh_seconds
+        self._stale_seconds = stale_seconds
         self._cached_at: float = 0
         self._cached_result: list[UrlStatus] | None = None
+        self._revalidating = False
 
-    def get(self) -> list[UrlStatus] | None:
-        """Get cached result if not expired."""
+    def get(self) -> tuple[list[UrlStatus] | None, bool]:
+        """Get cached result and whether revalidation is needed.
+
+        Returns:
+            Tuple of (cached_result, needs_revalidation).
+            - If fresh: (data, False)
+            - If stale: (data, True) - caller should revalidate in background
+            - If expired/empty: (None, False) - caller must fetch synchronously
+        """
         with self._lock:
             if self._cached_result is None:
-                return None
-            if time.monotonic() - self._cached_at > self._cache_seconds:
-                self._cached_result = None
-                return None
-            return self._cached_result
+                return None, False
+
+            age = time.monotonic() - self._cached_at
+
+            # Fresh: return data, no revalidation needed
+            if age <= self._fresh_seconds:
+                return self._cached_result, False
+
+            # Stale: return data, but signal revalidation needed
+            if age <= self._stale_seconds:
+                # Only signal revalidation if not already in progress
+                needs_revalidation = not self._revalidating
+                return self._cached_result, needs_revalidation
+
+            # Expired: data too old to use
+            return None, False
 
     def set(self, result: list[UrlStatus]) -> None:
         """Cache a new result."""
         with self._lock:
             self._cached_result = result
             self._cached_at = time.monotonic()
+            self._revalidating = False
+
+    def mark_revalidating(self) -> bool:
+        """Mark that revalidation is in progress. Returns False if already revalidating."""
+        with self._lock:
+            if self._revalidating:
+                return False
+            self._revalidating = True
+            return True
 
     def invalidate(self) -> None:
-        """Invalidate the cache (called when new data is inserted)."""
+        """Invalidate freshness (called when new data is inserted).
+
+        Note: We only reset the timestamp to trigger revalidation on next request,
+        but keep the cached data available for stale-while-revalidate.
+        """
         with self._lock:
-            self._cached_result = None
+            # Set age to stale (not expired) so data is still usable
+            # but will trigger background revalidation
+            if self._cached_result is not None:
+                self._cached_at = time.monotonic() - self._fresh_seconds - 1
 
 
 _status_cache = _StatusCache()
@@ -199,12 +246,11 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
         raise DatabaseError(f"Failed to insert check result: {e}")
 
 
-def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
-    """Get the latest status for all monitored URLs.
+def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
+    """Execute the expensive status query against the database.
 
+    Internal function - use get_latest_status() which handles caching.
     Thread-safe: acquires global lock before database access.
-    Results are cached for 30 seconds to avoid expensive queries on slow hardware.
-    Cache is automatically invalidated when new check data is inserted.
 
     Args:
         conn: Database connection.
@@ -215,11 +261,6 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
     Raises:
         DatabaseError: If the query fails.
     """
-    # Check cache first (important for Raspberry Pi performance)
-    cached = _status_cache.get()
-    if cached is not None:
-        return cached
-
     try:
         since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
@@ -388,12 +429,61 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
             for row in rows
         ]
 
-        # Cache the result for subsequent requests
-        _status_cache.set(result)
         return result
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to get latest status: {e}")
+
+
+def _revalidate_cache_background(conn: sqlite3.Connection) -> None:
+    """Revalidate cache in background thread."""
+    try:
+        result = _fetch_latest_status_from_db(conn)
+        _status_cache.set(result)
+    except (DatabaseError, sqlite3.ProgrammingError):
+        # Silently fail - stale data is still available
+        # ProgrammingError occurs if connection was closed (e.g., during shutdown)
+        pass
+
+
+def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
+    """Get the latest status for all monitored URLs.
+
+    Uses stale-while-revalidate caching strategy:
+    - Fresh data (< 30s): Return immediately
+    - Stale data (30s-5min): Return immediately, refresh in background
+    - Expired data (> 5min): Block and fetch fresh data
+
+    This ensures users almost never wait for the slow query.
+
+    Args:
+        conn: Database connection.
+
+    Returns:
+        List of UrlStatus objects, one per unique URL.
+
+    Raises:
+        DatabaseError: If the query fails and no cached data is available.
+    """
+    # Check cache - returns (data, needs_revalidation)
+    cached, needs_revalidation = _status_cache.get()
+
+    if cached is not None:
+        # We have data to return immediately
+        if needs_revalidation and _status_cache.mark_revalidating():
+            # Spawn background thread to refresh cache
+            thread = threading.Thread(
+                target=_revalidate_cache_background,
+                args=(conn,),
+                daemon=True,
+            )
+            thread.start()
+        return cached
+
+    # No cached data available - must fetch synchronously
+    result = _fetch_latest_status_from_db(conn)
+    _status_cache.set(result)
+    return result
 
 
 def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlStatus | None:

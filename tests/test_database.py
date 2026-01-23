@@ -27,8 +27,20 @@ def db_path(tmp_path: Path) -> str:
 @pytest.fixture
 def db_conn(db_path: str) -> sqlite3.Connection:
     """Create a database connection with initialized tables."""
+    import time
+
+    # Clear cache before test to avoid stale state from previous tests
+    _status_cache._cached_result = None
+    _status_cache._revalidating = False
+
     conn = init_db(db_path)
     yield conn
+
+    # Clear cache and wait briefly for any background threads to finish
+    _status_cache._cached_result = None
+    _status_cache._revalidating = False
+    time.sleep(0.05)  # Allow background threads to complete or fail gracefully
+
     conn.close()
 
 
@@ -1517,12 +1529,13 @@ class TestPercentileAndStddevByName:
 
 
 class TestStatusCache:
-    """Tests for the status cache functionality."""
+    """Tests for the status cache functionality (stale-while-revalidate)."""
 
     def test_cache_returns_same_result_on_subsequent_calls(self, db_conn: sqlite3.Connection) -> None:
         """Cache returns cached result without hitting database again."""
-        # Invalidate any previous cache
-        _status_cache.invalidate()
+        # Clear cache completely for fresh test
+        _status_cache.set([])  # Set empty to clear
+        _status_cache._cached_result = None  # Force clear
 
         # Insert a check
         check = CheckResult(
@@ -1546,46 +1559,44 @@ class TestStatusCache:
         assert len(result1) == len(result2)
         assert result1[0].url_name == result2[0].url_name
 
-    def test_cache_invalidated_on_insert(self, db_conn: sqlite3.Connection) -> None:
-        """Cache is invalidated when new check is inserted."""
-        # Invalidate any previous cache
-        _status_cache.invalidate()
+    def test_stale_while_revalidate_returns_stale_data(self, db_conn: sqlite3.Connection) -> None:
+        """Stale-while-revalidate returns stale data immediately."""
+        import time
 
-        # Insert first check
-        check1 = CheckResult(
-            url_name="CACHE_TEST_A",
-            url="https://a.example.com",
+        # Clear cache completely
+        _status_cache._cached_result = None
+
+        # Insert a check
+        check = CheckResult(
+            url_name="SWR_TEST",
+            url="https://swr.example.com",
             status_code=200,
             response_time_ms=100,
             is_up=True,
             error_message=None,
             checked_at=datetime.now(UTC),
         )
-        insert_check(db_conn, check1)
+        insert_check(db_conn, check)
 
         # Populate cache
         result1 = get_latest_status(db_conn)
+        assert len(result1) >= 1
 
-        # Insert second check (should invalidate cache)
-        check2 = CheckResult(
-            url_name="CACHE_TEST_B",
-            url="https://b.example.com",
-            status_code=200,
-            response_time_ms=200,
-            is_up=True,
-            error_message=None,
-            checked_at=datetime.now(UTC),
-        )
-        insert_check(db_conn, check2)
+        # Simulate cache becoming stale (but not expired)
+        # Set cached_at to 60 seconds ago (stale but within 300s limit)
+        _status_cache._cached_at = time.monotonic() - 60
 
-        # Next call should see new data
-        result2 = get_latest_status(db_conn)
+        # Get should still return data (stale) and signal revalidation needed
+        cached, needs_revalidation = _status_cache.get()
+        assert cached is not None  # Data still available
+        assert needs_revalidation is True  # Should trigger background revalidation
 
-        # Second result should have more URLs
-        assert len(result2) > len(result1)
-
-    def test_cache_invalidate_clears_cached_data(self) -> None:
-        """Invalidate method clears the cache."""
-        # Ensure cache has something
-        _status_cache.invalidate()
-        assert _status_cache.get() is None
+    def test_cache_get_returns_tuple(self) -> None:
+        """Cache get() returns tuple of (data, needs_revalidation)."""
+        _status_cache._cached_result = None
+        result = _status_cache.get()
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        data, needs_revalidation = result
+        assert data is None  # No cached data
+        assert needs_revalidation is False  # Nothing to revalidate
