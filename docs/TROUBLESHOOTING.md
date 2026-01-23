@@ -2,6 +2,39 @@
 
 Common issues and solutions when running WebStatusPi on Raspberry Pi.
 
+## Rate Limiting (HTTP 429)
+
+**Symptoms**: API returns `429 Too Many Requests` error.
+
+**Diagnosis**:
+
+```bash
+# Check if you're hitting rate limits
+curl -v http://localhost:8080/status
+# Look for: HTTP/1.1 429 Too Many Requests
+```
+
+**Solutions**:
+
+### 1. Wait and Retry
+
+The rate limit is 60 requests per minute per IP. Wait ~1 minute before retrying.
+
+### 2. Use a Different IP
+
+Rate limiting is per-IP. Local/private IPs (127.0.0.1, 192.168.x.x) are exempt.
+
+### 3. Reduce Polling Frequency
+
+If using automated tools, increase the interval between requests:
+
+```bash
+# Instead of every second, poll every 10 seconds
+watch -n 10 'curl -s http://localhost:8080/status | jq .summary'
+```
+
+---
+
 ## High CPU Usage
 
 **Symptoms**: Pi becomes sluggish, monitoring slows down, high temperature.
@@ -43,8 +76,11 @@ ps aux | grep webstatuspi
 **Diagnosis**:
 
 ```bash
-# Check database size
-ls -lh data/monitoring.db
+# Check database size (default XDG location)
+ls -lh ~/.local/share/webstatuspi/status.db
+
+# Or if using custom path from config
+ls -lh /path/to/your/status.db
 
 # Check disk usage
 df -h
@@ -71,24 +107,37 @@ database:
 If automatic cleanup is not running or you need immediate space:
 
 ```bash
-# Delete checks older than 7 days
-sqlite3 data/monitoring.db "DELETE FROM checks WHERE timestamp < datetime('now', '-7 days');"
+# Delete checks older than 7 days (using default XDG path)
+sqlite3 ~/.local/share/webstatuspi/status.db "DELETE FROM checks WHERE checked_at < datetime('now', '-7 days');"
 
 # Reclaim disk space after deletion
-sqlite3 data/monitoring.db "VACUUM;"
+sqlite3 ~/.local/share/webstatuspi/status.db "VACUUM;"
 ```
 
 ### 3. Check What's Using Space
 
 ```bash
-# Count records per table
-sqlite3 data/monitoring.db "SELECT 'checks', COUNT(*) FROM checks UNION SELECT 'stats', COUNT(*) FROM stats UNION SELECT 'urls', COUNT(*) FROM urls;"
+# Count total records
+sqlite3 ~/.local/share/webstatuspi/status.db "SELECT COUNT(*) as total_checks FROM checks;"
+
+# Check records by URL
+sqlite3 ~/.local/share/webstatuspi/status.db "SELECT url_name, COUNT(*) as checks FROM checks GROUP BY url_name;"
 
 # Check oldest record
-sqlite3 data/monitoring.db "SELECT MIN(timestamp) FROM checks;"
+sqlite3 ~/.local/share/webstatuspi/status.db "SELECT MIN(checked_at) FROM checks;"
 ```
 
-**Note**: Aggregated statistics in the `stats` table are preserved regardless of cleanup. Only individual `checks` records are deleted.
+### 4. Use API Reset Endpoint
+
+For a complete reset (deletes ALL data):
+
+```bash
+# If no token configured
+curl -X DELETE http://localhost:8080/reset
+
+# If token is configured
+curl -X DELETE http://localhost:8080/reset -H "Authorization: Bearer your-token"
+```
 
 ## API Not Accessible from Other Devices
 
@@ -436,6 +485,57 @@ Then enable:
 sudo systemctl daemon-reload
 sudo systemctl enable --now webstatuspi
 ```
+
+## Reset Endpoint Not Working
+
+**Symptoms**: `DELETE /reset` returns 403 or 401 error.
+
+**Solutions**:
+
+### 1. Error: "Nice try, Diddy! You are not allowed to perform this action" (403)
+
+This means you're accessing the endpoint through Cloudflare. The reset endpoint is blocked for external access as a security measure.
+
+**Fix**: Access directly from the local network or the Pi itself:
+
+```bash
+# From the Raspberry Pi
+curl -X DELETE http://localhost:8080/reset
+
+# From local network (not through Cloudflare)
+curl -X DELETE http://192.168.1.50:8080/reset
+```
+
+### 2. Error: "Authorization required: Bearer token expected" (401)
+
+Your configuration has `api.reset_token` set, requiring authentication.
+
+**Fix**: Include the Authorization header:
+
+```bash
+curl -X DELETE http://localhost:8080/reset \
+  -H "Authorization: Bearer your-configured-token"
+```
+
+### 3. Error: "Invalid reset token" (403)
+
+The token you provided doesn't match the configured token.
+
+**Fix**: Check your `config.yaml` for the correct token:
+
+```yaml
+api:
+  port: 8080
+  reset_token: "your-secret-token"  # Use this exact value
+```
+
+Or check the environment variable:
+
+```bash
+echo $WEBSTATUS_API_RESET_TOKEN
+```
+
+---
 
 ## Telegram Notifications Not Working
 

@@ -184,10 +184,12 @@ The dashboard is a Progressive Web App that can be installed on your device for 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | Web dashboard |
-| `GET` | `/status` | All URLs status |
+| `GET` | `/status` | All URLs status with 24h statistics |
 | `GET` | `/status/{name}` | Specific URL status |
+| `GET` | `/history/{name}` | Check history (last 24h, max 100 records) |
 | `GET` | `/health` | Health check |
 | `GET` | `/metrics` | Prometheus metrics |
+| `DELETE` | `/reset` | Reset all data (token auth if configured) |
 
 ### Example Response
 
@@ -201,17 +203,48 @@ curl http://localhost:8080/status
     {
       "name": "MY_SITE",
       "url": "https://example.com",
-      "success_rate": 99.5,
-      "last_status": "success",
-      "last_status_code": 200
+      "is_up": true,
+      "status_code": 200,
+      "response_time_ms": 150,
+      "error": null,
+      "last_check": "2026-01-23T10:30:00Z",
+      "checks_24h": 1440,
+      "uptime_24h": 99.5,
+      "avg_response_time_24h": 145.2,
+      "min_response_time_24h": 120,
+      "max_response_time_24h": 200,
+      "p50_response_time_24h": 142,
+      "p95_response_time_24h": 185,
+      "p99_response_time_24h": 198,
+      "stddev_response_time_24h": 15.3,
+      "consecutive_failures": 0,
+      "ssl_cert_expires_in_days": 365
     }
   ],
   "summary": {
-    "total_urls": 1,
-    "overall_success_rate": 99.5
+    "total": 1,
+    "up": 1,
+    "down": 0
   }
 }
 ```
+
+### Delete/Reset Endpoint
+
+Reset all monitoring data (useful for testing or fresh start):
+
+```bash
+# Without token (if api.reset_token not configured)
+curl -X DELETE http://localhost:8080/reset
+
+# With token authentication
+curl -X DELETE http://localhost:8080/reset \
+  -H "Authorization: Bearer your-secret-token"
+```
+
+**Security notes:**
+- Blocked if accessed through Cloudflare (external access)
+- Requires Bearer token if `api.reset_token` is set in config
 
 ---
 
@@ -735,6 +768,40 @@ For Raspberry Pi 1B+:
 | URLs | 5-10 max |
 | Interval | 30+ seconds |
 | Timeout | 10s or less |
+
+### Environment Variables
+
+Override any configuration value using environment variables with the `WEBSTATUS_` prefix:
+
+| Variable | Config Path | Example |
+|----------|-------------|---------|
+| `WEBSTATUS_API_PORT` | `api.port` | `8080` |
+| `WEBSTATUS_API_RESET_TOKEN` | `api.reset_token` | `secret123` |
+| `WEBSTATUS_MONITOR_INTERVAL` | `monitor.interval` | `60` |
+| `WEBSTATUS_DATABASE_PATH` | `database.path` | `/data/status.db` |
+| `WEBSTATUS_DATABASE_RETENTION_DAYS` | `database.retention_days` | `7` |
+
+Environment variables take precedence over `config.yaml` values.
+
+---
+
+## 🔒 Security Features
+
+WebStatusPi includes several security measures:
+
+| Feature | Description |
+|---------|-------------|
+| **Rate Limiting** | 60 requests/min per IP (localhost exempt) |
+| **SSRF Protection** | Blocks private IPs, localhost, dangerous ports |
+| **CSP Headers** | Content Security Policy with nonces |
+| **Input Validation** | URL names sanitized to prevent injection |
+
+### SSRF Protection
+
+URLs configured for monitoring are validated to prevent Server-Side Request Forgery:
+- Only `http://` and `https://` schemes allowed
+- Private IP ranges blocked (10.x, 172.16.x, 192.168.x, localhost)
+- Internal service ports blocked (22, 3306, 5432, 6379, etc.)
 
 ---
 
