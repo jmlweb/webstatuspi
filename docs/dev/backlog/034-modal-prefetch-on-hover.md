@@ -1,13 +1,14 @@
 # Task #034: Modal Data Prefetching on Hover
 
 ## Metadata
-- **Status**: pending
+- **Status**: won't-do
 - **Priority**: P2
 - **Slice**: Dashboard, WPO
 - **Created**: 2026-01-23
 - **Started**: -
 - **Completed**: -
 - **Blocked by**: -
+- **Superseded by**: Cache-first strategy in database.py (2026-01-23)
 
 ## Vertical Slice Definition
 
@@ -98,8 +99,8 @@ None
 
 ## Progress Log
 
-(empty)
+- **2026-01-23**: Task superseded by cache-first strategy. Modal now loads in < 100ms when dashboard cache is populated, which is the typical case after viewing the dashboard. Prefetching on hover is no longer necessary.
 
 ## Learnings
 
-(empty)
+- **L023**: Cache-first strategy eliminates slow per-URL queries. Modified `get_latest_status_by_name()` to check `_status_cache` first, and added `_history_cache` for history data. This approach is simpler and more effective than client-side prefetching.

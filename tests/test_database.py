@@ -1600,3 +1600,142 @@ class TestStatusCache:
         data, needs_revalidation = result
         assert data is None  # No cached data
         assert needs_revalidation is False  # Nothing to revalidate
+
+
+class TestHistoryCache:
+    """Tests for the history cache functionality (TTL-based per-URL cache)."""
+
+    def test_history_cache_returns_cached_result(self, db_conn: sqlite3.Connection) -> None:
+        """History cache returns cached result on subsequent calls."""
+        from webstatuspi.database import _history_cache
+
+        # Clear cache
+        _history_cache.invalidate()
+
+        # Insert a check
+        now = datetime.now(UTC)
+        check = CheckResult(
+            url_name="HIST_CACHE",
+            url="https://histcache.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, check)
+
+        since = now - timedelta(hours=24)
+
+        # First call populates cache
+        result1 = get_history(db_conn, "HIST_CACHE", since, limit=100)
+
+        # Second call should return cached result
+        result2 = get_history(db_conn, "HIST_CACHE", since, limit=100)
+
+        # Both should have the same data
+        assert len(result1) == len(result2) == 1
+        assert result1[0].url_name == result2[0].url_name
+
+    def test_history_cache_invalidated_on_insert(self, db_conn: sqlite3.Connection) -> None:
+        """History cache is invalidated when new check is inserted."""
+        from webstatuspi.database import _history_cache
+
+        # Clear cache
+        _history_cache.invalidate()
+
+        # Insert first check
+        now = datetime.now(UTC)
+        check1 = CheckResult(
+            url_name="HIST_INV",
+            url="https://histinv.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, check1)
+
+        since = now - timedelta(hours=24)
+
+        # Populate cache
+        result1 = get_history(db_conn, "HIST_INV", since, limit=100)
+        assert len(result1) == 1
+
+        # Insert another check - should invalidate cache
+        check2 = CheckResult(
+            url_name="HIST_INV",
+            url="https://histinv.example.com",
+            status_code=200,
+            response_time_ms=150,
+            is_up=True,
+            error_message=None,
+            checked_at=now + timedelta(seconds=30),
+        )
+        insert_check(db_conn, check2)
+
+        # Next call should get fresh data with 2 checks
+        result2 = get_history(db_conn, "HIST_INV", since, limit=100)
+        assert len(result2) == 2
+
+
+class TestStatusByNameUsesCache:
+    """Tests for get_latest_status_by_name using the main status cache."""
+
+    def test_status_by_name_uses_cache(self, db_conn: sqlite3.Connection) -> None:
+        """get_latest_status_by_name returns data from main status cache."""
+        # Clear cache
+        _status_cache._cached_result = None
+
+        # Insert a check
+        now = datetime.now(UTC)
+        check = CheckResult(
+            url_name="CACHE_HIT",
+            url="https://cachehit.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, check)
+
+        # Populate main status cache via get_latest_status
+        get_latest_status(db_conn)
+
+        # Now get_latest_status_by_name should use cached data
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "CACHE_HIT")
+
+        assert result is not None
+        assert result.url_name == "CACHE_HIT"
+        assert result.last_response_time_ms == 100
+
+    def test_status_by_name_falls_back_to_db(self, db_conn: sqlite3.Connection) -> None:
+        """get_latest_status_by_name falls back to DB when not in cache."""
+        # Clear cache completely
+        _status_cache._cached_result = None
+
+        # Insert a check
+        now = datetime.now(UTC)
+        check = CheckResult(
+            url_name="NO_CACHE",
+            url="https://nocache.example.com",
+            status_code=200,
+            response_time_ms=200,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+        )
+        insert_check(db_conn, check)
+
+        # Don't populate main cache - go straight to by-name query
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "NO_CACHE")
+
+        assert result is not None
+        assert result.url_name == "NO_CACHE"
+        assert result.last_response_time_ms == 200

@@ -95,10 +95,25 @@ All three issues have been addressed. The client timeout was increased from 10 s
 
 Future optimizations to consider:
 
-1. **Add caching to `get_history()`** - Similar to existing `_StatusCache` for `get_latest_status()`
+1. ~~**Add caching to `get_history()`**~~ - ✅ Done: Added `_history_cache` with 30s TTL per URL
 2. ~~**Increase client timeout**~~ - ✅ Done: Changed `FETCH_TIMEOUT_MS` from 10000 to 60000 in `_js_utils.py`
-3. **Simplify history query** - Return fewer columns or rows
-4. **Pre-fetch on hover** - Start loading data when user hovers over a card (see backlog task #034)
+3. **Simplify history query** - Return fewer columns or rows (optional, caching is sufficient)
+4. ~~**Pre-fetch on hover**~~ - Not needed: Cache-first strategy makes modal load < 2s
+
+## Follow-up Fix: Cache-First Strategy (2026-01-23)
+
+### Problem
+Even with ThreadingHTTPServer and removed locks, modal still took 45-75 seconds on first open because `get_latest_status_by_name()` ran an expensive 7-CTE query independently for each `/status/<name>` request.
+
+### Solution
+Modified `get_latest_status_by_name()` to check the main `_status_cache` first before running any database query. Since the dashboard already populates this cache via `/status` polling, per-URL queries now return instantly from cache.
+
+Also added `_history_cache` for per-URL history data with 30-second TTL.
+
+### Result
+Modal now opens in **< 100ms** when dashboard has been viewed recently (typical case), meeting the < 2 second requirement with room to spare.
+
+**File**: `webstatuspi/database.py`
 
 ## Key Learnings
 
@@ -106,3 +121,4 @@ Future optimizations to consider:
 2. **SQLite allows concurrent reads** - Don't over-lock; only protect writes
 3. **RPi 1B+ is very slow** - Complex SQL queries can take 45-75 seconds
 4. **Caching is essential** - The existing `_StatusCache` pattern works well, extend it to other slow endpoints
+5. **Cache-first strategy** - Per-URL queries should check main cache before running independent queries

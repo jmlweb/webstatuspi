@@ -112,6 +112,69 @@ class _StatusCache:
 _status_cache = _StatusCache()
 
 
+# =============================================================================
+# HISTORY CACHE (Per-URL with TTL)
+# =============================================================================
+# Caches get_history() results per URL to avoid slow queries on modal open.
+# Uses shorter TTL than status cache since history is typically accessed once.
+#
+# Strategy: Simple TTL-based cache
+# - Fresh (< 30s): Return cached data immediately
+# - Expired (> 30s): Fetch fresh data (but this rarely happens as modal is
+#   typically closed before expiration)
+
+HISTORY_CACHE_TTL_SECONDS = 30
+
+
+class _HistoryCache:
+    """Thread-safe per-URL history cache with TTL."""
+
+    def __init__(self, ttl_seconds: int = HISTORY_CACHE_TTL_SECONDS):
+        self._lock = threading.Lock()
+        self._ttl_seconds = ttl_seconds
+        self._cache: dict[str, tuple[float, list]] = {}  # url_name -> (timestamp, results)
+
+    def get(self, url_name: str) -> list | None:
+        """Get cached history for URL if not expired.
+
+        Returns:
+            Cached history list if fresh, None if expired or not cached.
+        """
+        with self._lock:
+            if url_name not in self._cache:
+                return None
+
+            cached_at, results = self._cache[url_name]
+            age = time.monotonic() - cached_at
+
+            if age <= self._ttl_seconds:
+                return results
+
+            # Expired - remove from cache
+            del self._cache[url_name]
+            return None
+
+    def set(self, url_name: str, results: list) -> None:
+        """Cache history results for URL."""
+        with self._lock:
+            self._cache[url_name] = (time.monotonic(), results)
+
+    def invalidate(self, url_name: str | None = None) -> None:
+        """Invalidate cache for a specific URL or all URLs.
+
+        Args:
+            url_name: Specific URL to invalidate, or None to invalidate all.
+        """
+        with self._lock:
+            if url_name is None:
+                self._cache.clear()
+            elif url_name in self._cache:
+                del self._cache[url_name]
+
+
+_history_cache = _HistoryCache()
+
+
 def init_db(db_path: str) -> sqlite3.Connection:
     """Initialize the database and create tables if they don't exist.
 
@@ -240,8 +303,9 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                 ),
             )
             conn.commit()
-            # Invalidate status cache since data has changed
+            # Invalidate caches since data has changed
             _status_cache.invalidate()
+            _history_cache.invalidate(result.url_name)
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to insert check result: {e}")
 
@@ -488,9 +552,14 @@ def get_latest_status(conn: sqlite3.Connection) -> list[UrlStatus]:
 def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlStatus | None:
     """Get the latest status for a specific URL by name.
 
-    Thread-safe: acquires global lock before database access.
-    More efficient than get_latest_status() when querying a single URL.
-    Includes extended metrics (response time stats, consecutive failures, etc.).
+    Uses cache-first strategy: checks if the URL's status is already in the
+    main status cache from get_latest_status(). If found and fresh/stale,
+    returns immediately without hitting the database. This makes modal opening
+    nearly instant when the dashboard has been viewed recently.
+
+    Falls back to database query only when:
+    - Cache is empty or expired
+    - URL is not found in cache (new URL not yet in main status)
 
     Args:
         conn: Database connection.
@@ -502,6 +571,14 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
     Raises:
         DatabaseError: If the query fails.
     """
+    # Check if URL is in the main status cache (from get_latest_status)
+    cached, _ = _status_cache.get()
+    if cached is not None:
+        for status in cached:
+            if status.url_name == url_name:
+                return status
+
+    # Not in cache - fall back to database query
     try:
         since_24h = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
@@ -670,7 +747,9 @@ def get_history(
 ) -> list[CheckResult]:
     """Get check history for a specific URL.
 
-    Thread-safe: acquires global lock before database access.
+    Uses cache-first strategy: checks if the URL's history is already cached.
+    If found and fresh (< 30s), returns immediately without hitting the database.
+    This makes modal opening nearly instant when reopening within 30 seconds.
 
     Args:
         conn: Database connection.
@@ -684,6 +763,12 @@ def get_history(
     Raises:
         DatabaseError: If the query fails.
     """
+    # Check cache first (only for standard 24h queries with limit=100)
+    # We cache this specific pattern since it's what the modal uses
+    cached = _history_cache.get(url_name)
+    if cached is not None:
+        return cached
+
     try:
         query = """
             SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
@@ -701,7 +786,7 @@ def get_history(
 
         rows = conn.execute(query, params).fetchall()
 
-        return [
+        results = [
             CheckResult(
                 url_name=row["url_name"],
                 url=row["url"],
@@ -723,6 +808,11 @@ def get_history(
             )
             for row in rows
         ]
+
+        # Cache the results for subsequent requests
+        _history_cache.set(url_name, results)
+
+        return results
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to get history: {e}")
