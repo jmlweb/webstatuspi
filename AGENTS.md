@@ -276,10 +276,10 @@ The Raspberry Pi 1B+ has severe resource limitations:
 
 ### Testing Dependencies (Development Only)
 
-```
+```text
 pytest>=7.0.0
-pytest-mock>=3.10.0
-coverage>=7.0.0
+pytest-mock>=3.0.0
+coverage>=6.0.0
 ```
 
 ### Manual Testing Checklist
@@ -464,26 +464,23 @@ Record of key architectural decisions made during development. Add new entries a
 - One external dependency
 - Must validate schema manually
 
-### ADR-004: Embedded HTML Dashboard (Updated)
+### ADR-004: Embedded HTML Dashboard
 
-**Date**: 2026-01-18 (Updated: 2026-01-18)
+**Date**: 2026-01-18
 **Status**: Accepted
 **Context**: Need a visual dashboard for monitoring status without external dependencies
-**Decision**: Embed HTML/CSS/JS as a Python string constant in `_dashboard.py`, imported by `api.py`
+**Decision**: Embed HTML/CSS/JS as a Python string constant (`HTML_DASHBOARD`) directly in `api.py`
 **Rationale**:
 - Zero external files or static asset management
 - No template engine dependency (Jinja2 would add ~5MB)
 - Dashboard auto-refreshes via JavaScript fetch to `/status`
 - CRT/cyberpunk aesthetic provides clear visual hierarchy
-- Separate module improves maintainability without adding dependencies
+- Single file keeps deployment simple
 **Consequences**:
-- HTML changes isolated in dedicated `_dashboard.py` module
-- Cleaner git diffs (HTML changes separate from Python logic)
+- HTML embedded in `api.py` as `HTML_DASHBOARD` constant
 - No hot-reload for frontend development
 - Must follow embedded dashboard guidelines (see Dashboard Code Style section)
-**Update (2026-01-18)**: Evaluated template engines (Jinja2, string.Template, str.format).
-Finding: Dashboard uses client-side rendering, no server-side templating needed.
-Separated HTML to `_dashboard.py` for better maintainability while keeping zero dependencies.
+**Note**: Evaluated template engines (Jinja2, string.Template, str.format) but dashboard uses client-side rendering, so no server-side templating needed.
 
 <!-- Add new ADRs above this line -->
 
