@@ -211,6 +211,40 @@ sudo lsof -i :8080
 sudo kill <PID>
 ```
 
+## PWA Install Option Missing on Android
+
+**Symptoms**: Chrome on Android does not show "Install app" or "Add to Home Screen."
+
+**Diagnosis**:
+
+1. **Check for HTTPS**:
+   - PWA install requires a secure context.
+   - If the URL starts with `http://` (not `https://`) on a phone or tablet, install is disabled.
+
+2. **Check Service Worker Registration**:
+   - In Chrome, open `chrome://inspect` and attach to the device.
+   - Look for console errors like `Only secure origins are allowed`.
+
+**Solutions**:
+
+### 1. Serve the Dashboard over HTTPS (Recommended)
+
+Use one of these options:
+
+- Reverse proxy (nginx) with Let's Encrypt
+- Cloudflare Tunnel (if the Pi is reachable by domain)
+
+### 2. Development-Only Workarounds
+
+- Use `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+- Add `http://<pi-ip>:8080` to the allowed list
+- Reload the page
+
+### 3. Reload After First Visit
+
+The install prompt can appear only after the Service Worker controls the page.
+Reload once after the first visit and check the menu again.
+
 ## Monitoring Not Starting
 
 **Symptoms**: Application exits immediately, shows errors on startup, or hangs.
