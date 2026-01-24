@@ -21,6 +21,7 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Lightweight web monitoring dashboard for Raspberry Pi. Real-time status, uptime tracking, and response time analytics.">
     <!-- PWA meta tags -->
     <meta name="theme-color" content="#00fff9">
     <meta name="mobile-web-app-capable" content="yes">
@@ -50,8 +51,8 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
     </header>
     <nav class="summary-bar" aria-label="Status summary">
         <div class="summary-counts" role="status" aria-live="polite" aria-atomic="true">
-            <span class="count-up" id="countUp" aria-label="0 services online">[0] ONLINE</span>
-            <span class="count-down" id="countDown" aria-label="0 services offline">[0] OFFLINE</span>
+            <span class="count-up" id="countUp">[0] ONLINE</span>
+            <span class="count-down" id="countDown">[0] OFFLINE</span>
         </div>
         <div>
             <span class="updated-time" id="updatedTime" role="status" aria-live="polite">// INITIALIZING...</span>

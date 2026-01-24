@@ -44,7 +44,9 @@ MANIFEST_JSON = f"""{{
   "short_name": "WebStatusπ",
   "description": "Lightweight web monitoring dashboard for Raspberry Pi",
   "version": "{PWA_VERSION}",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",
@@ -57,10 +59,22 @@ MANIFEST_JSON = f"""{{
       "purpose": "any"
     }},
     {{
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }},
+    {{
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    }},
+    {{
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }}
   ],
   "shortcuts": [

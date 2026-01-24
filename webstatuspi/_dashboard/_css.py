@@ -15,7 +15,7 @@ CSS_STYLES = """
             --green: #00ff66;
             --red: #ff0040;
             --text: #e0e0e0;
-            --text-dim: #606080;
+            --text-dim: #9090a8;  /* Improved from #606080 for WCAG AA contrast */
             --border: #2a2a3a;
             /* ========================================
                LAYOUT GRID SYSTEM - Strict Alignment

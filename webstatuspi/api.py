@@ -35,6 +35,15 @@ from .models import UrlStatus
 
 logger = logging.getLogger(__name__)
 
+# robots.txt content - allows all crawlers, disables sensitive endpoints
+ROBOTS_TXT = """User-agent: *
+Allow: /
+Disallow: /reset
+Disallow: /metrics
+
+Sitemap: none
+"""
+
 # Rate limiting configuration.
 # Allows 60 requests per minute per IP, sufficient for normal dashboard
 # refresh cycles while protecting against DoS attacks.
@@ -596,6 +605,18 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_robots_txt(self) -> None:
+        """Send robots.txt for search engine crawlers."""
+        body = ROBOTS_TXT.encode("utf-8")
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=86400")  # Cache for 1 day
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         if not self._check_rate_limit():
@@ -653,6 +674,9 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._send_png(ICON_192_PNG)
             elif self.path == "/icon-512.png":
                 self._send_png(ICON_512_PNG)
+            # SEO endpoints
+            elif self.path == "/robots.txt":
+                self._send_robots_txt()
             else:
                 self._send_error_json(404, "Not found")
         except (BrokenPipeError, ConnectionResetError):
