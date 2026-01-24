@@ -1198,7 +1198,7 @@ CSS_STYLES = """
                 --box-padding: 12px;
                 --gap: 8px;
             }
-            
+
             main {
                 padding: var(--gutter);
                 /* Ensure single column on narrow screens but allow full width */
@@ -1261,7 +1261,7 @@ CSS_STYLES = """
             .modal-header {
                 padding: 12px;
             }
-            
+
             .modal-close {
                 width: 48px; /* Larger touch target */
                 height: 48px;
@@ -1271,7 +1271,7 @@ CSS_STYLES = """
                 grid-template-columns: repeat(2, 1fr); /* 2 cols */
                 gap: 12px;
             }
-            
+
             /* Make status full width in summary */
             .modal-stat:first-child {
                 grid-column: 1 / -1;
@@ -1285,16 +1285,16 @@ CSS_STYLES = """
                 gap: 0.75rem;
                 align-items: flex-start;
             }
-            
+
             .modal-url-info, .modal-server-info {
                 flex-wrap: wrap;
             }
-            
+
             .modal-server-info {
                 width: 100%;
                 justify-content: space-between;
             }
-            
+
             .modal-server-value {
                 margin-right: 0;
             }
@@ -1309,14 +1309,14 @@ CSS_STYLES = """
             .history-table td:nth-child(5) {
                 display: none; /* Hide more columns on mobile */
             }
-            
+
             /* Show status code and time only */
-            
+
             .modal-metrics-row {
                 flex-wrap: wrap;
                 gap: 1rem;
             }
-            
+
             .modal-metrics-title {
                 width: 100%;
                 margin-bottom: 0.5rem;
@@ -1329,20 +1329,20 @@ CSS_STYLES = """
                 padding: 1rem 0.5rem;
             }
         }
-        
+
         /* Small mobile devices */
         @media (max-width: 360px) {
             header h1 { font-size: 1rem; }
             .logo-bracket { display: none; } /* Simplify logo */
-            
+
             .card-metrics {
                 gap: 4px;
             }
-            
+
             .metric {
                 padding: 8px;
             }
-            
+
             .metric-value {
                 font-size: 1rem;
             }
@@ -1356,17 +1356,17 @@ CSS_STYLES = """
                 box-shadow: 0 0 8px rgba(0, 255, 249, 0.1);
                 border-color: var(--border);
             }
-            
+
             .card:hover .card-name {
                 animation: none;
             }
-            
+
             /* Active state for touch feedback */
             .card:active {
                 border-color: var(--cyan);
                 background: rgba(0, 255, 249, 0.05);
             }
-            
+
             /* Ensure scrollable areas are obvious */
             .modal-body {
                 -webkit-overflow-scrolling: touch;
