@@ -161,10 +161,13 @@ self.addEventListener('fetch', (event) => {{
         return;
     }}
 
-    // API endpoints: Network-first with cache fallback
+    // API endpoints: Network-first with cache fallback and fast timeout
+    // Short timeout (3s) to quickly detect server restart and show cached data
     if (url.pathname.startsWith('/status') || url.pathname.startsWith('/history')) {{
         event.respondWith(
-            fetch(event.request)
+            fetch(event.request, {{
+                signal: AbortSignal.timeout(3000)
+            }})
                 .then(response => {{
                     if (response.ok) {{
                         const responseClone = response.clone();
@@ -177,7 +180,14 @@ self.addEventListener('fetch', (event) => {{
                 .catch(() => {{
                     return caches.match(event.request).then(cachedResponse => {{
                         if (cachedResponse) {{
-                            return cachedResponse;
+                            // Add header to indicate this is cached data
+                            const headers = new Headers(cachedResponse.headers);
+                            headers.set('X-From-Cache', 'true');
+                            return new Response(cachedResponse.body, {{
+                                status: cachedResponse.status,
+                                statusText: cachedResponse.statusText,
+                                headers
+                            }});
                         }}
                         // No cache, return offline fallback
                         return new Response(
@@ -186,7 +196,7 @@ self.addEventListener('fetch', (event) => {{
                                 urls: [],
                                 summary: {{ total: 0, up: 0, down: 0 }}
                             }}),
-                            {{ headers: {{ 'Content-Type': 'application/json' }} }}
+                            {{ headers: {{ 'Content-Type': 'application/json', 'X-From-Cache': 'true' }} }}
                         );
                     }});
                 }})
@@ -194,20 +204,47 @@ self.addEventListener('fetch', (event) => {{
         return;
     }}
 
-    // HTML: Network-first (always get fresh content, fallback to cache offline)
+    // HTML: Stale-While-Revalidate (serve cache instantly, update in background)
+    // This prevents 502 errors during server restarts - cached HTML loads immediately
+    // while the background fetch silently fails or updates the cache
     if (url.pathname === '/') {{
         event.respondWith(
-            fetch(event.request)
-                .then(response => {{
-                    if (response.ok) {{
-                        const responseClone = response.clone();
-                        caches.open(STATIC_CACHE).then(cache => {{
-                            cache.put(event.request, responseClone);
-                        }});
-                    }}
-                    return response;
+            caches.match(event.request).then(cachedResponse => {{
+                // Start background fetch to update cache (don't await)
+                const fetchPromise = fetch(event.request, {{
+                    // Short timeout to detect server down quickly
+                    signal: AbortSignal.timeout(5000)
                 }})
-                .catch(() => caches.match(event.request))
+                    .then(response => {{
+                        if (response.ok) {{
+                            const responseClone = response.clone();
+                            caches.open(STATIC_CACHE).then(cache => {{
+                                cache.put(event.request, responseClone);
+                            }});
+                        }}
+                        return response;
+                    }})
+                    .catch(() => null); // Silently ignore fetch errors
+
+                // Return cached response immediately if available
+                if (cachedResponse) {{
+                    return cachedResponse;
+                }}
+                // No cache: wait for network (first visit)
+                return fetchPromise.then(response => {{
+                    if (response) return response;
+                    // Network failed and no cache - show offline page
+                    return new Response(
+                        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WebStatusπ - Offline</title>
+                        <style>body{{background:#0a0a0f;color:#00fff9;font-family:monospace;display:flex;
+                        justify-content:center;align-items:center;height:100vh;margin:0}}
+                        div{{text-align:center}}h1{{font-size:3em}}p{{opacity:0.7}}</style></head>
+                        <body><div><h1>⚡ OFFLINE</h1><p>Server is restarting...<br>This page will auto-refresh.</p>
+                        <script>setTimeout(()=>location.reload(),3000)</script></div></body></html>`,
+                        {{ headers: {{ 'Content-Type': 'text/html' }} }}
+                    );
+                }});
+            }})
         );
         return;
     }}

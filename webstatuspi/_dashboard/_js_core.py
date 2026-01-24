@@ -167,15 +167,33 @@ JS_CORE = """
 
                 const data = await response.json();
                 renderDashboard(data);
-                // Server responded successfully - hide offline banner
+
+                // Check if response came from Service Worker cache
+                const fromCache = response.headers.get('X-From-Cache') === 'true';
                 const banner = document.getElementById('offlineBanner');
-                if (banner) banner.hidden = true;
+
+                if (fromCache) {
+                    // Server down but we have cached data - show reconnecting message
+                    if (banner) {
+                        banner.textContent = '⚡ RECONNECTING - Showing cached data';
+                        banner.hidden = false;
+                    }
+                } else {
+                    // Server responded successfully - hide offline banner
+                    if (banner) {
+                        banner.textContent = '⚠ OFFLINE MODE - Showing cached data';
+                        banner.hidden = true;
+                    }
+                }
             } catch (error) {
                 console.error('Error fetching status:', error);
                 document.getElementById('updatedTime').textContent = '// ERROR: CONNECTION_FAILED';
                 // Server not responding - show offline banner
                 const banner = document.getElementById('offlineBanner');
-                if (banner) banner.hidden = false;
+                if (banner) {
+                    banner.textContent = '⚠ OFFLINE MODE - Showing cached data';
+                    banner.hidden = false;
+                }
             } finally {
                 liveDot.classList.remove('updating');
                 isUpdating = false;
