@@ -20,7 +20,7 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Lightweight web monitoring dashboard for Raspberry Pi. Real-time status, uptime tracking, and response time analytics.">
     <!-- PWA meta tags -->
     <meta name="theme-color" content="#00fff9">
