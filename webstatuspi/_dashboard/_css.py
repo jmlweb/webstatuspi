@@ -1185,290 +1185,10 @@ CSS_STYLES = """
         }
 
         /* Responsive graph adjustments */
-        @media (max-width: 700px) {
-            .graphs-grid {
-                grid-template-columns: 1fr;
-                padding: var(--box-padding);
-            }
-
-            .graph-panel-wide {
-                grid-column: 1;
-            }
-
-            .graph-container {
-                height: 100px;
-            }
-
-            .graph-panel-wide .graph-container {
-                height: 80px;
-            }
-        }
-
-        .summary-actions {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        /* Install button in summary bar */
-        .install-button {
-            background: none;
-            border: 1px solid var(--cyan);
-            color: var(--cyan);
-            padding: 0.4rem 0.8rem;
-            font-size: 0.75rem;
-            font-family: 'JetBrains Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-height: 44px;
-            min-width: 44px;
-            text-shadow: 0 0 8px var(--cyan);
-        }
-
-        .install-button:hover {
-            background: rgba(0, 255, 249, 0.1);
-            box-shadow: 0 0 15px var(--cyan);
-        }
-
-        .install-button:focus-visible {
-            outline: 2px solid var(--cyan);
-            outline-offset: 2px;
-        }
-
-        /* Reset button in summary bar */
-        .reset-button {
-            background: none;
-            border: 1px solid var(--text-dim);
-            color: var(--text-dim);
-            padding: 0.4rem 0.8rem;
-            font-size: 0.75rem;
-            font-family: 'JetBrains Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-height: 44px;
-            min-width: 44px;
-        }
-
-        .reset-button:hover {
-            border-color: var(--orange);
-            color: var(--orange);
-            box-shadow: 0 0 10px var(--orange);
-        }
-
-        /* Reset confirmation modal */
-        .reset-modal-content {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 0;
-            max-width: 500px;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            max-height: 80vh;
-        }
-
-        .reset-modal-header {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .reset-modal-title {
-            font-size: 1rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--orange);
-            text-shadow: 0 0 10px var(--orange);
-        }
-
-        .reset-modal-body {
-            padding: 1.5rem;
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .reset-warning {
-            background: rgba(255, 0, 64, 0.1);
-            border-left: 3px solid var(--red);
-            padding: 1rem;
-            margin-bottom: 1rem;
-            color: var(--red);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .reset-warning::before {
-            content: '\u26a0 ';
-            font-weight: 700;
-        }
-
-        .reset-modal-actions {
-            padding: 1.25rem 1.5rem;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 1rem;
-            justify-content: flex-end;
-        }
-
-        .reset-button-cancel,
-        .reset-button-confirm {
-            padding: 0.5rem 1.25rem;
-            font-size: 0.8rem;
-            font-family: 'JetBrains Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border: 1px solid;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .reset-button-cancel {
-            background: none;
-            border-color: var(--text-dim);
-            color: var(--text-dim);
-        }
-
-        .reset-button-cancel:hover {
-            border-color: var(--text);
-            color: var(--text);
-        }
-
-        .reset-button-confirm {
-            background: none;
-            border-color: var(--red);
-            color: var(--red);
-            text-shadow: 0 0 8px var(--red);
-        }
-
-        .reset-button-confirm:hover {
-            box-shadow: 0 0 10px var(--red);
-        }
-
-        .reset-button-confirm:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        /* Desktop: larger font sizes for better readability */
-        @media (min-width: 1024px) {
-            .live-indicator {
-                font-size: 0.85rem;
-            }
-
-            .summary-bar {
-                font-size: 0.9rem;
-            }
-
-            .card-name {
-                font-size: 1rem;
-            }
-
-            .metric-label {
-                font-size: 0.7rem;
-            }
-
-            .metric-value {
-                font-size: 1.2rem;
-            }
-
-            .mini-stat-label {
-                font-size: 0.65rem;
-            }
-
-            .mini-stat-value {
-                font-size: 0.85rem;
-            }
-
-            .warning-banner {
-                font-size: 0.8rem;
-            }
-
-            .card-footer {
-                font-size: 0.75rem;
-            }
-
-            .error-text {
-                font-size: 0.8rem;
-            }
-
-            .reset-button {
-                font-size: 0.85rem;
-            }
-
-            .modal-content h2 {
-                font-size: 1.1rem;
-            }
-
-            .modal-summary .stat-label {
-                font-size: 0.75rem;
-            }
-
-            .modal-summary .stat-value {
-                font-size: 1rem;
-            }
-
-            .history-table th,
-            .history-table td {
-                font-size: 0.8rem;
-            }
-
-            .graph-title {
-                font-size: 0.85rem;
-            }
-
-            .graph-value {
-                font-size: 0.75rem;
-            }
-
-            .axis-label {
-                font-size: 0.7rem;
-            }
-
-            /* Modal percentiles and range */
-            .modal-metrics-container {
-                font-size: 0.9rem;
-            }
-
-            .modal-metrics-row {
-                font-size: 0.9rem;
-            }
-
-            .modal-metrics-title {
-                font-size: 0.8rem;
-            }
-
-            .modal-metric-label {
-                font-size: 0.8rem;
-            }
-
-            /* Chart/Graph labels (SVG) */
-            .chart-label {
-                font-size: 11px;
-            }
-
-            .chart-value-label {
-                font-size: 10px;
-            }
-
-            .chart-tooltip {
-                font-size: 0.8rem;
-            }
-
-            .chart-tooltip-time {
-                font-size: 0.75rem;
-            }
-
-            /* Modal tabs */
-            .modal-tab {
-                font-size: 0.85rem;
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+             main {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             }
         }
 
@@ -1479,6 +1199,48 @@ CSS_STYLES = """
                 --gap: 8px;
             }
 
+            main {
+                padding: var(--gutter);
+                /* Ensure single column on narrow screens but allow full width */
+                grid-template-columns: 1fr;
+                max-width: 100%;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 0.75rem;
+                padding-bottom: 12px;
+            }
+
+            .summary-bar {
+                flex-direction: column;
+                gap: 0.75rem;
+                height: auto;
+                align-items: stretch;
+            }
+
+            .summary-counts {
+                justify-content: center;
+                width: 100%;
+                gap: 2rem;
+            }
+
+            .summary-actions {
+                width: 100%;
+                justify-content: space-between;
+                flex-wrap: nowrap;
+            }
+
+            .install-button,
+            .reset-button {
+                flex: 1;
+                padding: 0.6rem; /* Larger touch target */
+            }
+
+            .updated-time {
+                display: none; /* Hide time in summary bar on mobile to save space, it's in header/cards */
+            }
+
             .card-metrics {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -1487,45 +1249,127 @@ CSS_STYLES = """
                 display: none;
             }
 
+            /* Optimize Modal for Mobile */
+            .modal-content {
+                width: 95%;
+                max-height: 92vh;
+                margin: 0;
+                clip-path: none; /* Remove aesthetic clip-path for max space */
+                border-radius: 4px; /* Simple radius instead */
+            }
+
+            .modal-header {
+                padding: 12px;
+            }
+
+            .modal-close {
+                width: 48px; /* Larger touch target */
+                height: 48px;
+            }
+
             .modal-summary {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(2, 1fr); /* 2 cols */
+                gap: 12px;
+            }
+
+            /* Make status full width in summary */
+            .modal-stat:first-child {
+                grid-column: 1 / -1;
+                padding-bottom: 8px;
+                border-bottom: 1px solid var(--border);
+                margin-bottom: 4px;
+            }
+
+            .modal-url-bar {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: flex-start;
+            }
+
+            .modal-url-info, .modal-server-info {
+                flex-wrap: wrap;
+            }
+
+            .modal-server-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .modal-server-value {
+                margin-right: 0;
             }
 
             .stats-row {
                 grid-template-columns: repeat(2, 1fr);
             }
 
-            .history-table th:nth-child(5),
+            .history-table th:nth-child(4), /* Latency */
+            .history-table td:nth-child(4),
+            .history-table th:nth-child(5), /* Error */
             .history-table td:nth-child(5) {
-                display: none;
-            }
-            .summary-bar {
-                flex-wrap: wrap;
-                gap: 0.5rem;
-            }
-            .summary-actions {
-                width: 100%;
-                flex-wrap: wrap;
-            }
-            .install-button,
-            .reset-button {
-                flex: 1;
+                display: none; /* Hide more columns on mobile */
             }
 
-            .modal-url-bar {
-                flex-direction: column;
-                gap: 0.5rem;
-                align-items: flex-start;
-            }
+            /* Show status code and time only */
 
             .modal-metrics-row {
                 flex-wrap: wrap;
-                gap: 0.75rem;
+                gap: 1rem;
             }
 
             .modal-metrics-title {
                 width: 100%;
-                margin-bottom: 0.25rem;
+                margin-bottom: 0.5rem;
+                color: var(--cyan); /* Highlight titles on mobile */
+            }
+
+            /* Better touch targets for tabs */
+            .modal-tab {
+                flex: 1;
+                padding: 1rem 0.5rem;
+            }
+        }
+
+        /* Small mobile devices */
+        @media (max-width: 360px) {
+            header h1 { font-size: 1rem; }
+            .logo-bracket { display: none; } /* Simplify logo */
+
+            .card-metrics {
+                gap: 4px;
+            }
+
+            .metric {
+                padding: 8px;
+            }
+
+            .metric-value {
+                font-size: 1rem;
+            }
+        }
+
+        /* Touch interaction improvements */
+        @media (hover: none) {
+            .card:hover {
+                /* Remove hover transform on touch */
+                transform: none;
+                box-shadow: 0 0 8px rgba(0, 255, 249, 0.1);
+                border-color: var(--border);
+            }
+
+            .card:hover .card-name {
+                animation: none;
+            }
+
+            /* Active state for touch feedback */
+            .card:active {
+                border-color: var(--cyan);
+                background: rgba(0, 255, 249, 0.05);
+            }
+
+            /* Ensure scrollable areas are obvious */
+            .modal-body {
+                -webkit-overflow-scrolling: touch;
             }
         }
 
