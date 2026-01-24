@@ -1204,6 +1204,39 @@ CSS_STYLES = """
             }
         }
 
+        .summary-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Install button in summary bar */
+        .install-button {
+            background: none;
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 44px;
+            min-width: 44px;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+
+        .install-button:hover {
+            background: rgba(0, 255, 249, 0.1);
+            box-shadow: 0 0 15px var(--cyan);
+        }
+
+        .install-button:focus-visible {
+            outline: 2px solid var(--cyan);
+            outline-offset: 2px;
+        }
+
         /* Reset button in summary bar */
         .reset-button {
             background: none;
@@ -1216,7 +1249,6 @@ CSS_STYLES = """
             letter-spacing: 0.05em;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-left: 1rem;
             min-height: 44px;
             min-width: 44px;
         }
@@ -1471,8 +1503,12 @@ CSS_STYLES = """
                 flex-wrap: wrap;
                 gap: 0.5rem;
             }
+            .summary-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .install-button,
             .reset-button {
-                margin-left: 0;
                 flex: 1;
             }
 

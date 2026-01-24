@@ -54,8 +54,10 @@ def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
             <span class="count-up" id="countUp">[0] ONLINE</span>
             <span class="count-down" id="countDown">[0] OFFLINE</span>
         </div>
-        <div>
+        <div class="summary-actions">
             <span class="updated-time" id="updatedTime" role="status" aria-live="polite">// INITIALIZING...</span>
+            <button class="install-button" id="installBtn" hidden
+                aria-label="Install WebStatusπ app" type="button">// INSTALL APP</button>
             <button class="reset-button" id="resetDataBtn"
                 aria-label="Reset all monitoring data" type="button">// RESET DATA</button>
         </div>

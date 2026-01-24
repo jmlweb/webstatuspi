@@ -780,6 +780,68 @@ JS_CORE = """
         }
 
         // ============================================
+        // PWA Install Button (inspired by pwa-install)
+        // ============================================
+        let deferredInstallPrompt = null;
+        const installBtn = document.getElementById('installBtn');
+
+        // Check if already installed (standalone mode)
+        function isAppInstalled() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+        }
+
+        // Hide install button if already installed
+        if (isAppInstalled()) {
+            console.log('[PWA] App is already installed');
+        }
+
+        // Capture the install prompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            console.log('[PWA] Install prompt captured');
+
+            // Show the install button
+            if (installBtn && !isAppInstalled()) {
+                installBtn.hidden = false;
+            }
+        });
+
+        // Handle install button click
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (!deferredInstallPrompt) {
+                    console.log('[PWA] No install prompt available');
+                    return;
+                }
+
+                // Show the browser install prompt
+                deferredInstallPrompt.prompt();
+
+                // Wait for user response
+                const { outcome } = await deferredInstallPrompt.userChoice;
+                console.log('[PWA] User choice:', outcome);
+
+                if (outcome === 'accepted') {
+                    installBtn.hidden = true;
+                }
+
+                // Clear the deferred prompt
+                deferredInstallPrompt = null;
+            });
+        }
+
+        // Listen for successful installation
+        window.addEventListener('appinstalled', () => {
+            console.log('[PWA] App installed successfully');
+            if (installBtn) {
+                installBtn.hidden = true;
+            }
+            deferredInstallPrompt = null;
+        });
+
+        // ============================================
         // Offline Detection (uses hidden attribute, CSP-safe)
         // ============================================
         const offlineBanner = document.getElementById('offlineBanner');
