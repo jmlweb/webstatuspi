@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://github.com/jmlweb/webstatuspi/actions/workflows/test.yml"><img src="https://github.com/jmlweb/webstatuspi/actions/workflows/test.yml/badge.svg" alt="Test"></a>
   <a href="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml"><img src="https://github.com/jmlweb/webstatuspi/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://status.jmlweb.es"><img src="https://status.jmlweb.es/badge.svg" alt="Status"></a>
 </p>
 
 <h1 align="center">🖥️ WebStatusπ</h1>
@@ -36,7 +37,7 @@
 
 How does WebStatusπ compare to popular alternatives?
 
-**Runtime Performance** (Docker benchmark: 5 URLs, 60s interval, 10 samples)
+**Docker Benchmark** (5 URLs, 60s interval, 10 samples)
 
 | Tool | RAM Usage | CPU Usage | Docker Image |
 |------|-----------|-----------|--------------|
@@ -44,15 +45,24 @@ How does WebStatusπ compare to popular alternatives?
 | Statping-ng | 30 MB | 0.5% | 58 MB |
 | Uptime Kuma | 114 MB | 0.2% | 439 MB |
 
-**Installation Size on Raspberry Pi** (native, no Docker)
+**Real-world on Raspberry Pi 1B+** (ARMv6, 512MB RAM)
+
+| Metric | Value |
+|--------|-------|
+| RAM (application) | ~20 MB |
+| RAM (with Python runtime) | ~34 MB |
+| CPU | 1-2% idle, peaks during checks |
+| Storage | <1 MB (uses system Python) |
+
+**Installation Size** (native, no Docker)
 
 | Tool | Install Size | Requires |
 |------|--------------|----------|
-| **WebStatusπ** | **~1 MB** | Nothing (uses system Python) |
+| **WebStatusπ** | **<1 MB** | System Python 3.7+ |
 | Statping-ng | ~58 MB | Go binary |
 | Uptime Kuma | ~150 MB | Node.js runtime |
 
-*WebStatusπ leverages the Python already installed on Raspberry Pi OS. Run `./benchmark/benchmark.sh` to reproduce the runtime benchmark.*
+*Run `./benchmark/benchmark.sh` to reproduce the Docker benchmark.*
 
 ---
 
@@ -189,6 +199,7 @@ The dashboard is a Progressive Web App that can be installed on your device for 
 | `GET` | `/history/{name}` | Check history (last 24h, max 100 records) |
 | `GET` | `/health` | Health check |
 | `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/badge.svg` | Status badge (SVG image) |
 | `DELETE` | `/reset` | Reset all data (token auth if configured) |
 
 ### Example Response
@@ -245,6 +256,31 @@ curl -X DELETE http://localhost:8080/reset \
 **Security notes:**
 - Blocked if accessed through Cloudflare (external access)
 - Requires Bearer token if `api.reset_token` is set in config
+
+### Status Badge
+
+Embed a shields.io-style status badge in your README or website:
+
+```markdown
+<!-- Overall system status -->
+![Status](https://your-domain.com/badge.svg)
+
+<!-- Specific service status -->
+![API](https://your-domain.com/badge.svg?url=API_PROD)
+```
+
+**Badge colors:**
+
+| State | Color | Meaning |
+|-------|-------|---------|
+| UP | Green | All services operational (or specific service is up) |
+| DOWN | Red | All services down (or specific service is down) |
+| DEGRADED | Yellow | Some services up, some down |
+| UNKNOWN | Gray | No monitoring data available |
+
+**Headers:**
+- `Content-Type: image/svg+xml`
+- `Cache-Control: public, max-age=60` (CDN-friendly)
 
 ---
 
