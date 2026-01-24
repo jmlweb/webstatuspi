@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 from ._dashboard import (
     CSP_NONCE_PLACEHOLDER,
-    HTML_DASHBOARD,
+    get_dashboard,
 )
 from ._pwa import (
     ICON_192_PNG,
@@ -731,8 +731,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             initial_data = "null"
 
         # Build HTML with nonce and initial data injected
-        # Replace nonce placeholder in the template, then inject data
-        html = HTML_DASHBOARD.replace(CSP_NONCE_PLACEHOLDER, nonce)
+        # get_dashboard() supports hot-reload: detects template file changes
+        html = get_dashboard().replace(CSP_NONCE_PLACEHOLDER, nonce)
         html = html.replace("__INITIAL_DATA__", initial_data)
         body = html.encode("utf-8")
 

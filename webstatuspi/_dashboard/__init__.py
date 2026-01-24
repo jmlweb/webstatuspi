@@ -4,6 +4,9 @@ This package contains the embedded HTML/CSS/JS dashboard served at the root endp
 The dashboard is static HTML that fetches data dynamically via JavaScript from /status.
 
 Separated into multiple modules for better maintainability while keeping zero dependencies.
+
+The HTML template supports hot-reload: changes to dashboard.html are detected
+automatically without requiring a server restart.
 """
 
 from ._css import CSS_STYLES
@@ -12,21 +15,30 @@ from ._js_charts import JS_CHARTS
 from ._js_core import JS_CORE
 from ._js_utils import JS_UTILS
 
-# Assemble the complete HTML dashboard
-HTML_DASHBOARD = build_html(CSS_STYLES, JS_UTILS, JS_CHARTS, JS_CORE)
-
-# Split HTML at the initial data marker for efficient concatenation
-# This avoids creating a new 35KB+ string on every request
-_HTML_PARTS = HTML_DASHBOARD.split("__INITIAL_DATA__")
-HTML_DASHBOARD_PREFIX = _HTML_PARTS[0].encode("utf-8")
-HTML_DASHBOARD_SUFFIX = _HTML_PARTS[1].encode("utf-8")
-
 # CSP nonce placeholder for runtime replacement
 CSP_NONCE_PLACEHOLDER = "__CSP_NONCE__"
 
+
+def get_dashboard() -> str:
+    """Get the complete HTML dashboard.
+
+    This function rebuilds the dashboard if the HTML template has changed,
+    enabling hot-reload during development. The CSS and JavaScript are
+    currently not hot-reloaded (require server restart).
+
+    Returns:
+        Complete HTML dashboard string with placeholders for CSP nonce
+        and initial data.
+    """
+    return build_html(CSS_STYLES, JS_UTILS, JS_CHARTS, JS_CORE)
+
+
+# For backwards compatibility, provide HTML_DASHBOARD as initial value
+# Note: This won't hot-reload. Use get_dashboard() for hot-reload support.
+HTML_DASHBOARD = get_dashboard()
+
 __all__ = [
     "HTML_DASHBOARD",
-    "HTML_DASHBOARD_PREFIX",
-    "HTML_DASHBOARD_SUFFIX",
     "CSP_NONCE_PLACEHOLDER",
+    "get_dashboard",
 ]
