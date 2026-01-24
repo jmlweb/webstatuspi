@@ -41,9 +41,9 @@ How does WebStatusπ compare to popular alternatives?
 
 | Tool | RAM Usage | CPU Usage | Docker Image |
 |------|-----------|-----------|--------------|
-| **WebStatusπ** | **17 MB** | 0.2% | 61 MB |
-| Statping-ng | 30 MB | 0.5% | 58 MB |
-| Uptime Kuma | 114 MB | 0.2% | 439 MB |
+| **WebStatusπ** | **26 MB** | 0.2% | 66 MB |
+| Statping-ng | 32 MB | 0.3% | 58 MB |
+| Uptime Kuma | 124 MB | 0.5% | 439 MB |
 
 **Real-world on Raspberry Pi 1B+** (ARMv6, 512MB RAM)
 
@@ -51,7 +51,7 @@ How does WebStatusπ compare to popular alternatives?
 |--------|-------|
 | RAM (application) | ~20 MB |
 | RAM (with Python runtime) | ~34 MB |
-| CPU | 1-2% idle, peaks during checks |
+| CPU | ~1% average |
 | Storage | <1 MB (uses system Python) |
 
 **Installation Size** (native, no Docker)
