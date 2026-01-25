@@ -563,7 +563,8 @@ class StatusHandler(BaseHTTPRequestHandler):
     def _send_png(self, png_data: bytes) -> None:
         """Send a PNG image (for PWA icons)."""
         self.send_response(200)
-        self._add_security_headers()
+        # Note: No CSP headers for images - browsers apply inline styles
+        # when displaying images directly, which CSP would block
         self.send_header("Content-Type", "image/png")
         self.send_header("Content-Length", str(len(png_data)))
         # Cache icons for 1 week (immutable, versioned via manifest)
