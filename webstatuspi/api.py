@@ -803,6 +803,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "is_up": c.is_up,
                         "status_code": c.status_code,
                         "response_time_ms": c.response_time_ms,
+                        "ttfb_ms": c.ttfb_ms,
                         "error": c.error_message,
                     }
                     for c in checks

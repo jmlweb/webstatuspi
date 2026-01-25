@@ -4,17 +4,30 @@
 
 ## Quick Stats
 
-- **Pending**: 0 tasks
-- **In Progress**: 0 tasks
+- **Pending**: 6 tasks
+- **In Progress**: 1 task
 - **Completed**: 43 tasks
 
 ## Current Focus
 
-> All backlog tasks completed! 🎉
+> **Task #043**: TTFB Metric (Core, Database, API)
+
+## In Progress
+
+| # | Task | Slice | Priority |
+|---|------|-------|----------|
+| 043 | [TTFB Metric](backlog/043-ttfb-metric.md) | Core, Database, API | P3 |
 
 ## Backlog (Priority Order)
 
-(empty - all tasks completed)
+| # | Task | Slice | Priority |
+|---|------|-------|----------|
+| 044 | [Content-Type & Encoding](backlog/044-content-type-encoding-metrics.md) | Core, Database, API | P3 |
+| 045 | [Redirect Tracking](backlog/045-redirect-tracking.md) | Core, Database, API | P3 |
+| 046 | [Security Headers Tracking](backlog/046-security-headers-tracking.md) | Core, Database, API | P3 |
+| 047 | [Cache Headers Tracking](backlog/047-cache-headers-tracking.md) | Core, Database, API | P4 |
+| 048 | [Resolved IP Tracking](backlog/048-resolved-ip-tracking.md) | Core, Database, API | P4 |
+| 049 | [TLS Version Tracking](backlog/049-tls-version-tracking.md) | Core, Database, API | P4 |
 
 ## Completed Tasks
 

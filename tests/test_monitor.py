@@ -758,7 +758,8 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
-            mock_response.read = MagicMock(return_value=b'{"status": {"healthy": true}}')
+            # First call returns first byte for TTFB, second call returns rest
+            mock_response.read = MagicMock(side_effect=[b"{", b'"status": {"healthy": true}}'])
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
@@ -781,7 +782,8 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
-            mock_response.read = MagicMock(return_value=b'{"status": "ok"}')
+            # First call returns first byte for TTFB, second call returns rest
+            mock_response.read = MagicMock(side_effect=[b"{", b'"status": "ok"}'])
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
@@ -804,7 +806,8 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
-            mock_response.read = MagicMock(return_value=b'{"status": {}}')
+            # First call returns first byte for TTFB, second call returns rest
+            mock_response.read = MagicMock(side_effect=[b"{", b'"status": {}}'])
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
@@ -828,7 +831,8 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
-            mock_response.read = MagicMock(return_value=b'{"status": {"healthy": false}}')
+            # First call returns first byte for TTFB, second call returns rest
+            mock_response.read = MagicMock(side_effect=[b"{", b'"status": {"healthy": false}}'])
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
@@ -926,17 +930,20 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
-            # Create large response body
+            # First call returns first byte for TTFB, second call returns rest (limited)
             large_body = b"x" * (MAX_BODY_SIZE + 1000) + b"OK"
-            mock_response.read = MagicMock(return_value=large_body[:MAX_BODY_SIZE])
+            mock_response.read = MagicMock(side_effect=[b"x", large_body[: MAX_BODY_SIZE - 1]])
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
 
             check_url(url_config)
 
-            # Verify read was called with MAX_BODY_SIZE limit
-            mock_response.read.assert_called_once_with(MAX_BODY_SIZE)
+            # Verify read was called: first for TTFB (1 byte), then for body (MAX_BODY_SIZE - 1)
+            calls = mock_response.read.call_args_list
+            assert len(calls) == 2
+            assert calls[0] == ((1,),)  # TTFB read
+            assert calls[1] == ((MAX_BODY_SIZE - 1,),)  # Body read
 
     def test_no_validation_when_not_configured(self) -> None:
         """No validation is performed when keyword and json_path are not set."""
@@ -950,6 +957,7 @@ class TestContentValidation:
             mock_response = MagicMock()
             mock_response.status = 200
             mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_urlopen.return_value = mock_response
@@ -958,8 +966,8 @@ class TestContentValidation:
 
             assert result.is_up is True
             assert result.error_message is None
-            # Verify read was not called
-            mock_response.read.assert_not_called()
+            # Verify only TTFB read(1) was called, no full body read
+            mock_response.read.assert_called_once_with(1)
 
 
 class TestIsSuccessStatus:
@@ -1424,6 +1432,106 @@ class TestSSLCertExtraction:
 
         assert ssl_info is None
         assert "hostname" in error.lower() or "invalid" in error.lower()
+
+
+class TestTTFBMeasurement:
+    """Tests for Time to First Byte (TTFB) measurement."""
+
+    def test_ttfb_is_measured(self, url_config: UrlConfig) -> None:
+        """TTFB is measured and included in result."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.ttfb_ms is not None
+            assert isinstance(result.ttfb_ms, int)
+            assert result.ttfb_ms >= 0
+
+    def test_ttfb_less_than_or_equal_to_response_time(self, url_config: UrlConfig) -> None:
+        """TTFB should be less than or equal to total response time."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.ttfb_ms <= result.response_time_ms
+
+    def test_ttfb_measured_with_content_validation(self) -> None:
+        """TTFB is measured even when content validation is configured."""
+        url_config = UrlConfig(
+            name="TEST",
+            url="https://example.com",
+            timeout=5,
+            keyword="OK",
+        )
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            # First call returns first byte, second call returns rest
+            mock_response.read = MagicMock(side_effect=[b"O", b"K - status"])
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.ttfb_ms is not None
+            assert result.is_up is True  # Content validation passed
+
+    def test_ttfb_none_for_connection_errors(self, url_config: UrlConfig) -> None:
+        """TTFB is None when connection fails."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+            result = check_url(url_config)
+
+            assert result.ttfb_ms is None
+            assert result.is_up is False
+
+    def test_ttfb_none_for_http_errors(self, url_config: UrlConfig) -> None:
+        """TTFB is None when HTTP error occurs (no body read)."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, 500, "Internal Server Error", {}, None)
+
+            result = check_url(url_config)
+
+            assert result.ttfb_ms is None
+            assert result.is_up is False
+
+    def test_read_called_with_one_byte_for_ttfb(self, url_config: UrlConfig) -> None:
+        """Response.read(1) is called to measure TTFB."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            check_url(url_config)
+
+            # First call should be read(1) for TTFB
+            mock_response.read.assert_called_with(1)
 
 
 class TestSSLCertInCheckUrl:

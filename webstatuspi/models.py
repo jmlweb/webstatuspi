@@ -24,6 +24,7 @@ class CheckResult:
         ssl_cert_expires_at: SSL certificate expiration timestamp, or None for HTTP URLs.
         ssl_cert_expires_in_days: Days until SSL certificate expires (negative if expired), or None.
         ssl_cert_error: Error message if SSL certificate extraction failed, or None.
+        ttfb_ms: Time to First Byte in milliseconds, or None if not measured.
     """
 
     url_name: str
@@ -41,6 +42,7 @@ class CheckResult:
     ssl_cert_expires_at: datetime | None = None
     ssl_cert_expires_in_days: int | None = None
     ssl_cert_error: str | None = None
+    ttfb_ms: int | None = None
 
 
 @dataclass(frozen=True)

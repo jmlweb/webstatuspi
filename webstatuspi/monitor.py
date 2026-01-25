@@ -515,7 +515,6 @@ def check_url(
             headers={"User-Agent": user_agent},
         )
         with _opener.open(request, timeout=url_config.timeout) as response:
-            elapsed_ms = int((time.monotonic() - start) * 1000)
             status_code = response.status
             is_up = _is_success_status(status_code, url_config.success_codes)
 
@@ -529,11 +528,17 @@ def check_url(
             # Extract status text (reason phrase) if available
             status_text = getattr(response, "reason", None)
 
+            # Measure TTFB by reading the first byte
+            # TTFB = time from request start until first byte of response body
+            first_byte = response.read(1)
+            ttfb_ms = int((time.monotonic() - start) * 1000)
+
             # Perform content validation if configured
             error_message = None
             if is_up and (url_config.keyword or url_config.json_path):
-                # Read response body (limited to MAX_BODY_SIZE for Pi 1B+ memory)
-                body_bytes = response.read(MAX_BODY_SIZE)
+                # Read rest of response body (limited to MAX_BODY_SIZE for Pi 1B+ memory)
+                rest_bytes = response.read(MAX_BODY_SIZE - 1)
+                body_bytes = first_byte + rest_bytes
                 try:
                     body = body_bytes.decode("utf-8")
                 except UnicodeDecodeError:
@@ -553,6 +558,9 @@ def check_url(
                         if not is_valid:
                             is_up = False
                             error_message = validation_error
+
+            # Total response time (includes body read if validation was performed)
+            elapsed_ms = int((time.monotonic() - start) * 1000)
 
             # SSL expiration overrides is_up status
             if ssl_expired:
@@ -575,6 +583,7 @@ def check_url(
                 ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
                 ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
                 ssl_cert_error=ssl_cert_error,
+                ttfb_ms=ttfb_ms,
             )
 
     except urllib.error.HTTPError as e:
