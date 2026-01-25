@@ -1,10 +1,11 @@
 # Task #043: Time to First Byte (TTFB) Metric
 
 ## Metadata
-- **Status**: in_progress
+- **Status**: completed
 - **Priority**: P3
 - **Slice**: Core, Database, API
 - **Created**: 2026-01-25
+- **Completed**: 2026-01-25
 - **Blocked by**: -
 
 ## Vertical Slice Definition
@@ -76,3 +77,7 @@ None
 - Added `ttfb_ms` to `/history/<name>` API response in `api.py`
 - Added 6 unit tests for TTFB measurement in `test_monitor.py`
 - All 405 tests passing, mypy clean
+
+### 2026-01-25: Task Completed
+
+Task completed and moved to done/

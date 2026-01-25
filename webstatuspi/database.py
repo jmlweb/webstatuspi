@@ -242,6 +242,11 @@ def init_db(db_path: str) -> sqlite3.Connection:
         # TTFB (Time to First Byte) metric
         if "ttfb_ms" not in columns:
             conn.execute("ALTER TABLE checks ADD COLUMN ttfb_ms INTEGER")
+        # Content-Type and Content-Encoding headers
+        if "content_type" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN content_type TEXT")
+        if "content_encoding" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN content_encoding TEXT")
 
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_checks_url_name
@@ -293,8 +298,8 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                 (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
                  content_length, server_header, status_text,
                  ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error,
-                 ttfb_ms)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ttfb_ms, content_type, content_encoding)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     result.url_name,
@@ -313,6 +318,8 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                     result.ssl_cert_expires_in_days,
                     result.ssl_cert_error,
                     result.ttfb_ms,
+                    result.content_type,
+                    result.content_encoding,
                 ),
             )
             conn.commit()
@@ -360,6 +367,8 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                         ssl_cert_expires_at,
                         ssl_cert_expires_in_days,
                         ssl_cert_error,
+                        content_type,
+                        content_encoding,
                         ROW_NUMBER() OVER (PARTITION BY url_name ORDER BY checked_at DESC) as rn
                     FROM checks
                 ),
@@ -448,6 +457,8 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                     l.ssl_cert_expires_at,
                     l.ssl_cert_expires_in_days,
                     l.ssl_cert_error,
+                    l.content_type,
+                    l.content_encoding,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -501,6 +512,8 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                 ),
                 ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
                 ssl_cert_error=row["ssl_cert_error"],
+                content_type=row["content_type"],
+                content_encoding=row["content_encoding"],
             )
             for row in rows
         ]
@@ -613,7 +626,9 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                         ssl_cert_subject,
                         ssl_cert_expires_at,
                         ssl_cert_expires_in_days,
-                        ssl_cert_error
+                        ssl_cert_error,
+                        content_type,
+                        content_encoding
                     FROM checks
                     WHERE url_name = ?
                     ORDER BY checked_at DESC
@@ -686,6 +701,8 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                     l.ssl_cert_expires_at,
                     l.ssl_cert_expires_in_days,
                     l.ssl_cert_error,
+                    l.content_type,
+                    l.content_encoding,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -746,6 +763,8 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
             ),
             ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
             ssl_cert_error=row["ssl_cert_error"],
+            content_type=row["content_type"],
+            content_encoding=row["content_encoding"],
         )
 
     except sqlite3.Error as e:
@@ -787,7 +806,7 @@ def get_history(
             SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
                    content_length, server_header, status_text,
                    ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error,
-                   ttfb_ms
+                   ttfb_ms, content_type, content_encoding
             FROM checks
             WHERE url_name = ? AND checked_at >= ?
             ORDER BY checked_at DESC
@@ -820,6 +839,8 @@ def get_history(
                 ssl_cert_expires_in_days=row["ssl_cert_expires_in_days"],
                 ssl_cert_error=row["ssl_cert_error"],
                 ttfb_ms=row["ttfb_ms"],
+                content_type=row["content_type"],
+                content_encoding=row["content_encoding"],
             )
             for row in rows
         ]

@@ -1680,6 +1680,282 @@ class TestHistoryCache:
         assert len(result2) == 2
 
 
+class TestContentTypeEncodingMetrics:
+    """Tests for Content-Type and Content-Encoding fields (Task #044)."""
+
+    def test_content_type_stored_and_retrieved(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Type header is stored and retrieved correctly."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="CTYPE_URL",
+            url="https://ctype.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_type="application/json; charset=utf-8",
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_type == "application/json; charset=utf-8"
+
+    def test_content_type_handles_none(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Type handles None when header not present."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="NO_CTYPE_URL",
+            url="https://noctype.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_type=None,
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_type is None
+
+    def test_content_encoding_stored_and_retrieved(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Encoding header is stored and retrieved correctly."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="CENC_URL",
+            url="https://cenc.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_encoding="gzip",
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_encoding == "gzip"
+
+    def test_content_encoding_handles_none(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Encoding handles None when header not present."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="NO_CENC_URL",
+            url="https://nocenc.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_encoding=None,
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_encoding is None
+
+    def test_content_type_and_encoding_together(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Type and Content-Encoding stored and retrieved together."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="BOTH_CT_URL",
+            url="https://bothct.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_type="text/html; charset=utf-8",
+            content_encoding="br",
+        )
+        insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 1
+        assert result[0].content_type == "text/html; charset=utf-8"
+        assert result[0].content_encoding == "br"
+
+    def test_content_type_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Type retrieved correctly for specific URL."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="URL_A",
+            url="https://a.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_type="application/xml",
+        )
+        insert_check(db_conn, check)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_A")
+
+        assert result is not None
+        assert result.content_type == "application/xml"
+
+    def test_content_encoding_by_name(self, db_conn: sqlite3.Connection) -> None:
+        """Content-Encoding retrieved correctly for specific URL."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="URL_B",
+            url="https://b.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_encoding="deflate",
+        )
+        insert_check(db_conn, check)
+
+        from webstatuspi.database import get_latest_status_by_name
+
+        result = get_latest_status_by_name(db_conn, "URL_B")
+
+        assert result is not None
+        assert result.content_encoding == "deflate"
+
+    def test_history_includes_content_type_and_encoding(self, db_conn: sqlite3.Connection) -> None:
+        """History results include Content-Type and Content-Encoding."""
+        now = datetime.now(UTC)
+
+        check = CheckResult(
+            url_name="HISTORY_CT_URL",
+            url="https://historyct.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=now,
+            content_type="application/json",
+            content_encoding="gzip",
+        )
+        insert_check(db_conn, check)
+
+        history = get_history(db_conn, "HISTORY_CT_URL", now - timedelta(hours=1))
+
+        assert len(history) == 1
+        assert history[0].content_type == "application/json"
+        assert history[0].content_encoding == "gzip"
+
+    def test_various_content_types_stored(self, db_conn: sqlite3.Connection) -> None:
+        """Different Content-Type values are stored correctly."""
+        now = datetime.now(UTC)
+
+        content_types = [
+            ("application/json", "URL_1"),
+            ("text/html; charset=utf-8", "URL_2"),
+            ("application/xml", "URL_3"),
+            ("text/plain", "URL_4"),
+        ]
+
+        for content_type, url_name in content_types:
+            check = CheckResult(
+                url_name=url_name,
+                url=f"https://{url_name.lower()}.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=now,
+                content_type=content_type,
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 4
+        content_type_values = {s.content_type for s in result}
+        assert content_type_values == {
+            "application/json",
+            "text/html; charset=utf-8",
+            "application/xml",
+            "text/plain",
+        }
+
+    def test_various_content_encodings_stored(self, db_conn: sqlite3.Connection) -> None:
+        """Different Content-Encoding values are stored correctly."""
+        now = datetime.now(UTC)
+
+        encodings = [
+            ("gzip", "URL_1"),
+            ("br", "URL_2"),
+            ("deflate", "URL_3"),
+            ("identity", "URL_4"),
+        ]
+
+        for encoding, url_name in encodings:
+            check = CheckResult(
+                url_name=url_name,
+                url=f"https://{url_name.lower()}.example.com",
+                status_code=200,
+                response_time_ms=100,
+                is_up=True,
+                error_message=None,
+                checked_at=now,
+                content_encoding=encoding,
+            )
+            insert_check(db_conn, check)
+
+        result = get_latest_status(db_conn)
+
+        assert len(result) == 4
+        encoding_values = {s.content_encoding for s in result}
+        assert encoding_values == {"gzip", "br", "deflate", "identity"}
+
+    def test_schema_migration_adds_content_type_and_encoding_columns(self, tmp_path: Path) -> None:
+        """Schema migration adds content_type and content_encoding columns to existing database."""
+        # Create a database without the new columns (simulate old schema)
+        db_path = str(tmp_path / "migration_ct_test.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE checks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                status_code INTEGER,
+                response_time_ms INTEGER NOT NULL,
+                is_up INTEGER NOT NULL,
+                error_message TEXT,
+                checked_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Re-initialize with migration
+        conn = init_db(db_path)
+
+        # Verify columns were added
+        cursor = conn.execute("PRAGMA table_info(checks)")
+        columns = {row[1] for row in cursor.fetchall()}
+        assert "content_type" in columns
+        assert "content_encoding" in columns
+
+        conn.close()
+
+
 class TestStatusByNameUsesCache:
     """Tests for get_latest_status_by_name using the main status cache."""
 

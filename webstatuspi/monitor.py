@@ -525,6 +525,10 @@ def check_url(
             # Extract Server header if present
             server_header = response.headers.get("Server")
 
+            # Extract Content-Type and Content-Encoding headers if present
+            content_type = response.headers.get("Content-Type")
+            content_encoding = response.headers.get("Content-Encoding")
+
             # Extract status text (reason phrase) if available
             status_text = getattr(response, "reason", None)
 
@@ -584,6 +588,8 @@ def check_url(
                 ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
                 ssl_cert_error=ssl_cert_error,
                 ttfb_ms=ttfb_ms,
+                content_type=content_type,
+                content_encoding=content_encoding,
             )
 
     except urllib.error.HTTPError as e:
@@ -597,6 +603,10 @@ def check_url(
 
         # Extract Server header if present
         server_header = e.headers.get("Server") if e.headers else None
+
+        # Extract Content-Type and Content-Encoding headers if present
+        content_type = e.headers.get("Content-Type") if e.headers else None
+        content_encoding = e.headers.get("Content-Encoding") if e.headers else None
 
         # Extract status text (reason phrase)
         status_text = getattr(e, "reason", None)
@@ -623,6 +633,8 @@ def check_url(
             ssl_cert_expires_at=ssl_cert_info.expires_at if ssl_cert_info else None,
             ssl_cert_expires_in_days=ssl_cert_info.expires_in_days if ssl_cert_info else None,
             ssl_cert_error=ssl_cert_error,
+            content_type=content_type,
+            content_encoding=content_encoding,
         )
 
     except urllib.error.URLError as e:

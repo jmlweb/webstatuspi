@@ -1534,6 +1534,155 @@ class TestTTFBMeasurement:
             mock_response.read.assert_called_with(1)
 
 
+class TestContentTypeEncodingHeaders:
+    """Tests for Content-Type and Content-Encoding header extraction."""
+
+    def test_content_type_extracted(self, url_config: UrlConfig) -> None:
+        """Content-Type header is extracted from response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {"Content-Type": "application/json; charset=utf-8"}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_type == "application/json; charset=utf-8"
+
+    def test_content_encoding_extracted(self, url_config: UrlConfig) -> None:
+        """Content-Encoding header is extracted from response."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {"Content-Encoding": "gzip"}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_encoding == "gzip"
+
+    def test_both_headers_extracted(self, url_config: UrlConfig) -> None:
+        """Both Content-Type and Content-Encoding headers are extracted."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {
+                "Content-Type": "text/html; charset=utf-8",
+                "Content-Encoding": "br",
+            }
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_type == "text/html; charset=utf-8"
+            assert result.content_encoding == "br"
+
+    def test_content_type_none_when_not_present(self, url_config: UrlConfig) -> None:
+        """Content-Type is None when header not present."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_type is None
+
+    def test_content_encoding_none_when_not_present(self, url_config: UrlConfig) -> None:
+        """Content-Encoding is None when header not present."""
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_response.read = MagicMock(return_value=b"x")
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_response
+
+            result = check_url(url_config)
+
+            assert result.content_encoding is None
+
+    def test_content_type_extracted_on_http_error(self, url_config: UrlConfig) -> None:
+        """Content-Type is extracted even for HTTP errors."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+            mock_headers = MagicMock()
+            mock_headers.get = MagicMock(
+                side_effect=lambda k: {
+                    "Content-Type": "application/json",
+                    "Content-Encoding": "gzip",
+                    "Content-Length": None,
+                    "Server": None,
+                }.get(k)
+            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, 404, "Not Found", mock_headers, None)
+
+            result = check_url(url_config)
+
+            assert result.content_type == "application/json"
+            assert result.content_encoding == "gzip"
+            assert result.status_code == 404
+            assert result.is_up is False
+
+    def test_various_content_types(self, url_config: UrlConfig) -> None:
+        """Various Content-Type values are correctly extracted."""
+        content_types = [
+            "application/json",
+            "text/html; charset=utf-8",
+            "application/xml",
+            "text/plain",
+            "application/javascript",
+            "image/png",
+        ]
+
+        for content_type in content_types:
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {"Content-Type": content_type}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.content_type == content_type
+
+    def test_various_content_encodings(self, url_config: UrlConfig) -> None:
+        """Various Content-Encoding values are correctly extracted."""
+        encodings = ["gzip", "br", "deflate", "identity", "compress", "gzip, deflate"]
+
+        for encoding in encodings:
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {"Content-Encoding": encoding}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.content_encoding == encoding
+
+
 class TestSSLCertInCheckUrl:
     """Tests for SSL certificate integration in check_url."""
 

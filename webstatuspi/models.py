@@ -25,6 +25,8 @@ class CheckResult:
         ssl_cert_expires_in_days: Days until SSL certificate expires (negative if expired), or None.
         ssl_cert_error: Error message if SSL certificate extraction failed, or None.
         ttfb_ms: Time to First Byte in milliseconds, or None if not measured.
+        content_type: Response Content-Type header value, or None if not provided.
+        content_encoding: Response Content-Encoding header value (e.g., gzip, br), or None if not provided.
     """
 
     url_name: str
@@ -43,6 +45,8 @@ class CheckResult:
     ssl_cert_expires_in_days: int | None = None
     ssl_cert_error: str | None = None
     ttfb_ms: int | None = None
+    content_type: str | None = None
+    content_encoding: str | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,8 @@ class UrlStatus:
         ssl_cert_expires_at: SSL certificate expiration timestamp, or None for HTTP URLs.
         ssl_cert_expires_in_days: Days until SSL certificate expires (negative if expired), or None.
         ssl_cert_error: Error message if SSL certificate extraction failed, or None.
+        content_type: Most recent response Content-Type header, or None if not provided.
+        content_encoding: Most recent response Content-Encoding header, or None if not provided.
     """
 
     url_name: str
@@ -104,3 +110,5 @@ class UrlStatus:
     ssl_cert_expires_at: datetime | None = None
     ssl_cert_expires_in_days: int | None = None
     ssl_cert_error: str | None = None
+    content_type: str | None = None
+    content_encoding: str | None = None
