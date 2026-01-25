@@ -6,6 +6,7 @@ Separated from the main dashboard module for maintainability.
 
 CSS_STYLES = """
         :root {
+            /* === COLORS === */
             --bg-dark: #0a0a0f;
             --bg-panel: #12121a;
             --cyan: #00fff9;  /* Bright cyan - WCAG AA compliant against dark backgrounds */
@@ -17,20 +18,63 @@ CSS_STYLES = """
             --text: #e0e0e0;
             --text-dim: #9090a8;  /* Improved from #606080 for WCAG AA contrast */
             --border: #2a2a3a;
-            /* ========================================
-               LAYOUT GRID SYSTEM - Strict Alignment
-               ======================================== */
+            --text-muted: #8899A6;  /* Muted text for modal labels */
+
+            /* === RGB VALUES (for rgba()) === */
+            --cyan-rgb: 0, 255, 249;
+            --red-rgb: 255, 0, 64;
+            --green-rgb: 0, 255, 102;
+            --orange-rgb: 255, 136, 0;
+            --yellow-rgb: 240, 255, 0;
+            --text-dim-rgb: 144, 144, 168;
+            --text-rgb: 224, 224, 224;
+
+            /* === TYPOGRAPHY === */
+            --font-mono: 'Fira Code', 'Consolas', 'Monaco', 'Menlo', monospace;
+            --font-mono-chart: 'JetBrains Mono', monospace;
+
+            /* === LAYOUT GRID SYSTEM === */
             --gutter: 20px;           /* Universal left/right margin */
             --box-padding: 20px;      /* Internal padding for all boxes */
             --gap: 12px;              /* Gap between grid cells */
             --card-max-width: 420px;  /* Max width for cards */
+
+            /* === CLIP PATHS === */
+            --clip-corner-sm: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+            --clip-corner-md: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+            --clip-corner-lg: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+            --clip-diamond: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+
+            /* === TEXT SHADOWS (glow effects) === */
+            --glow-cyan: 0 0 10px var(--cyan), 0 0 20px var(--cyan);
+            --glow-cyan-subtle: 0 0 8px var(--cyan), 0 0 16px rgba(var(--cyan-rgb), 0.4);
+            --glow-red: 0 0 8px var(--red), 0 0 16px rgba(var(--red-rgb), 0.4);
+            --glow-green: 0 0 8px var(--green), 0 0 16px var(--green);
+            --glow-orange: 0 0 6px var(--orange);
+            --glow-yellow: 0 0 6px var(--yellow);
+            --glow-dim: 0 0 4px rgba(var(--text-dim-rgb), 0.5);
+
+            /* === BOX SHADOWS === */
+            --shadow-cyan-subtle: 0 0 8px rgba(var(--cyan-rgb), 0.1);
+            --shadow-cyan-medium: 0 0 15px rgba(var(--cyan-rgb), 0.25), 0 0 30px rgba(var(--cyan-rgb), 0.15);
+            --shadow-cyan-strong: 0 0 20px rgba(var(--cyan-rgb), 0.15);
+            --shadow-cyan-glow: 0 0 30px rgba(var(--cyan-rgb), 0.3), 0 0 60px rgba(var(--cyan-rgb), 0.1);
+            --shadow-red-subtle: 0 0 8px rgba(var(--red-rgb), 0.2);
+            --shadow-red-medium: 0 0 15px rgba(var(--red-rgb), 0.35), 0 0 30px rgba(var(--red-rgb), 0.2);
+            --shadow-green-glow: 0 0 10px var(--green), 0 0 20px var(--green);
+            --shadow-yellow-glow: 0 0 10px var(--yellow), 0 0 20px var(--yellow);
+
+            /* === TRANSITIONS === */
+            --transition-fast: all 0.2s ease;
+            --transition-normal: all 0.3s ease;
+            --transition-slow: all 0.5s ease;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             /* Use system monospace fonts for zero-dependency deployment */
-            font-family: 'Fira Code', 'Consolas', 'Monaco', 'Menlo', monospace;
+            font-family: var(--font-mono);
             background: var(--bg-dark);
             color: var(--text);
             min-height: 100vh;
@@ -77,7 +121,7 @@ CSS_STYLES = """
             background: linear-gradient(
                 180deg,
                 transparent 0%,
-                rgba(0, 255, 249, 0.02) 50%,
+                rgba(var(--cyan-rgb), 0.02) 50%,
                 transparent 100%
             );
             animation: scanline 32s linear infinite;
@@ -105,14 +149,14 @@ CSS_STYLES = """
             80% { opacity: 1; }
         }
 
-        header {
+        header[role="banner"] {
             background: var(--bg-panel);
             padding: 16px var(--gutter);
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--cyan);
-            box-shadow: 0 0 20px rgba(0, 255, 249, 0.15);
+            box-shadow: var(--shadow-cyan-strong);
         }
 
         header h1 {
@@ -121,7 +165,7 @@ CSS_STYLES = """
             text-transform: uppercase;
             letter-spacing: 0.2em;
             color: var(--cyan);
-            text-shadow: 0 0 10px var(--cyan), 0 0 20px var(--cyan);
+            text-shadow: var(--glow-cyan);
         }
 
         .logo-text {
@@ -137,21 +181,21 @@ CSS_STYLES = """
             text-transform: uppercase;
             letter-spacing: 0.1em;
             color: var(--text-dim);
-            text-shadow: 0 0 4px rgba(96, 96, 128, 0.5);
+            text-shadow: var(--glow-dim);
         }
 
         .live-dot {
             width: 8px;
             height: 8px;
             background: var(--green);
-            box-shadow: 0 0 10px var(--green), 0 0 20px var(--green);
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            box-shadow: var(--shadow-green-glow);
+            clip-path: var(--clip-diamond);
             animation: pulse 1.5s infinite;
         }
 
         .live-dot.updating {
             background: var(--yellow);
-            box-shadow: 0 0 10px var(--yellow), 0 0 20px var(--yellow);
+            box-shadow: var(--shadow-yellow-glow);
         }
 
         @keyframes pulse {
@@ -175,12 +219,12 @@ CSS_STYLES = """
 
         .count-up {
             color: var(--green);
-            text-shadow: 0 0 8px var(--green), 0 0 16px var(--green);
+            text-shadow: var(--glow-green);
         }
 
         .count-down {
             color: var(--red);
-            text-shadow: 0 0 8px var(--red), 0 0 16px var(--red);
+            text-shadow: var(--glow-red);
         }
 
         .count-dimmed {
@@ -190,7 +234,52 @@ CSS_STYLES = """
 
         .updated-time {
             color: var(--text-dim);
-            text-shadow: 0 0 4px rgba(96, 96, 128, 0.4);
+            text-shadow: 0 0 4px rgba(var(--text-dim-rgb), 0.4);
+        }
+
+        .summary-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        /* Button styles - cyberpunk theme */
+        .install-button,
+        .reset-button {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            clip-path: var(--clip-corner-sm);
+            box-shadow: 0 0 4px rgba(var(--cyan-rgb), 0.1);
+        }
+
+        .install-button:hover,
+        .reset-button:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 10px rgba(var(--cyan-rgb), 0.3), 0 0 20px rgba(var(--cyan-rgb), 0.15);
+            text-shadow: 0 0 6px var(--cyan);
+        }
+
+        .install-button:active,
+        .reset-button:active {
+            background: rgba(var(--cyan-rgb), 0.05);
+            transform: scale(0.98);
+        }
+
+        .reset-button:focus-visible {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan);
+            outline: 2px solid var(--cyan);
+            outline-offset: 2px;
         }
 
         main {
@@ -223,9 +312,9 @@ CSS_STYLES = """
             border: 1px solid var(--border);
             padding: var(--box-padding);
             position: relative;
-            clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-            transition: all 0.3s ease;
-            box-shadow: 0 0 8px rgba(0, 255, 249, 0.1);
+            clip-path: var(--clip-corner-md);
+            transition: var(--transition-normal);
+            box-shadow: var(--shadow-cyan-subtle);
             /* Reserve space to prevent layout shift */
             min-height: 200px;
             contain: layout style;
@@ -238,7 +327,7 @@ CSS_STYLES = """
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(135deg, rgba(0, 255, 249, 0.03) 0%, transparent 50%);
+            background: linear-gradient(135deg, rgba(var(--cyan-rgb), 0.03) 0%, transparent 50%);
             pointer-events: none;
         }
 
@@ -256,14 +345,13 @@ CSS_STYLES = """
 
         .card:hover {
             border-color: var(--cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25),
-                0 0 30px rgba(0, 255, 249, 0.15),
-                inset 0 0 20px rgba(0, 255, 249, 0.05);
+            box-shadow: var(--shadow-cyan-medium),
+                inset 0 0 20px rgba(var(--cyan-rgb), 0.05);
         }
 
         .card.down {
             border-color: var(--red);
-            box-shadow: 0 0 8px rgba(255, 0, 64, 0.2);
+            box-shadow: var(--shadow-red-subtle);
             animation: errorFlicker 3s infinite;
         }
 
@@ -273,9 +361,8 @@ CSS_STYLES = """
         }
 
         .card.down:hover {
-            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35),
-                0 0 30px rgba(255, 0, 64, 0.2),
-                inset 0 0 20px rgba(255, 0, 64, 0.05);
+            box-shadow: var(--shadow-red-medium),
+                inset 0 0 20px rgba(var(--red-rgb), 0.05);
         }
 
         /* Bottom left anchor indicator */
@@ -297,6 +384,9 @@ CSS_STYLES = """
             margin-bottom: 1rem;
             padding-bottom: 0.75rem;
             border-bottom: 1px solid var(--border);
+            background: transparent;
+            position: relative;
+            z-index: 1;
         }
 
         .status-indicator {
@@ -310,7 +400,7 @@ CSS_STYLES = """
             position: absolute;
             width: 100%;
             height: 100%;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            clip-path: var(--clip-diamond);
         }
 
         .status-indicator.up::before {
@@ -338,14 +428,14 @@ CSS_STYLES = """
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            text-shadow: 0 0 8px var(--cyan), 0 0 16px rgba(0, 255, 249, 0.4);
+            text-shadow: var(--glow-cyan-subtle);
             text-align: left;
             margin-left: 0;
         }
 
         .card.down .card-name {
             color: var(--red);
-            text-shadow: 0 0 8px var(--red), 0 0 16px rgba(255, 0, 64, 0.4);
+            text-shadow: var(--glow-red);
         }
 
         /* ========================================
@@ -368,7 +458,7 @@ CSS_STYLES = """
         }
 
         .metric-label {
-            color: #9090a8;
+            color: var(--text-dim);
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-size: 0.55rem;
@@ -380,7 +470,7 @@ CSS_STYLES = """
             font-size: 1.1rem;
             color: var(--text);
             font-variant-numeric: tabular-nums;
-            text-shadow: 0 0 8px rgba(224, 224, 224, 0.3);
+            text-shadow: 0 0 8px rgba(var(--text-rgb), 0.3);
             line-height: 1.2;
         }
 
@@ -393,7 +483,7 @@ CSS_STYLES = """
 
         .latency-warning-prefix.warning {
             color: var(--yellow);
-            text-shadow: 0 0 6px var(--yellow);
+            text-shadow: var(--glow-yellow);
         }
 
         .latency-warning-prefix.danger {
@@ -416,62 +506,24 @@ CSS_STYLES = """
         }
 
         .progress-fill {
+            --progress-color: var(--cyan);
             height: 100%;
             width: var(--progress-width, 0%);
             background: repeating-linear-gradient(
                 90deg,
-                var(--progress-color, var(--cyan)) 0px,
-                var(--progress-color, var(--cyan)) 4px,
+                var(--progress-color) 0px,
+                var(--progress-color) 4px,
                 transparent 4px,
                 transparent 6px
             );
-            box-shadow: 0 0 6px var(--progress-color, var(--cyan));
+            box-shadow: 0 0 6px var(--progress-color);
             transition: width 0.5s ease;
         }
 
-        .progress-fill.warning {
-            background: repeating-linear-gradient(
-                90deg,
-                var(--yellow) 0px,
-                var(--yellow) 4px,
-                transparent 4px,
-                transparent 6px
-            );
-            box-shadow: 0 0 6px var(--yellow);
-        }
-
-        .progress-fill.danger {
-            background: repeating-linear-gradient(
-                90deg,
-                var(--red) 0px,
-                var(--red) 4px,
-                transparent 4px,
-                transparent 6px
-            );
-            box-shadow: 0 0 6px var(--red);
-        }
-
-        .progress-fill.orange {
-            background: repeating-linear-gradient(
-                90deg,
-                var(--orange) 0px,
-                var(--orange) 4px,
-                transparent 4px,
-                transparent 6px
-            );
-            box-shadow: 0 0 6px var(--orange);
-        }
-
-        .progress-fill.success {
-            background: repeating-linear-gradient(
-                90deg,
-                var(--green) 0px,
-                var(--green) 4px,
-                transparent 4px,
-                transparent 6px
-            );
-            box-shadow: 0 0 6px var(--green);
-        }
+        .progress-fill.warning { --progress-color: var(--yellow); }
+        .progress-fill.danger { --progress-color: var(--red); }
+        .progress-fill.orange { --progress-color: var(--orange); }
+        .progress-fill.success { --progress-color: var(--green); }
 
         /* Pulse animation for data updates */
         @keyframes latencyPulse {
@@ -501,7 +553,7 @@ CSS_STYLES = """
         }
 
         .mini-stat-label {
-            color: #9090a8;
+            color: var(--text-dim);
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-size: 0.5rem;
@@ -519,14 +571,14 @@ CSS_STYLES = """
         .warning-banner {
             margin-top: 0.5rem;
             padding: 0.4rem 0.6rem;
-            background: rgba(255, 136, 0, 0.1);
+            background: rgba(var(--orange-rgb), 0.1);
             border-left: 2px solid var(--orange);
             font-size: 0.7rem;
             color: var(--orange);
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            text-shadow: 0 0 6px var(--orange);
+            text-shadow: var(--glow-orange);
         }
 
         .warning-banner::before {
@@ -539,11 +591,11 @@ CSS_STYLES = """
             padding-top: 0.5rem;
             border-top: 1px solid var(--border);
             font-size: 0.65rem;
-            color: #9090a8;
+            color: var(--text-dim);
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            text-shadow: 0 0 4px rgba(96, 96, 128, 0.3);
+            text-shadow: 0 0 4px rgba(var(--text-dim-rgb), 0.3);
         }
 
         .card-footer::before {
@@ -557,7 +609,7 @@ CSS_STYLES = """
             font-size: 0.7rem;
             margin-top: 0.5rem;
             padding: 0.4rem;
-            background: rgba(255, 0, 64, 0.1);
+            background: rgba(var(--red-rgb), 0.1);
             border-left: 2px solid var(--red);
             overflow: hidden;
             text-overflow: ellipsis;
@@ -579,7 +631,7 @@ CSS_STYLES = """
             text-transform: uppercase;
             letter-spacing: 0.2em;
             font-size: 0.9rem;
-            text-shadow: 0 0 6px rgba(96, 96, 128, 0.4);
+            text-shadow: 0 0 6px rgba(var(--text-dim-rgb), 0.4);
         }
 
         .no-data::before {
@@ -639,8 +691,8 @@ CSS_STYLES = """
             max-height: 85vh;
             display: flex;
             flex-direction: column;
-            clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-            box-shadow: 0 0 30px rgba(0, 255, 249, 0.3), 0 0 60px rgba(0, 255, 249, 0.1);
+            clip-path: var(--clip-corner-lg);
+            box-shadow: var(--shadow-cyan-glow);
             animation: modalSlideIn 0.2s ease-out;
         }
 
@@ -655,7 +707,7 @@ CSS_STYLES = """
             align-items: center;
             padding: 16px var(--box-padding);
             border-bottom: 1px solid var(--border);
-            background: rgba(0, 255, 249, 0.03);
+            background: rgba(var(--cyan-rgb), 0.03);
         }
 
         .modal-title {
@@ -664,7 +716,7 @@ CSS_STYLES = """
             text-transform: uppercase;
             letter-spacing: 0.15em;
             color: var(--cyan);
-            text-shadow: 0 0 10px var(--cyan);
+            text-shadow: var(--glow-cyan);
         }
 
         .modal-close {
@@ -675,8 +727,8 @@ CSS_STYLES = """
             height: 44px;
             font-size: 1.2rem;
             cursor: pointer;
-            transition: all 0.2s ease;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            transition: var(--transition-fast);
+            clip-path: var(--clip-diamond);
         }
 
         .modal-close:hover {
@@ -713,7 +765,7 @@ CSS_STYLES = """
             font-size: 0.6rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            color: #9090a8;
+            color: var(--text-dim);
             line-height: 1;
         }
 
@@ -738,7 +790,7 @@ CSS_STYLES = """
         .modal-url-label,
         .modal-server-label,
         .modal-status-label {
-            color: #8899A6;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -787,7 +839,7 @@ CSS_STYLES = """
         }
 
         .modal-metrics-title {
-            color: #8899A6;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-size: 0.65rem;
@@ -802,7 +854,7 @@ CSS_STYLES = """
         }
 
         .modal-metric-label {
-            color: #8899A6;
+            color: var(--text-muted);
             font-size: 0.65rem;
         }
 
@@ -876,7 +928,7 @@ CSS_STYLES = """
         }
 
         .history-table tr:hover td {
-            background: rgba(0, 255, 249, 0.03);
+            background: rgba(var(--cyan-rgb), 0.03);
         }
 
         .history-table .status-cell {
@@ -888,7 +940,7 @@ CSS_STYLES = """
         .history-table .status-dot {
             width: 8px;
             height: 8px;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            clip-path: var(--clip-diamond);
         }
 
         .history-table .status-dot.up {
@@ -942,7 +994,7 @@ CSS_STYLES = """
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border);
             padding: 0.75rem;
-            clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+            clip-path: var(--clip-corner-sm);
         }
 
         .graph-panel-wide {
@@ -1080,13 +1132,13 @@ CSS_STYLES = """
         .chart-label {
             font-size: 8px;
             fill: var(--text-dim);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono-chart);
         }
 
         .chart-value-label {
             font-size: 7px;
             fill: var(--bg-panel);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono-chart);
             font-weight: 600;
         }
 
@@ -1102,7 +1154,7 @@ CSS_STYLES = """
             opacity: 0;
             transition: opacity 0.15s ease;
             z-index: 100;
-            box-shadow: 0 0 8px rgba(0, 255, 249, 0.3);
+            box-shadow: 0 0 8px rgba(var(--cyan-rgb), 0.3);
             white-space: nowrap;
         }
 
@@ -1144,7 +1196,7 @@ CSS_STYLES = """
             cursor: pointer;
             color: var(--text-dim);
             font-size: 0.75rem;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono-chart);
             text-transform: uppercase;
             letter-spacing: 0.05em;
             text-align: center;
@@ -1153,7 +1205,7 @@ CSS_STYLES = """
             border-bottom: none;
             margin-bottom: -1px;
             position: relative;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
             min-height: 44px;
             display: inline-flex;
             align-items: center;
@@ -1184,6 +1236,109 @@ CSS_STYLES = """
             padding: var(--box-padding);
         }
 
+        /* Reset Modal Styles */
+        .reset-modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--cyan);
+            max-width: 500px;
+            width: 90%;
+            clip-path: var(--clip-corner-lg);
+            box-shadow: var(--shadow-cyan-glow);
+            animation: modalSlideIn 0.2s ease-out;
+        }
+
+        .reset-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px var(--box-padding);
+            border-bottom: 1px solid var(--border);
+            background: rgba(var(--cyan-rgb), 0.03);
+        }
+
+        .reset-modal-title {
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .reset-modal-body {
+            padding: var(--box-padding);
+        }
+
+        .reset-warning {
+            background: rgba(var(--red-rgb), 0.1);
+            border-left: 2px solid var(--red);
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            color: var(--red);
+            font-size: 0.85rem;
+            text-shadow: 0 0 6px var(--red);
+        }
+
+        .reset-modal-body p {
+            color: var(--text);
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .reset-modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            padding: var(--box-padding);
+            border-top: 1px solid var(--border);
+            justify-content: flex-end;
+        }
+
+        .reset-button-cancel,
+        .reset-button-confirm {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.6rem 1.25rem;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            clip-path: var(--clip-corner-sm);
+            box-shadow: 0 0 4px rgba(var(--cyan-rgb), 0.1);
+        }
+
+        .reset-button-cancel:hover {
+            border-color: var(--text-dim);
+            color: var(--text);
+            box-shadow: 0 0 8px rgba(var(--text-dim-rgb), 0.3);
+        }
+
+        .reset-button-confirm {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .reset-button-confirm:hover {
+            border-color: var(--red);
+            color: var(--red);
+            box-shadow: 0 0 10px rgba(var(--red-rgb), 0.4), 0 0 20px rgba(var(--red-rgb), 0.2);
+            text-shadow: 0 0 6px var(--red);
+            background: rgba(var(--red-rgb), 0.05);
+        }
+
+        .reset-button-confirm:active {
+            background: rgba(var(--red-rgb), 0.1);
+            transform: scale(0.98);
+        }
+
+        .reset-button-cancel:focus-visible,
+        .reset-button-confirm:focus-visible {
+            outline: 2px solid var(--cyan);
+            outline-offset: 2px;
+        }
+
         /* Responsive graph adjustments */
         /* Responsive adjustments */
         @media (max-width: 768px) {
@@ -1206,7 +1361,7 @@ CSS_STYLES = """
                 max-width: 100%;
             }
 
-            header {
+            header[role="banner"] {
                 flex-direction: column;
                 gap: 0.75rem;
                 padding-bottom: 12px;
@@ -1353,7 +1508,7 @@ CSS_STYLES = """
             .card:hover {
                 /* Remove hover transform on touch */
                 transform: none;
-                box-shadow: 0 0 8px rgba(0, 255, 249, 0.1);
+                box-shadow: var(--shadow-cyan-subtle);
                 border-color: var(--border);
             }
 
@@ -1364,7 +1519,7 @@ CSS_STYLES = """
             /* Active state for touch feedback */
             .card:active {
                 border-color: var(--cyan);
-                background: rgba(0, 255, 249, 0.05);
+                background: rgba(var(--cyan-rgb), 0.05);
             }
 
             /* Ensure scrollable areas are obvious */
@@ -1411,18 +1566,16 @@ CSS_STYLES = """
 
         .card:focus-visible {
             border-color: var(--cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 249, 0.25),
-                0 0 30px rgba(0, 255, 249, 0.15),
-                inset 0 0 20px rgba(0, 255, 249, 0.05);
+            box-shadow: var(--shadow-cyan-medium),
+                inset 0 0 20px rgba(var(--cyan-rgb), 0.05);
             outline: 2px solid var(--cyan);
             outline-offset: 4px;
         }
 
         .card.down:focus-visible {
             border-color: var(--red);
-            box-shadow: 0 0 15px rgba(255, 0, 64, 0.35),
-                0 0 30px rgba(255, 0, 64, 0.2),
-                inset 0 0 20px rgba(255, 0, 64, 0.05);
+            box-shadow: var(--shadow-red-medium),
+                inset 0 0 20px rgba(var(--red-rgb), 0.05);
             outline-color: var(--red);
         }
 
@@ -1430,29 +1583,6 @@ CSS_STYLES = """
             border-color: var(--cyan);
             color: var(--cyan);
             box-shadow: 0 0 10px var(--cyan);
-        }
-
-        .reset-button:focus-visible {
-            border-color: var(--cyan);
-            color: var(--cyan);
-            box-shadow: 0 0 10px var(--cyan);
-        }
-
-        /* Accessibility: Improved color contrast */
-        .metric-label {
-            color: #9090a8;  /* Improved from #606080 for better contrast */
-        }
-
-        .updated-time {
-            color: #9090a8;  /* Improved contrast */
-        }
-
-        .live-indicator {
-            color: #9090a8;  /* Improved contrast */
-        }
-
-        .card-footer {
-            color: #9090a8;  /* Improved contrast */
         }
 
         /* Accessibility: Visually hidden utility for screen readers */
