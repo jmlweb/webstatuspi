@@ -51,18 +51,18 @@
   <!-- Logo text with glow effect -->
   <g
      id="text4"
-     style="font-family:Monaco, Menlo, monospace;text-anchor:middle;fill:#00fff9;filter:url(#glow)"
+     font-family="Monaco, Menlo, monospace"
+     text-anchor="middle"
+     fill="#00fff9"
+     filter="url(#glow)"
      aria-label="&lt;π/&gt;">
     <path
-       style="font-weight:700;font-size:44px;letter-spacing:0.2em"
        d="M 28.816113,96.333984 52.148144,84.667969 v 3.716797 L 36.206738,96.3125 52.148144,104.32617 V 108 Z"
        id="path4" />
     <path
-       style="font-weight:600;font-size:58px;letter-spacing:0.1em"
        d="M 75.947167,80.982422 V 108 H 70.651268 V 80.982422 h -0.708007 q -2.832032,0 -6.088868,1.897461 v -5.352539 q 1.246094,-0.453125 2.152344,-0.651367 0.934571,-0.198243 2.293946,-0.339844 1.359375,-0.169922 2.010742,-0.169922 h 24.751953 v 4.616211 h -5.295899 v 16.397461 q 0,6.088867 2.095704,10.620117 h -5.40918 Q 84.499901,103.49707 84.499901,97.521484 V 80.982422 Z"
        id="path5" />
     <path
-       style="font-weight:700;font-size:44px;letter-spacing:0.2em"
        d="m 107.74131,109.00977 h -3.93164 l 21.20507,-35.341801 h 3.80274 z M 163.1624,96.333984 139.83037,108 v -3.7168 l 15.96289,-7.927731 -15.96289,-8.013672 v -3.673828 z"
        id="path6" />
   </g>
