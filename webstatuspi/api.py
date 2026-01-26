@@ -153,6 +153,15 @@ def _url_status_to_dict(status: UrlStatus) -> dict[str, Any]:
         else None,
         "ssl_cert_expires_in_days": status.ssl_cert_expires_in_days,
         "ssl_cert_error": status.ssl_cert_error,
+        "redirect_count": status.redirect_count,
+        "final_url": status.final_url,
+        "has_hsts": status.has_hsts,
+        "has_x_frame_options": status.has_x_frame_options,
+        "has_x_content_type_options": status.has_x_content_type_options,
+        "cache_control": status.cache_control,
+        "cache_age": status.cache_age,
+        "resolved_ip": status.resolved_ip,
+        "tls_version": status.tls_version,
     }
 
 

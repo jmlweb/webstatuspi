@@ -91,6 +91,14 @@ JS_UTILS = """
             return 'danger';
         }
 
+        function getLatencyState(ms) {
+            if (ms === null || ms === undefined || ms === 0) return '';
+            if (ms < 200) return 'success';
+            if (ms < 500) return '';
+            if (ms < 1000) return 'warning';
+            return 'danger';
+        }
+
         function getLatencyPercent(ms) {
             if (ms === null || ms === undefined || ms === 0) return 0;
             // Scale: 0-2000ms maps to 0-100%

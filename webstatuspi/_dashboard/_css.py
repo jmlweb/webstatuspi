@@ -36,7 +36,7 @@ CSS_STYLES = """
             /* === LAYOUT GRID SYSTEM === */
             --gutter: 20px;           /* Universal left/right margin */
             --box-padding: 20px;      /* Internal padding for all boxes */
-            --gap: 12px;              /* Gap between grid cells */
+            --gap: 16px;              /* Gap between grid cells */
             --card-max-width: 420px;  /* Max width for cards */
 
             /* === CLIP PATHS === */
@@ -381,8 +381,8 @@ CSS_STYLES = """
             justify-content: flex-start;
             align-items: center;
             gap: 0.75rem;
-            margin-bottom: 1rem;
-            padding-bottom: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
             border-bottom: 1px solid var(--border);
             background: transparent;
             position: relative;
@@ -449,12 +449,13 @@ CSS_STYLES = """
 
         .metric {
             text-align: left;
-            padding: 10px;
+            padding: 12px;
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
+            transition: var(--transition-fast);
         }
 
         .metric-label {
@@ -479,6 +480,8 @@ CSS_STYLES = """
             font-size: 0.7rem;
             font-weight: 700;
             margin-right: 0.25rem;
+            display: inline-block;
+            animation: blink-warning 1.5s infinite;
         }
 
         .latency-warning-prefix.warning {
@@ -488,7 +491,40 @@ CSS_STYLES = """
 
         .latency-warning-prefix.danger {
             color: var(--red);
-            text-shadow: 0 0 6px var(--red);
+            text-shadow: 0 0 8px var(--red);
+            animation: blink-danger 1s infinite;
+        }
+
+        @keyframes blink-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes blink-danger {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Latency state indicators via data attribute */
+        .metric[data-latency-state="success"] {
+            background: rgba(var(--green-rgb), 0.1);
+            border-color: rgba(var(--green-rgb), 0.3);
+        }
+
+        .metric[data-latency-state="warning"] {
+            background: rgba(var(--yellow-rgb), 0.1);
+            border-color: rgba(var(--yellow-rgb), 0.3);
+        }
+
+        .metric[data-latency-state="danger"] {
+            background: rgba(var(--red-rgb), 0.1);
+            border-color: rgba(var(--red-rgb), 0.3);
+            animation: subtle-pulse 2s infinite;
+        }
+
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.9; }
         }
 
         .metric-empty {
@@ -498,11 +534,12 @@ CSS_STYLES = """
 
         /* Segmented progress bar */
         .progress-bar {
-            height: 3px;
+            height: 5px;
             margin-top: 0.4rem;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.5);
             position: relative;
             overflow: hidden;
+            border: 1px solid var(--border);
         }
 
         .progress-fill {
@@ -516,8 +553,9 @@ CSS_STYLES = """
                 transparent 4px,
                 transparent 6px
             );
-            box-shadow: 0 0 6px var(--progress-color);
+            box-shadow: 0 0 8px var(--progress-color);
             transition: width 0.5s ease;
+            border-radius: 1px;
         }
 
         .progress-fill.warning { --progress-color: var(--yellow); }
@@ -544,11 +582,11 @@ CSS_STYLES = """
 
         .mini-stat {
             background: rgba(0, 0, 0, 0.2);
-            padding: 8px 10px;
+            padding: 10px 12px;
             border: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
             text-align: left;
         }
 
@@ -587,8 +625,8 @@ CSS_STYLES = """
         }
 
         .card-footer {
-            margin-top: 0.5rem;
-            padding-top: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
             border-top: 1px solid var(--border);
             font-size: 0.65rem;
             color: var(--text-dim);
@@ -1351,7 +1389,7 @@ CSS_STYLES = """
             :root {
                 --gutter: 12px;
                 --box-padding: 12px;
-                --gap: 8px;
+                --gap: 10px;
             }
 
             main {
@@ -1394,6 +1432,10 @@ CSS_STYLES = """
 
             .updated-time {
                 display: none; /* Hide time in summary bar on mobile to save space, it's in header/cards */
+            }
+
+            .progress-bar {
+                height: 6px;  /* Slightly larger on mobile for touch visibility */
             }
 
             .card-metrics {
@@ -1483,6 +1525,10 @@ CSS_STYLES = """
                 flex: 1;
                 padding: 1rem 0.5rem;
             }
+
+            .metric {
+                padding: 10px;
+            }
         }
 
         /* Small mobile devices */
@@ -1491,7 +1537,7 @@ CSS_STYLES = """
             .logo-bracket { display: none; } /* Simplify logo */
 
             .card-metrics {
-                gap: 4px;
+                gap: 6px;
             }
 
             .metric {
@@ -1596,6 +1642,72 @@ CSS_STYLES = """
             clip: rect(0, 0, 0, 0);
             white-space: nowrap;
             border: 0;
+        }
+
+        /* ============================================
+           Tooltip Styles
+           ============================================ */
+        [data-tooltip] {
+            position: relative;
+            cursor: help;
+        }
+
+        [data-tooltip]::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-5px);
+            background: var(--bg-panel);
+            border: 1px solid var(--cyan);
+            color: var(--text);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.7rem;
+            text-transform: none;
+            letter-spacing: 0;
+            white-space: nowrap;
+            box-shadow: var(--shadow-cyan-medium);
+            clip-path: var(--clip-corner-sm);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 1000;
+        }
+
+        [data-tooltip]::after {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 3px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-5px);
+            width: 0;
+            height: 0;
+            border: 5px solid transparent;
+            border-top-color: var(--cyan);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 1000;
+        }
+
+        [data-tooltip]:hover::before,
+        [data-tooltip]:hover::after,
+        [data-tooltip]:focus::before,
+        [data-tooltip]:focus::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Disable tooltips on touch devices (use native long-press for accessibility) */
+        @media (hover: none) {
+            [data-tooltip]::before,
+            [data-tooltip]::after {
+                display: none;
+            }
+
+            [data-tooltip] {
+                cursor: default;
+            }
         }
 
         /* Offline banner - uses hidden attribute (CSP-safe, no inline styles) */

@@ -247,6 +247,29 @@ def init_db(db_path: str) -> sqlite3.Connection:
             conn.execute("ALTER TABLE checks ADD COLUMN content_type TEXT")
         if "content_encoding" not in columns:
             conn.execute("ALTER TABLE checks ADD COLUMN content_encoding TEXT")
+        # Redirect tracking
+        if "redirect_count" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN redirect_count INTEGER DEFAULT 0")
+        if "final_url" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN final_url TEXT")
+        # Security headers
+        if "has_hsts" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN has_hsts INTEGER DEFAULT 0")
+        if "has_x_frame_options" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN has_x_frame_options INTEGER DEFAULT 0")
+        if "has_x_content_type_options" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN has_x_content_type_options INTEGER DEFAULT 0")
+        # Cache headers
+        if "cache_control" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN cache_control TEXT")
+        if "cache_age" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN cache_age INTEGER")
+        # Resolved IP address
+        if "resolved_ip" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN resolved_ip TEXT")
+        # TLS version
+        if "tls_version" not in columns:
+            conn.execute("ALTER TABLE checks ADD COLUMN tls_version TEXT")
 
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_checks_url_name
@@ -298,8 +321,10 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                 (url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
                  content_length, server_header, status_text,
                  ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error,
-                 ttfb_ms, content_type, content_encoding)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ttfb_ms, content_type, content_encoding,
+                 redirect_count, final_url, has_hsts, has_x_frame_options, has_x_content_type_options,
+                 cache_control, cache_age, resolved_ip, tls_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     result.url_name,
@@ -320,6 +345,15 @@ def insert_check(conn: sqlite3.Connection, result: CheckResult) -> None:
                     result.ttfb_ms,
                     result.content_type,
                     result.content_encoding,
+                    result.redirect_count,
+                    result.final_url,
+                    1 if result.has_hsts else 0,
+                    1 if result.has_x_frame_options else 0,
+                    1 if result.has_x_content_type_options else 0,
+                    result.cache_control,
+                    result.cache_age,
+                    result.resolved_ip,
+                    result.tls_version,
                 ),
             )
             conn.commit()
@@ -369,6 +403,15 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                         ssl_cert_error,
                         content_type,
                         content_encoding,
+                        redirect_count,
+                        final_url,
+                        has_hsts,
+                        has_x_frame_options,
+                        has_x_content_type_options,
+                        cache_control,
+                        cache_age,
+                        resolved_ip,
+                        tls_version,
                         ROW_NUMBER() OVER (PARTITION BY url_name ORDER BY checked_at DESC) as rn
                     FROM checks
                 ),
@@ -459,6 +502,15 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                     l.ssl_cert_error,
                     l.content_type,
                     l.content_encoding,
+                    l.redirect_count,
+                    l.final_url,
+                    l.has_hsts,
+                    l.has_x_frame_options,
+                    l.has_x_content_type_options,
+                    l.cache_control,
+                    l.cache_age,
+                    l.resolved_ip,
+                    l.tls_version,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -514,6 +566,15 @@ def _fetch_latest_status_from_db(conn: sqlite3.Connection) -> list[UrlStatus]:
                 ssl_cert_error=row["ssl_cert_error"],
                 content_type=row["content_type"],
                 content_encoding=row["content_encoding"],
+                redirect_count=row["redirect_count"] or 0,
+                final_url=row["final_url"],
+                has_hsts=bool(row["has_hsts"]),
+                has_x_frame_options=bool(row["has_x_frame_options"]),
+                has_x_content_type_options=bool(row["has_x_content_type_options"]),
+                cache_control=row["cache_control"],
+                cache_age=row["cache_age"],
+                resolved_ip=row["resolved_ip"],
+                tls_version=row["tls_version"],
             )
             for row in rows
         ]
@@ -628,7 +689,16 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                         ssl_cert_expires_in_days,
                         ssl_cert_error,
                         content_type,
-                        content_encoding
+                        content_encoding,
+                        redirect_count,
+                        final_url,
+                        has_hsts,
+                        has_x_frame_options,
+                        has_x_content_type_options,
+                        cache_control,
+                        cache_age,
+                        resolved_ip,
+                        tls_version
                     FROM checks
                     WHERE url_name = ?
                     ORDER BY checked_at DESC
@@ -703,6 +773,15 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
                     l.ssl_cert_error,
                     l.content_type,
                     l.content_encoding,
+                    l.redirect_count,
+                    l.final_url,
+                    l.has_hsts,
+                    l.has_x_frame_options,
+                    l.has_x_content_type_options,
+                    l.cache_control,
+                    l.cache_age,
+                    l.resolved_ip,
+                    l.tls_version,
                     COALESCE(s.total_checks, 0) as checks_24h,
                     COALESCE(s.up_checks, 0) as up_checks_24h,
                     s.avg_response_time as avg_response_time_24h,
@@ -765,6 +844,15 @@ def get_latest_status_by_name(conn: sqlite3.Connection, url_name: str) -> UrlSta
             ssl_cert_error=row["ssl_cert_error"],
             content_type=row["content_type"],
             content_encoding=row["content_encoding"],
+            redirect_count=row["redirect_count"] or 0,
+            final_url=row["final_url"],
+            has_hsts=bool(row["has_hsts"]),
+            has_x_frame_options=bool(row["has_x_frame_options"]),
+            has_x_content_type_options=bool(row["has_x_content_type_options"]),
+            cache_control=row["cache_control"],
+            cache_age=row["cache_age"],
+            resolved_ip=row["resolved_ip"],
+            tls_version=row["tls_version"],
         )
 
     except sqlite3.Error as e:
@@ -806,7 +894,9 @@ def get_history(
             SELECT url_name, url, status_code, response_time_ms, is_up, error_message, checked_at,
                    content_length, server_header, status_text,
                    ssl_cert_issuer, ssl_cert_subject, ssl_cert_expires_at, ssl_cert_expires_in_days, ssl_cert_error,
-                   ttfb_ms, content_type, content_encoding
+                   ttfb_ms, content_type, content_encoding,
+                   redirect_count, final_url, has_hsts, has_x_frame_options, has_x_content_type_options,
+                   cache_control, cache_age, resolved_ip, tls_version
             FROM checks
             WHERE url_name = ? AND checked_at >= ?
             ORDER BY checked_at DESC
@@ -841,6 +931,19 @@ def get_history(
                 ttfb_ms=row["ttfb_ms"],
                 content_type=row["content_type"],
                 content_encoding=row["content_encoding"],
+                redirect_count=row["redirect_count"] or 0,
+                final_url=row["final_url"],
+                has_hsts=bool(row["has_hsts"]) if row["has_hsts"] is not None else False,
+                has_x_frame_options=bool(row["has_x_frame_options"])
+                if row["has_x_frame_options"] is not None
+                else False,
+                has_x_content_type_options=bool(row["has_x_content_type_options"])
+                if row["has_x_content_type_options"] is not None
+                else False,
+                cache_control=row["cache_control"],
+                cache_age=row["cache_age"],
+                resolved_ip=row["resolved_ip"],
+                tls_version=row["tls_version"],
             )
             for row in rows
         ]

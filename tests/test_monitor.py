@@ -1837,3 +1837,226 @@ class TestSSLCertInCheckUrl:
 
         assert result.is_up is True  # Still up, just a warning
         assert result.ssl_cert_expires_in_days == 15
+
+
+class TestRedirectTracking:
+    """Tests for redirect count and final URL tracking."""
+
+    def test_redirect_count_zero_no_redirects(self, url_config: UrlConfig) -> None:
+        """Redirect count is 0 when no redirects occur."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.redirect_count == 0
+                assert result.final_url is None
+
+    def test_redirect_count_tracked(self, url_config: UrlConfig) -> None:
+        """Redirect count is properly tracked."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 2
+            mock_handler.final_url = "https://example.com/final"
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.redirect_count == 2
+                assert result.final_url == "https://example.com/final"
+
+    def test_redirect_handler_reset_called(self, url_config: UrlConfig) -> None:
+        """Redirect handler reset() is called before each request."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                check_url(url_config)
+
+                mock_handler.reset.assert_called_once()
+
+    def test_redirect_tracking_on_http_error(self, url_config: UrlConfig) -> None:
+        """Redirect tracking works for HTTPError responses."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 1
+            mock_handler.final_url = "https://example.com/error-redirect"
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_urlopen.side_effect = urllib.error.HTTPError(url_config.url, 404, "Not Found", {}, None)
+
+                result = check_url(url_config)
+
+                assert result.redirect_count == 1
+                assert result.final_url == "https://example.com/error-redirect"
+
+
+class TestSecurityHeadersTracking:
+    """Tests for security headers tracking (HSTS, X-Frame-Options, X-Content-Type-Options)."""
+
+    def test_hsts_header_detected(self, url_config: UrlConfig) -> None:
+        """HSTS header presence is detected."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {"Strict-Transport-Security": "max-age=31536000; includeSubDomains"}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.has_hsts is True
+
+    def test_x_frame_options_header_detected(self, url_config: UrlConfig) -> None:
+        """X-Frame-Options header presence is detected."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {"X-Frame-Options": "DENY"}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.has_x_frame_options is True
+
+    def test_x_content_type_options_header_detected(self, url_config: UrlConfig) -> None:
+        """X-Content-Type-Options header presence is detected."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {"X-Content-Type-Options": "nosniff"}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.has_x_content_type_options is True
+
+    def test_all_security_headers_detected(self, url_config: UrlConfig) -> None:
+        """All three security headers are detected simultaneously."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {
+                    "Strict-Transport-Security": "max-age=31536000",
+                    "X-Frame-Options": "SAMEORIGIN",
+                    "X-Content-Type-Options": "nosniff",
+                }
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.has_hsts is True
+                assert result.has_x_frame_options is True
+                assert result.has_x_content_type_options is True
+
+    def test_no_security_headers(self, url_config: UrlConfig) -> None:
+        """All security headers are False when not present."""
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.headers = {}
+                mock_response.read = MagicMock(return_value=b"x")
+                mock_response.__enter__ = MagicMock(return_value=mock_response)
+                mock_response.__exit__ = MagicMock(return_value=False)
+                mock_urlopen.return_value = mock_response
+
+                result = check_url(url_config)
+
+                assert result.has_hsts is False
+                assert result.has_x_frame_options is False
+                assert result.has_x_content_type_options is False
+
+    def test_security_headers_on_http_error(self, url_config: UrlConfig) -> None:
+        """Security headers are detected on HTTPError responses."""
+        import urllib.error
+
+        with patch("webstatuspi.monitor._redirect_handler") as mock_handler:
+            mock_handler.redirect_count = 0
+            mock_handler.final_url = None
+            mock_handler.reset = MagicMock()
+
+            with patch("webstatuspi.monitor._opener.open") as mock_urlopen:
+                error = urllib.error.HTTPError(
+                    url_config.url,
+                    403,
+                    "Forbidden",
+                    {
+                        "Strict-Transport-Security": "max-age=31536000",
+                        "X-Frame-Options": "DENY",
+                    },
+                    None,
+                )
+                mock_urlopen.side_effect = error
+
+                result = check_url(url_config)
+
+                assert result.has_hsts is True
+                assert result.has_x_frame_options is True
+                assert result.has_x_content_type_options is False

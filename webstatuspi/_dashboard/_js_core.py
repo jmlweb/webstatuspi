@@ -15,6 +15,7 @@ JS_CORE = """
 
             const latencyPercent = getLatencyPercent(url.response_time_ms);
             const latencyClass = getLatencyClass(url.response_time_ms);
+            const latencyState = getLatencyState(url.response_time_ms);
             const uptimePercent = url.uptime_24h !== null ? url.uptime_24h : 0;
             const uptimeColor = getUptimeColor(url.uptime_24h);
 
@@ -74,26 +75,28 @@ JS_CORE = """
                     </header>
                     <div class="card-metrics" aria-hidden="true">
                         <div class="metric">
-                            <div class="metric-label">Status</div>
+                            <div class="metric-label" data-tooltip="HTTP status code. 2xx=success, 4xx=client error, 5xx=server error">Status</div>
                             <div class="metric-value">${statusCode}</div>
                         </div>
-                        <div class="metric">
-                            <div class="metric-label">Latency</div>
+                        <div class="metric" data-latency-state="${latencyState}">
+                            <div class="metric-label" data-tooltip="Response time. Green: <200ms, Yellow: 500-1000ms, Red: >1000ms">Latency</div>
                             <div class="metric-value">${formatResponseTimeWithWarning(url.response_time_ms)}</div>
                             <div class="progress-bar" role="progressbar"
                                 aria-valuenow="${url.response_time_ms || 0}"
                                 aria-valuemin="0" aria-valuemax="2000"
-                                aria-label="Latency indicator">
+                                aria-label="Latency indicator"
+                                data-tooltip="Scale: 0-2000ms maps to 0-100%">
                                 <div class="progress-fill ${latencyClass}" data-width="${latencyPercent}"></div>
                             </div>
                         </div>
                         <div class="metric">
-                            <div class="metric-label">Uptime</div>
+                            <div class="metric-label" data-tooltip="Percentage of successful checks in the last 24 hours">Uptime</div>
                             <div class="metric-value">${formatUptime(url.uptime_24h)}</div>
                             <div class="progress-bar" role="progressbar"
                                 aria-valuenow="${uptimePercent}"
                                 aria-valuemin="0" aria-valuemax="100"
-                                aria-label="Uptime indicator">
+                                aria-label="Uptime indicator"
+                                data-tooltip="100% = all checks successful">
                                 <div class="progress-fill"
                                     data-width="${uptimePercent}"
                                     data-color="${uptimeColor}"></div>

@@ -24,7 +24,24 @@ logger = logging.getLogger(__name__)
 
 
 class _RedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Custom redirect handler that follows 307 and 308 redirects."""
+    """Custom redirect handler that follows 307 and 308 redirects and tracks redirect count."""
+
+    def __init__(self):
+        """Initialize the redirect handler with tracking counters."""
+        super().__init__()
+        self.redirect_count = 0
+        self.final_url: str | None = None
+
+    def reset(self) -> None:
+        """Reset counters before a new request."""
+        self.redirect_count = 0
+        self.final_url = None
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Override to count all redirects (301, 302, 303, etc.)."""
+        self.redirect_count += 1
+        self.final_url = newurl
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
     def http_error_307(self, req, fp, code, msg, headers):
         """Handle 307 Temporary Redirect."""
@@ -38,6 +55,8 @@ class _RedirectHandler(urllib.request.HTTPRedirectHandler):
         """Follow redirect preserving the original method."""
         new_url = headers.get("Location")
         if new_url:
+            self.redirect_count += 1
+            self.final_url = new_url
             new_req = urllib.request.Request(
                 new_url,
                 method=req.get_method(),
@@ -100,7 +119,8 @@ def _create_ssl_context() -> ssl.SSLContext:
 
 # Create opener with custom redirect handler and optimized SSL context
 _https_handler = urllib.request.HTTPSHandler(context=_create_ssl_context())
-_opener = urllib.request.build_opener(_RedirectHandler(), _https_handler)
+_redirect_handler = _RedirectHandler()
+_opener = urllib.request.build_opener(_redirect_handler, _https_handler)
 
 
 def _is_success_status(status_code: int, success_codes: list[int | tuple[int, int]] | None) -> bool:
@@ -137,12 +157,14 @@ class SSLCertInfo:
         subject: Certificate subject common name.
         expires_at: Certificate expiration timestamp (UTC).
         expires_in_days: Days until expiration (negative if expired).
+        tls_version: TLS protocol version (e.g., "TLSv1.3").
     """
 
     issuer: str | None
     subject: str | None
     expires_at: datetime
     expires_in_days: int
+    tls_version: str | None = None
 
 
 @dataclass
@@ -246,6 +268,7 @@ def _get_ssl_cert_info(url: str, timeout: int, use_cache: bool = True) -> tuple[
         with socket.create_connection((hostname, port), timeout=timeout) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssl_sock:
                 cert = ssl_sock.getpeercert()
+                tls_version = ssl_sock.version()
 
         if not cert:
             return None, "No certificate returned by server"
@@ -292,6 +315,7 @@ def _get_ssl_cert_info(url: str, timeout: int, use_cache: bool = True) -> tuple[
             subject=subject,
             expires_at=expires_at,
             expires_in_days=expires_in_days,
+            tls_version=tls_version,
         )
         _ssl_cert_cache.put(url, result, None)
         return result, None
@@ -507,6 +531,9 @@ def check_url(
                 )
 
     try:
+        # Reset redirect tracking before each request
+        _redirect_handler.reset()
+
         # Use per-URL user_agent override if configured, else use default
         user_agent = url_config.user_agent or default_user_agent
         request = urllib.request.Request(
@@ -528,6 +555,20 @@ def check_url(
             # Extract Content-Type and Content-Encoding headers if present
             content_type = response.headers.get("Content-Type")
             content_encoding = response.headers.get("Content-Encoding")
+
+            # Extract security headers presence
+            has_hsts = response.headers.get("Strict-Transport-Security") is not None
+            has_x_frame_options = response.headers.get("X-Frame-Options") is not None
+            has_x_content_type_options = response.headers.get("X-Content-Type-Options") is not None
+
+            # Extract cache headers
+            cache_control = response.headers.get("Cache-Control")
+            age_header = response.headers.get("Age")
+            cache_age = int(age_header) if age_header else None
+
+            # Get redirect tracking from handler
+            redirect_count = _redirect_handler.redirect_count
+            final_url = _redirect_handler.final_url
 
             # Extract status text (reason phrase) if available
             status_text = getattr(response, "reason", None)
@@ -590,6 +631,16 @@ def check_url(
                 ttfb_ms=ttfb_ms,
                 content_type=content_type,
                 content_encoding=content_encoding,
+                redirect_count=redirect_count,
+                final_url=final_url,
+                has_hsts=has_hsts,
+                has_x_frame_options=has_x_frame_options,
+                has_x_content_type_options=has_x_content_type_options,
+                cache_control=cache_control,
+                cache_age=cache_age,
+                tls_version=ssl_cert_info.tls_version
+                if ssl_cert_info and hasattr(ssl_cert_info, "tls_version")
+                else None,
             )
 
     except urllib.error.HTTPError as e:
@@ -607,6 +658,20 @@ def check_url(
         # Extract Content-Type and Content-Encoding headers if present
         content_type = e.headers.get("Content-Type") if e.headers else None
         content_encoding = e.headers.get("Content-Encoding") if e.headers else None
+
+        # Extract security headers presence
+        has_hsts = e.headers.get("Strict-Transport-Security") is not None if e.headers else False
+        has_x_frame_options = e.headers.get("X-Frame-Options") is not None if e.headers else False
+        has_x_content_type_options = e.headers.get("X-Content-Type-Options") is not None if e.headers else False
+
+        # Extract cache headers
+        cache_control = e.headers.get("Cache-Control") if e.headers else None
+        age_header = e.headers.get("Age") if e.headers else None
+        cache_age = int(age_header) if age_header else None
+
+        # Get redirect tracking from handler
+        redirect_count = _redirect_handler.redirect_count
+        final_url = _redirect_handler.final_url
 
         # Extract status text (reason phrase)
         status_text = getattr(e, "reason", None)
@@ -635,6 +700,14 @@ def check_url(
             ssl_cert_error=ssl_cert_error,
             content_type=content_type,
             content_encoding=content_encoding,
+            redirect_count=redirect_count,
+            final_url=final_url,
+            has_hsts=has_hsts,
+            has_x_frame_options=has_x_frame_options,
+            has_x_content_type_options=has_x_content_type_options,
+            cache_control=cache_control,
+            cache_age=cache_age,
+            tls_version=ssl_cert_info.tls_version if ssl_cert_info and hasattr(ssl_cert_info, "tls_version") else None,
         )
 
     except urllib.error.URLError as e:
