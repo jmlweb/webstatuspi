@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from webstatuspi.alerter import Alerter, StateTracker
-from webstatuspi.config import AlertsConfig, UrlConfig, WebhookConfig
+from webstatuspi.config import AlertsConfig, SmtpConfig, UrlConfig, WebhookConfig
 from webstatuspi.models import CheckResult
 
 
@@ -529,3 +529,370 @@ class TestLatencyAlerts:
             alerter.check_latency_alert(url_config, 1500)
             assert mock_send.call_count == 1
             assert mock_send.call_args[0][2] == 5  # consecutive_checks
+
+
+class TestSmtpAlerts:
+    """Tests for SMTP email alerts."""
+
+    @pytest.fixture
+    def smtp_config(self) -> SmtpConfig:
+        """Create test SMTP configuration."""
+        return SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=587,
+            username="user@example.com",
+            password="password",
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            use_tls=True,
+            on_failure=True,
+            on_recovery=True,
+            cooldown_seconds=0,
+        )
+
+    @pytest.fixture
+    def alerts_config_with_smtp(self, smtp_config: SmtpConfig) -> AlertsConfig:
+        """Create alerts config with SMTP."""
+        return AlertsConfig(webhooks=[], smtp=smtp_config)
+
+    @pytest.fixture
+    def alerter_smtp(self, alerts_config_with_smtp: AlertsConfig) -> Alerter:
+        """Create alerter with SMTP configuration."""
+        return Alerter(alerts_config_with_smtp, max_retries=0, retry_delay=0)
+
+    @pytest.fixture
+    def check_result_up(self) -> CheckResult:
+        """Create a successful check result."""
+        return CheckResult(
+            url_name="test_url",
+            url="https://example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+
+    @pytest.fixture
+    def check_result_down(self) -> CheckResult:
+        """Create a failed check result."""
+        return CheckResult(
+            url_name="test_url",
+            url="https://example.com",
+            status_code=503,
+            response_time_ms=5000,
+            is_up=False,
+            error_message="Service Unavailable",
+            checked_at=datetime.now(UTC),
+        )
+
+    def test_smtp_config_creation(self, smtp_config: SmtpConfig) -> None:
+        """Test SmtpConfig creation with valid values."""
+        assert smtp_config.enabled is True
+        assert smtp_config.host == "smtp.example.com"
+        assert smtp_config.port == 587
+        assert smtp_config.use_tls is True
+        assert smtp_config.from_addr == "alerts@example.com"
+        assert smtp_config.to_addrs == ["admin@example.com"]
+
+    def test_smtp_config_disabled_by_default(self) -> None:
+        """Test SmtpConfig defaults to disabled."""
+        config = SmtpConfig()
+        assert config.enabled is False
+
+    def test_smtp_config_validation_missing_host(self) -> None:
+        """Test SmtpConfig validation for missing host when enabled."""
+        from webstatuspi.config import ConfigError
+
+        with pytest.raises(ConfigError, match="SMTP host is required"):
+            SmtpConfig(
+                enabled=True,
+                host="",
+                from_addr="test@example.com",
+                to_addrs=["admin@example.com"],
+            )
+
+    def test_smtp_config_validation_missing_from_addr(self) -> None:
+        """Test SmtpConfig validation for missing from_addr when enabled."""
+        from webstatuspi.config import ConfigError
+
+        with pytest.raises(ConfigError, match="SMTP from_addr is required"):
+            SmtpConfig(
+                enabled=True,
+                host="smtp.example.com",
+                from_addr="",
+                to_addrs=["admin@example.com"],
+            )
+
+    def test_smtp_config_validation_missing_to_addrs(self) -> None:
+        """Test SmtpConfig validation for missing to_addrs when enabled."""
+        from webstatuspi.config import ConfigError
+
+        with pytest.raises(ConfigError, match="SMTP to_addrs must contain at least one"):
+            SmtpConfig(
+                enabled=True,
+                host="smtp.example.com",
+                from_addr="test@example.com",
+                to_addrs=[],
+            )
+
+    def test_smtp_config_validation_no_events(self) -> None:
+        """Test SmtpConfig validation when no events are enabled."""
+        from webstatuspi.config import ConfigError
+
+        with pytest.raises(ConfigError, match="at least one of"):
+            SmtpConfig(on_failure=False, on_recovery=False)
+
+    def test_alerter_with_smtp_config(self, alerter_smtp: Alerter) -> None:
+        """Test alerter initialization with SMTP config."""
+        assert alerter_smtp._config.smtp is not None
+        assert alerter_smtp._config.smtp.enabled is True
+
+    def test_email_cooldown_check(self, alerter_smtp: Alerter) -> None:
+        """Test email cooldown tracking."""
+        # Initially, cooldown should be expired (no previous email)
+        assert alerter_smtp._is_email_cooldown_expired("test_url", 300) is True
+
+        # Set last email time to now
+        import time
+
+        alerter_smtp._state_tracker.last_email_time["test_url"] = time.time()
+        assert alerter_smtp._is_email_cooldown_expired("test_url", 300) is False
+
+        # Set last email time to old timestamp
+        alerter_smtp._state_tracker.last_email_time["test_url"] = 0
+        assert alerter_smtp._is_email_cooldown_expired("test_url", 300) is True
+
+    def test_build_email_content_down(self, alerter_smtp: Alerter, check_result_down: CheckResult) -> None:
+        """Test email content generation for DOWN event."""
+        alerter_smtp._state_tracker.last_state["test_url"] = True  # Was UP
+
+        subject, body_text, body_html = alerter_smtp._build_email_content(check_result_down)
+
+        assert "[test_url]" in subject
+        assert "DOWN" in subject
+        assert "❌" in subject
+        assert "test_url" in body_text
+        assert "DOWN" in body_text
+        assert "503" in body_text
+        assert "Service Unavailable" in body_text
+        assert "<html>" in body_html
+        assert "#dc3545" in body_html  # Red color
+
+    def test_build_email_content_up(self, alerter_smtp: Alerter, check_result_up: CheckResult) -> None:
+        """Test email content generation for UP event."""
+        alerter_smtp._state_tracker.last_state["test_url"] = False  # Was DOWN
+
+        subject, body_text, body_html = alerter_smtp._build_email_content(check_result_up)
+
+        assert "[test_url]" in subject
+        assert "UP" in subject
+        assert "✅" in subject
+        assert "test_url" in body_text
+        assert "UP" in body_text
+        assert "<html>" in body_html
+        assert "#28a745" in body_html  # Green color
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_send_email_alert_success(
+        self,
+        mock_smtp_class: Mock,
+        alerter_smtp: Alerter,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test successful email alert delivery."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        alerter_smtp._send_email_alert(alerter_smtp._config.smtp, check_result_down)
+
+        mock_smtp_class.assert_called_once_with("smtp.example.com", 587, timeout=30)
+        mock_server.starttls.assert_called_once()
+        mock_server.login.assert_called_once_with("user@example.com", "password")
+        mock_server.sendmail.assert_called_once()
+        mock_server.quit.assert_called_once()
+
+        # Verify cooldown was updated
+        assert "test_url" in alerter_smtp._state_tracker.last_email_time
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_send_email_alert_no_tls(
+        self,
+        mock_smtp_class: Mock,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test email alert without TLS."""
+        smtp_config = SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=25,
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            use_tls=False,
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config), max_retries=0)
+
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        alerter._send_email_alert(smtp_config, check_result_down)
+
+        mock_server.starttls.assert_not_called()
+        mock_server.sendmail.assert_called_once()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_send_email_alert_no_auth(
+        self,
+        mock_smtp_class: Mock,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test email alert without authentication."""
+        smtp_config = SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=25,
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            use_tls=False,
+            username="",
+            password="",
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config), max_retries=0)
+
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        alerter._send_email_alert(smtp_config, check_result_down)
+
+        mock_server.login.assert_not_called()
+        mock_server.sendmail.assert_called_once()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_send_email_alert_failure_retry(
+        self,
+        mock_smtp_class: Mock,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test email alert retry on failure."""
+        smtp_config = SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=587,
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            use_tls=True,
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config), max_retries=2, retry_delay=0)
+
+        import smtplib
+
+        mock_smtp_class.side_effect = smtplib.SMTPException("Connection failed")
+
+        alerter._send_email_alert(smtp_config, check_result_down)
+
+        # Should attempt 3 times (initial + 2 retries)
+        assert mock_smtp_class.call_count == 3
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_process_check_result_sends_email(
+        self,
+        mock_smtp_class: Mock,
+        alerter_smtp: Alerter,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test that process_check_result sends email on state change."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        # Set initial state to UP
+        alerter_smtp._state_tracker.last_state["test_url"] = True
+
+        alerter_smtp.process_check_result(check_result_down)
+
+        mock_server.sendmail.assert_called_once()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_process_check_result_respects_on_failure_filter(
+        self,
+        mock_smtp_class: Mock,
+        check_result_down: CheckResult,
+    ) -> None:
+        """Test that on_failure filter prevents email on failure."""
+        smtp_config = SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=587,
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            on_failure=False,  # Don't send on failure
+            on_recovery=True,
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config))
+        alerter._state_tracker.last_state["test_url"] = True
+
+        alerter.process_check_result(check_result_down)
+
+        mock_smtp_class.assert_not_called()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_process_check_result_respects_on_recovery_filter(
+        self,
+        mock_smtp_class: Mock,
+        check_result_up: CheckResult,
+    ) -> None:
+        """Test that on_recovery filter prevents email on recovery."""
+        smtp_config = SmtpConfig(
+            enabled=True,
+            host="smtp.example.com",
+            port=587,
+            from_addr="alerts@example.com",
+            to_addrs=["admin@example.com"],
+            on_failure=True,
+            on_recovery=False,  # Don't send on recovery
+        )
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config))
+        alerter._state_tracker.last_state["test_url"] = False
+
+        alerter.process_check_result(check_result_up)
+
+        mock_smtp_class.assert_not_called()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_test_smtp_success(self, mock_smtp_class: Mock, alerter_smtp: Alerter) -> None:
+        """Test successful SMTP test."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        result = alerter_smtp.test_smtp()
+
+        assert result is True
+        mock_server.sendmail.assert_called_once()
+
+    @patch("webstatuspi.alerter.smtplib.SMTP")
+    def test_test_smtp_failure(self, mock_smtp_class: Mock, alerter_smtp: Alerter) -> None:
+        """Test failed SMTP test."""
+        import smtplib
+
+        mock_smtp_class.side_effect = smtplib.SMTPException("Connection failed")
+
+        result = alerter_smtp.test_smtp()
+
+        assert result is False
+
+    def test_test_smtp_not_configured(self) -> None:
+        """Test SMTP test when not configured."""
+        alerter = Alerter(AlertsConfig(webhooks=[]))
+
+        result = alerter.test_smtp()
+
+        assert result is False
+
+    def test_test_smtp_disabled(self) -> None:
+        """Test SMTP test when disabled."""
+        smtp_config = SmtpConfig(enabled=False)
+        alerter = Alerter(AlertsConfig(webhooks=[], smtp=smtp_config))
+
+        result = alerter.test_smtp()
+
+        assert result is False

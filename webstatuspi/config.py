@@ -318,6 +318,38 @@ class WebhookConfig:
 
 
 @dataclass(frozen=True)
+class SmtpConfig:
+    """Configuration for SMTP email alerts."""
+
+    enabled: bool = False
+    host: str = ""
+    port: int = 587
+    username: str = ""
+    password: str = ""
+    from_addr: str = ""
+    to_addrs: list[str] = field(default_factory=list)
+    use_tls: bool = True
+    on_failure: bool = True
+    on_recovery: bool = True
+    cooldown_seconds: int = 300
+
+    def __post_init__(self) -> None:
+        if self.enabled:
+            if not self.host:
+                raise ConfigError("SMTP host is required when email alerts are enabled")
+            if not (1 <= self.port <= 65535):
+                raise ConfigError(f"SMTP port must be between 1 and 65535, got {self.port}")
+            if not self.from_addr:
+                raise ConfigError("SMTP from_addr is required when email alerts are enabled")
+            if not self.to_addrs:
+                raise ConfigError("SMTP to_addrs must contain at least one email address")
+        if self.cooldown_seconds < 0:
+            raise ConfigError(f"SMTP cooldown_seconds must be non-negative, got {self.cooldown_seconds}")
+        if not self.on_failure and not self.on_recovery:
+            raise ConfigError("SMTP must have at least one of 'on_failure' or 'on_recovery' enabled")
+
+
+@dataclass(frozen=True)
 class HeartbeatConfig:
     """Configuration for heartbeat monitoring (Dead Man's Snitch style)."""
 
@@ -343,6 +375,7 @@ class AlertsConfig:
     """Configuration for alert mechanisms."""
 
     webhooks: list[WebhookConfig] = field(default_factory=list)
+    smtp: SmtpConfig | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.webhooks, list):
@@ -555,6 +588,33 @@ def _parse_webhook_config(data: dict, index: int) -> WebhookConfig:
     )
 
 
+def _parse_smtp_config(data: dict | None) -> SmtpConfig | None:
+    """Parse SMTP configuration section."""
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise ConfigError("'alerts.smtp' section must be a dictionary")
+
+    to_addrs_data = data.get("to_addrs", [])
+    if not isinstance(to_addrs_data, list):
+        raise ConfigError("'alerts.smtp.to_addrs' must be a list")
+    to_addrs = [str(addr) for addr in to_addrs_data]
+
+    return SmtpConfig(
+        enabled=bool(data.get("enabled", False)),
+        host=str(data.get("host", "")),
+        port=int(data.get("port", 587)),
+        username=str(data.get("username", "")),
+        password=str(data.get("password", "")),
+        from_addr=str(data.get("from_addr", "")),
+        to_addrs=to_addrs,
+        use_tls=bool(data.get("use_tls", True)),
+        on_failure=bool(data.get("on_failure", True)),
+        on_recovery=bool(data.get("on_recovery", True)),
+        cooldown_seconds=int(data.get("cooldown_seconds", 300)),
+    )
+
+
 def _parse_alerts_config(data: dict | None) -> AlertsConfig:
     """Parse alerts configuration section."""
     if data is None:
@@ -568,7 +628,9 @@ def _parse_alerts_config(data: dict | None) -> AlertsConfig:
 
     webhooks = [_parse_webhook_config(webhook_data, i) for i, webhook_data in enumerate(webhooks_data)]
 
-    return AlertsConfig(webhooks=webhooks)
+    smtp = _parse_smtp_config(data.get("smtp"))
+
+    return AlertsConfig(webhooks=webhooks, smtp=smtp)
 
 
 def _parse_heartbeat_config(data: dict | None) -> HeartbeatConfig:

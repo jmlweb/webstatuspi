@@ -71,7 +71,12 @@ api:
 
 ---
 
-### 3. Email Alerts (SMTP) (Priority: P2)
+### 3. Email Alerts (SMTP) (Priority: P2) ✅ IMPLEMENTED
+
+> **Status**: Implemented in v0.3.0
+> - Configuration: `alerts.smtp.enabled`, `alerts.smtp.host`, `alerts.smtp.port`, etc.
+> - Methods: `Alerter._send_email_alert()`, `Alerter.test_smtp()`
+> - Tests: `tests/test_alerter.py::TestSmtpAlerts`
 
 **Value**: Alternative to webhooks for notifications, useful when Slack/Discord are not available or for critical alerts.
 
@@ -327,7 +332,7 @@ maintenance:
 
 ### Phase 2 (High Impact, Medium Complexity)
 4. **Embeddable Status Badge** - Increases visibility
-5. **Email Alerts** - Critical for operations
+5. **Email Alerts** - ✅ IMPLEMENTED
 6. **Data Export** - Enables external analysis
 
 ### Phase 3 (Medium Impact, Medium Complexity)
