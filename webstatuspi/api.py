@@ -1,5 +1,7 @@
 """HTTP API server for URL monitoring status."""
 
+import csv
+import io
 import ipaddress
 import json
 import logging
@@ -28,6 +30,7 @@ from .config import ApiConfig, RssConfig
 from .database import (
     DatabaseError,
     delete_all_checks,
+    get_export_data,
     get_history,
     get_latest_status,
     get_latest_status_by_name,
@@ -742,6 +745,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             # Feed endpoints
             elif self.path == "/rss.xml":
                 self._handle_rss()
+            # Export endpoints
+            elif self.path == "/api/export/json" or self.path.startswith("/api/export/json?"):
+                self._handle_export_json()
+            elif self.path == "/api/export/csv" or self.path.startswith("/api/export/csv?"):
+                self._handle_export_csv()
             else:
                 self._send_error_json(404, "Not found")
         except (BrokenPipeError, ConnectionResetError):
@@ -973,6 +981,81 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"success": True, "deleted": deleted})
         except DatabaseError as e:
             logger.error("Database error in /reset: %s", e)
+            self._send_error_json(500, "Database error")
+
+    def _send_csv(self, code: int, data: list[dict], filename: str = "export.csv") -> None:
+        """Send a CSV response with the given status code."""
+        if not data:
+            body = b""
+        else:
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+            body = output.getvalue().encode("utf-8")
+
+        self.send_response(code)
+        self._add_security_headers()
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _parse_export_params(self) -> tuple[int, str | None]:
+        """Parse query parameters for export endpoints.
+
+        Returns:
+            Tuple of (days, url_name)
+        """
+        days = 7  # default
+        url_name = None
+
+        if "?" in self.path:
+            query_string = self.path.split("?", 1)[1]
+            for param in query_string.split("&"):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    key = unquote(key)
+                    value = unquote(value)
+                    if key == "days":
+                        try:
+                            days = max(1, min(int(value), 365))  # Cap at 365 days
+                        except ValueError:
+                            pass
+                    elif key == "url":
+                        url_name = value
+
+        return days, url_name
+
+    def _handle_export_json(self) -> None:
+        """Handle GET /api/export/json endpoint."""
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            days, url_name = self._parse_export_params()
+            data = get_export_data(self.db_conn, days=days, url_name=url_name)
+            self._send_json(200, {"data": data, "count": len(data), "days": days, "url": url_name})
+        except DatabaseError as e:
+            logger.error("Database error in /api/export/json: %s", e)
+            self._send_error_json(500, "Database error")
+
+    def _handle_export_csv(self) -> None:
+        """Handle GET /api/export/csv endpoint."""
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            days, url_name = self._parse_export_params()
+            data = get_export_data(self.db_conn, days=days, url_name=url_name)
+            filename = f"export_{url_name or 'all'}_{days}d.csv"
+            self._send_csv(200, data, filename)
+        except DatabaseError as e:
+            logger.error("Database error in /api/export/csv: %s", e)
             self._send_error_json(500, "Database error")
 
     def _handle_rss(self) -> None:

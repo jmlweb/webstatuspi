@@ -1336,3 +1336,147 @@ class TestBadgeEndpoint:
         with urllib.request.urlopen(url, timeout=5) as response:
             cache_control = response.headers.get("Cache-Control")
             assert "max-age=60" in cache_control  # 1 minute cache
+
+
+class TestExportEndpoints:
+    """Tests for the data export endpoints."""
+
+    @pytest.fixture
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
+        """Start a server and yield it, stopping after test."""
+        port = get_free_port()
+        config = ApiConfig(enabled=True, port=port)
+        server = ApiServer(config, db_conn)
+        server.start()
+        time.sleep(0.1)
+        yield server
+        server.stop()
+
+    def _get_json(self, server: ApiServer, path: str) -> tuple[int, dict]:
+        """Helper to GET JSON from server."""
+        port = server.config.port
+        url = f"http://localhost:{port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                body = json.loads(response.read().decode("utf-8"))
+                return response.status, body
+        except urllib.error.HTTPError as e:
+            body = json.loads(e.read().decode("utf-8"))
+            return e.code, body
+
+    def _get_csv(self, server: ApiServer, path: str) -> tuple[int, str, dict]:
+        """Helper to GET CSV from server."""
+        port = server.config.port
+        url = f"http://localhost:{port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                body = response.read().decode("utf-8")
+                headers = dict(response.headers)
+                return response.status, body, headers
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8"), {}
+
+    def test_export_json_empty(self, running_server: ApiServer) -> None:
+        """GET /api/export/json returns empty data when no checks."""
+        status, body = self._get_json(running_server, "/api/export/json")
+        assert status == 200
+        assert body["count"] == 0
+        assert body["data"] == []
+        assert body["days"] == 7  # default
+
+    def test_export_json_with_data(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /api/export/json returns check data."""
+        check = CheckResult(
+            url_name="EXPORT_J",
+            url="https://export.example.com",
+            status_code=200,
+            response_time_ms=150,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body = self._get_json(running_server, "/api/export/json")
+        assert status == 200
+        assert body["count"] == 1
+        assert body["data"][0]["url_name"] == "EXPORT_J"
+        assert body["data"][0]["is_up"] is True
+
+    def test_export_json_with_days_param(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /api/export/json?days=1 respects days parameter."""
+        check = CheckResult(
+            url_name="DAYS_TST",
+            url="https://days.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body = self._get_json(running_server, "/api/export/json?days=1")
+        assert status == 200
+        assert body["days"] == 1
+        assert body["count"] >= 1
+
+    def test_export_json_with_url_filter(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /api/export/json?url=NAME filters by URL name."""
+        check1 = CheckResult(
+            url_name="FILT_A",
+            url="https://a.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        check2 = CheckResult(
+            url_name="FILT_B",
+            url="https://b.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check1)
+        insert_check(db_conn, check2)
+
+        status, body = self._get_json(running_server, "/api/export/json?url=FILT_A")
+        assert status == 200
+        assert body["url"] == "FILT_A"
+        assert all(d["url_name"] == "FILT_A" for d in body["data"])
+
+    def test_export_csv_empty(self, running_server: ApiServer) -> None:
+        """GET /api/export/csv returns empty CSV when no checks."""
+        status, body, headers = self._get_csv(running_server, "/api/export/csv")
+        assert status == 200
+        assert headers.get("Content-Type") == "text/csv; charset=utf-8"
+        assert "attachment" in headers.get("Content-Disposition", "")
+
+    def test_export_csv_with_data(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /api/export/csv returns CSV with check data."""
+        check = CheckResult(
+            url_name="CSV_TEST",
+            url="https://csv.example.com",
+            status_code=200,
+            response_time_ms=150,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, headers = self._get_csv(running_server, "/api/export/csv")
+        assert status == 200
+        assert "url_name" in body  # CSV header
+        assert "CSV_TEST" in body
+        assert "csv.example.com" in body
+
+    def test_export_csv_filename(self, running_server: ApiServer) -> None:
+        """GET /api/export/csv includes proper filename in header."""
+        status, body, headers = self._get_csv(running_server, "/api/export/csv?url=TEST&days=3")
+        assert status == 200
+        assert 'filename="export_TEST_3d.csv"' in headers.get("Content-Disposition", "")

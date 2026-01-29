@@ -1133,3 +1133,57 @@ def delete_all_checks(conn: sqlite3.Connection) -> int:
 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to delete all checks: {e}")
+
+
+def get_export_data(
+    conn: sqlite3.Connection,
+    days: int = 7,
+    url_name: str | None = None,
+) -> list[dict]:
+    """Get check data for export.
+
+    Args:
+        conn: Database connection.
+        days: Number of days of history to export (default 7).
+        url_name: Optional URL name to filter by.
+
+    Returns:
+        List of check records as dictionaries.
+
+    Raises:
+        DatabaseError: If the query fails.
+    """
+    try:
+        since = datetime.now(UTC) - timedelta(days=days)
+
+        query = """
+            SELECT url_name, url, status_code, response_time_ms, is_up,
+                   error_message, checked_at, ttfb_ms
+            FROM checks
+            WHERE checked_at >= ?
+        """
+        params: list = [since.isoformat()]
+
+        if url_name is not None:
+            query += " AND url_name = ?"
+            params.append(url_name)
+
+        query += " ORDER BY checked_at DESC"
+
+        rows = conn.execute(query, params).fetchall()
+
+        return [
+            {
+                "url_name": row["url_name"],
+                "url": row["url"],
+                "status_code": row["status_code"],
+                "response_time_ms": row["response_time_ms"],
+                "is_up": bool(row["is_up"]),
+                "error_message": row["error_message"],
+                "checked_at": row["checked_at"],
+                "ttfb_ms": row["ttfb_ms"],
+            }
+            for row in rows
+        ]
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to get export data: {e}")
