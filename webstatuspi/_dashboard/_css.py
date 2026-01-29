@@ -1769,4 +1769,118 @@ CSS_STYLES = """
                 animation: none;
             }
         }
+        /* ============================================
+           LIGHT THEME
+           ============================================ */
+        [data-theme="light"] {
+            /* === COLORS - Light Theme === */
+            --bg-dark: #f5f5f7;
+            --bg-panel: #ffffff;
+            --cyan: #0066cc;
+            --magenta: #cc00cc;
+            --yellow: #cc9900;
+            --orange: #cc5500;
+            --green: #00994d;
+            --red: #cc0033;
+            --text: #1a1a1a;
+            --text-dim: #666680;
+            --border: #d0d0d8;
+            --text-muted: #5a6670;
+
+            /* === RGB VALUES (for rgba()) - Light Theme === */
+            --cyan-rgb: 0, 102, 204;
+            --red-rgb: 204, 0, 51;
+            --green-rgb: 0, 153, 77;
+            --orange-rgb: 204, 85, 0;
+            --yellow-rgb: 204, 153, 0;
+            --text-dim-rgb: 102, 102, 128;
+            --text-rgb: 26, 26, 26;
+
+            /* === GLOW EFFECTS - Subtle for light theme === */
+            --glow-cyan: 0 0 4px var(--cyan);
+            --glow-cyan-subtle: 0 0 3px rgba(var(--cyan-rgb), 0.3);
+            --glow-red: 0 0 3px rgba(var(--red-rgb), 0.3);
+            --glow-green: 0 0 3px var(--green);
+            --glow-orange: 0 0 2px var(--orange);
+            --glow-yellow: 0 0 2px var(--yellow);
+            --glow-dim: none;
+
+            /* === BOX SHADOWS - Light theme === */
+            --shadow-cyan-subtle: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-cyan-medium: 0 2px 8px rgba(0, 0, 0, 0.12);
+            --shadow-cyan-strong: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --shadow-cyan-glow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            --shadow-red-subtle: 0 1px 3px rgba(var(--red-rgb), 0.15);
+            --shadow-red-medium: 0 2px 8px rgba(var(--red-rgb), 0.2);
+            --shadow-green-glow: 0 0 4px var(--green);
+            --shadow-yellow-glow: 0 0 4px var(--yellow);
+        }
+
+        /* Disable CRT effects in light theme */
+        [data-theme="light"] body::before,
+        [data-theme="light"] .scanline-overlay {
+            display: none;
+        }
+
+        [data-theme="light"] body {
+            animation: none;
+        }
+
+        /* Card adjustments for light theme */
+        [data-theme="light"] .card::before {
+            background: linear-gradient(135deg, rgba(var(--cyan-rgb), 0.02) 0%, transparent 50%);
+        }
+
+        [data-theme="light"] .metric {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        [data-theme="light"] .mini-stat {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        /* ============================================
+           THEME TOGGLE BUTTON
+           ============================================ */
+        .theme-toggle {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.4rem 0.75rem;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            clip-path: var(--clip-corner-sm);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-height: 36px;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 8px rgba(var(--cyan-rgb), 0.2);
+        }
+
+        .theme-toggle:focus-visible {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            outline: 2px solid var(--cyan);
+            outline-offset: 2px;
+        }
+
+        .theme-toggle-icon {
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        /* Show appropriate icon based on theme */
+        .theme-toggle .icon-sun { display: none; }
+        .theme-toggle .icon-moon { display: inline; }
+
+        [data-theme="light"] .theme-toggle .icon-sun { display: inline; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
 """

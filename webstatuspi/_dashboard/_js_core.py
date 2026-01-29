@@ -882,7 +882,48 @@ JS_CORE = """
         window.addEventListener('offline', showOfflineBanner);
 
         // Check initial status
-        if (!navigator.onLine) {
-            showOfflineBanner();
+
+        // ============================================
+        // Theme Toggle (Dark/Light Mode)
+        // ============================================
+        const THEME_KEY = 'webstatuspi-theme';
+        const themeToggle = document.getElementById('themeToggle');
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem(THEME_KEY);
+            if (stored) return stored;
+            // Respect system preference
+            return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+            // Update button aria-label
+            if (themeToggle) {
+                const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+                themeToggle.setAttribute('aria-label', label);
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            setTheme(current === 'dark' ? 'light' : 'dark');
+        }
+
+        // Initialize theme on page load (before render to prevent flash)
+        setTheme(getPreferredTheme());
+
+        // Theme toggle button
+        if (themeToggle) {
+            themeToggle.addEventListener('click', toggleTheme);
+        }
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+            // Only auto-switch if user hasn't manually set a preference
+            if (!localStorage.getItem(THEME_KEY)) {
+                setTheme(e.matches ? 'light' : 'dark');
+            }
+        });
 """

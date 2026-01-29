@@ -176,7 +176,16 @@ incidents:
 
 ---
 
-### 5. Dark/Light Mode Toggle with Persistence (Priority: P3)
+### 5. Dark/Light Mode Toggle with Persistence (Priority: P3) ✅ IMPLEMENTED
+
+> **Status**: Implemented
+> - Toggle button in header (☽/☀ icons)
+> - localStorage persistence with key `webstatuspi-theme`
+> - Respects `prefers-color-scheme` system preference
+> - CSS variables for all theme colors
+> - Light theme: clean, professional look with subtle shadows
+> - Dark theme: original CRT cyberpunk aesthetic
+
 
 **Value**: Improves user experience by allowing users to choose their preferred theme and persist the choice.
 
@@ -202,7 +211,13 @@ incidents:
 
 ---
 
-### 6. Data Export (CSV/JSON) (Priority: P3)
+### 6. Data Export (CSV/JSON) (Priority: P3) ✅ IMPLEMENTED
+
+> **Status**: Implemented
+> - Endpoints: `GET /api/export/json`, `GET /api/export/csv`
+> - Query params: `?days=7` (default), `?url=SERVICE_NAME` (optional filter)
+> - Uses stdlib only (json, csv modules)
+> - Tests: `tests/test_api.py::TestExportEndpoints`
 
 **Value**: Enables external analysis, reporting, and integration with other tools.
 
@@ -334,7 +349,7 @@ maintenance:
 
 ### Phase 1 (High Impact, Low Complexity)
 1. **RSS Feed** - ✅ IMPLEMENTED
-2. **Dark/Light Mode Toggle** - Improves UX immediately
+2. **Dark/Light Mode Toggle** - u2705 IMPLEMENTED
 3. **System Aggregated Statistics** - Enhances dashboard value
 
 ### Phase 2 (High Impact, Medium Complexity)
