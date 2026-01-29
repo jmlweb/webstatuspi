@@ -258,12 +258,38 @@ class DisplayConfig:
 
 
 @dataclass(frozen=True)
+class RssConfig:
+    """Configuration for RSS feed generation.
+
+    Attributes:
+        enabled: Whether RSS feed endpoint is enabled.
+        title: Feed title displayed in RSS readers.
+        description: Feed description.
+        max_items: Maximum number of status items to include.
+        link: Base URL for the status page (used in feed links).
+    """
+
+    enabled: bool = True
+    title: str = "WebStatusπ Status Feed"
+    description: str = "Real-time status updates for monitored services"
+    max_items: int = 20
+    link: str = ""
+
+    def __post_init__(self) -> None:
+        if self.max_items < 1:
+            raise ConfigError(f"RSS max_items must be at least 1 (got {self.max_items})")
+        if self.max_items > 100:
+            raise ConfigError(f"RSS max_items must not exceed 100 (got {self.max_items})")
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     """Configuration for JSON API server."""
 
     enabled: bool = True
     port: int = 8080
     reset_token: str | None = None  # Required for DELETE /reset when set
+    rss: RssConfig = field(default_factory=RssConfig)
 
     def __post_init__(self) -> None:
         if self.port < 1 or self.port > 65535:
@@ -474,6 +500,22 @@ def _parse_display_config(data: dict | None) -> DisplayConfig:
     )
 
 
+def _parse_rss_config(data: dict | None) -> RssConfig:
+    """Parse RSS configuration section."""
+    if data is None:
+        return RssConfig()
+    if not isinstance(data, dict):
+        raise ConfigError("'api.rss' section must be a dictionary")
+
+    return RssConfig(
+        enabled=bool(data.get("enabled", True)),
+        title=str(data.get("title", "WebStatusπ Status Feed")),
+        description=str(data.get("description", "Real-time status updates for monitored services")),
+        max_items=int(data.get("max_items", 20)),
+        link=str(data.get("link", "")),
+    )
+
+
 def _parse_api_config(data: dict | None) -> ApiConfig:
     """Parse API configuration section."""
     if data is None:
@@ -485,10 +527,13 @@ def _parse_api_config(data: dict | None) -> ApiConfig:
     if reset_token is not None:
         reset_token = str(reset_token)
 
+    rss_config = _parse_rss_config(data.get("rss"))
+
     return ApiConfig(
         enabled=bool(data.get("enabled", True)),
         port=int(data.get("port", 8080)),
         reset_token=reset_token,
+        rss=rss_config,
     )
 
 

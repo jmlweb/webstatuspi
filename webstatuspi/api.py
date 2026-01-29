@@ -23,7 +23,8 @@ from ._pwa import (
     MANIFEST_JSON,
     SERVICE_WORKER_JS,
 )
-from .config import ApiConfig
+from ._rss import generate_rss_feed
+from .config import ApiConfig, RssConfig
 from .database import (
     DatabaseError,
     delete_all_checks,
@@ -327,6 +328,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     # Class-level references set by factory
     db_conn: sqlite3.Connection | None = None
     reset_token: str | None = None  # Required for DELETE /reset when set
+    rss_config: RssConfig | None = None  # RSS feed configuration
     rate_limiter: RateLimiter | None = None
     internet_status_getter: Any | None = None  # Callable that returns bool | None
     _request_count: int = 0  # Counter for periodic rate limiter cleanup
@@ -627,6 +629,23 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_xml(self, xml_content: str, cache_seconds: int = 60) -> None:
+        """Send an XML response with caching headers.
+
+        Args:
+            xml_content: XML string to send.
+            cache_seconds: Cache duration in seconds.
+        """
+        body = xml_content.encode("utf-8")
+        self.send_response(200)
+        self._add_security_headers()
+        self.send_header("Content-Type", "application/rss+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", f"public, max-age={cache_seconds}")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         """Handle GET requests."""
         if not self._check_rate_limit():
@@ -687,6 +706,9 @@ class StatusHandler(BaseHTTPRequestHandler):
             # SEO endpoints
             elif self.path == "/robots.txt":
                 self._send_robots_txt()
+            # Feed endpoints
+            elif self.path == "/rss.xml":
+                self._handle_rss()
             else:
                 self._send_error_json(404, "Not found")
         except (BrokenPipeError, ConnectionResetError):
@@ -919,12 +941,32 @@ class StatusHandler(BaseHTTPRequestHandler):
             logger.error("Database error in /reset: %s", e)
             self._send_error_json(500, "Database error")
 
+    def _handle_rss(self) -> None:
+        """Handle GET /rss.xml endpoint - returns RSS 2.0 feed of status updates."""
+        # Check if RSS is enabled
+        if self.rss_config is None or not self.rss_config.enabled:
+            self._send_error_json(404, "RSS feed is disabled")
+            return
+
+        if self.db_conn is None:
+            self._send_error_json(503, "Database not available")
+            return
+
+        try:
+            statuses = get_latest_status(self.db_conn)
+            rss_xml = generate_rss_feed(statuses, self.rss_config)
+            self._send_xml(rss_xml, cache_seconds=60)
+        except DatabaseError as e:
+            logger.error("Database error in /rss.xml: %s", e)
+            self._send_error_json(500, "Database error")
+
 
 def _create_handler_class(
     db_conn: sqlite3.Connection,
     reset_token: str | None = None,
     rate_limiter: RateLimiter | None = None,
     internet_status_getter: Any | None = None,
+    rss_config: RssConfig | None = None,
 ) -> type:
     """Create a handler class with the database connection and config bound.
 
@@ -933,6 +975,7 @@ def _create_handler_class(
         reset_token: Optional token for authenticating DELETE /reset requests.
         rate_limiter: Optional rate limiter for protecting against DoS.
         internet_status_getter: Optional callable that returns current internet status.
+        rss_config: Optional RSS feed configuration.
     """
 
     class BoundStatusHandler(StatusHandler):
@@ -942,6 +985,7 @@ def _create_handler_class(
     BoundStatusHandler.reset_token = reset_token
     BoundStatusHandler.rate_limiter = rate_limiter
     BoundStatusHandler.internet_status_getter = internet_status_getter
+    BoundStatusHandler.rss_config = rss_config
     return BoundStatusHandler
 
 
@@ -985,6 +1029,7 @@ class ApiServer:
                 self.config.reset_token,
                 self._rate_limiter,
                 self.internet_status_getter,
+                self.config.rss,
             )
             self._server = ThreadingHTTPServer(("", self.config.port), handler_class)
             self._server.timeout = 1.0  # Allow periodic shutdown checks

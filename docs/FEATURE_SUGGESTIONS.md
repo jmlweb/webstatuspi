@@ -4,7 +4,12 @@ This document outlines potential features that could add significant value to We
 
 ## High-Value Features
 
-### 1. RSS Feed for Status Updates (Priority: P2)
+### 1. RSS Feed for Status Updates (Priority: P2) ✅ IMPLEMENTED
+
+> **Status**: Implemented in v0.2.0
+> - Endpoint: `GET /rss.xml`
+> - Configuration: `api.rss.enabled`, `api.rss.title`, `api.rss.max_items`, `api.rss.link`
+> - Tests: `tests/test_rss.py`
 
 **Value**: Allows users to subscribe to status changes via RSS readers, enabling automatic notifications when services go down or recover.
 
@@ -316,7 +321,7 @@ maintenance:
 ## Implementation Priority
 
 ### Phase 1 (High Impact, Low Complexity)
-1. **RSS Feed** - Quick win, high user value
+1. **RSS Feed** - ✅ IMPLEMENTED
 2. **Dark/Light Mode Toggle** - Improves UX immediately
 3. **System Aggregated Statistics** - Enhances dashboard value
 
