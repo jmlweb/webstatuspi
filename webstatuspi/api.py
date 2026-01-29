@@ -192,12 +192,13 @@ def _build_status_response(statuses: list[UrlStatus], internet_status: bool | No
     return response
 
 
-def _generate_badge_svg(label: str, state: str) -> str:
+def _generate_badge_svg(label: str, state: str, style: str = "default") -> str:
     """Generate a shields.io-style SVG badge for status.
 
     Args:
         label: The left side label (e.g., "status" or service name).
         state: The status state (e.g., "up", "down", "degraded", "unknown").
+        style: Badge style - "default" (gradient) or "flat" (no gradient).
 
     Returns:
         SVG string representing the badge.
@@ -211,23 +212,51 @@ def _generate_badge_svg(label: str, state: str) -> str:
     color = colors.get(state.lower(), colors["unknown"])
     text = state.upper()
 
-    # Shields.io style badge
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="90" height="20">
+    # Calculate widths based on text length (more professional sizing)
+    label_width = max(len(label) * 7 + 16, 50)  # min 50px for label + icon
+    text_width = max(len(text) * 7 + 10, 45)
+    total_width = label_width + text_width
+    label_x = 8 + (label_width - 8) / 2  # Center text in label area (after icon)
+    text_x = label_width + text_width / 2
+
+    # Status icon (circle indicator)
+    icon_color = color
+    icon = f'''<circle cx="8" cy="10" r="4" fill="{icon_color}" stroke="#fff" stroke-width="1"/>'''
+
+    if style == "flat":
+        # Flat style without gradient
+        return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20" role="img" aria-label="{label}: {text}">
+  <title>{label}: {text}</title>
+  <rect width="{label_width}" height="20" fill="#555"/>
+  <rect x="{label_width}" width="{text_width}" height="20" fill="{color}"/>
+  {icon}
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+    <text x="{label_x}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
+    <text x="{label_x}" y="14">{label}</text>
+    <text x="{text_x}" y="15" fill="#010101" fill-opacity=".3">{text}</text>
+    <text x="{text_x}" y="14">{text}</text>
+  </g>
+</svg>"""
+    else:
+        # Default style with gradient overlay (shields.io compatible)
+        return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20" role="img" aria-label="{label}: {text}">
+  <title>{label}: {text}</title>
   <linearGradient id="b" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
   </linearGradient>
-  <mask id="a"><rect width="90" height="20" rx="3" fill="#fff"/></mask>
+  <mask id="a"><rect width="{total_width}" height="20" rx="3" fill="#fff"/></mask>
   <g mask="url(#a)">
-    <rect width="45" height="20" fill="#555"/>
-    <rect x="45" width="45" height="20" fill="{color}"/>
-    <rect width="90" height="20" fill="url(#b)"/>
+    <rect width="{label_width}" height="20" fill="#555"/>
+    <rect x="{label_width}" width="{text_width}" height="20" fill="{color}"/>
+    <rect width="{total_width}" height="20" fill="url(#b)"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="11">
-    <text x="22.5" y="15" fill="#010101" fill-opacity=".3">{label}</text>
-    <text x="22.5" y="14">{label}</text>
-    <text x="67.5" y="15" fill="#010101" fill-opacity=".3">{text}</text>
-    <text x="67.5" y="14">{text}</text>
+  {icon}
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+    <text x="{label_x}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
+    <text x="{label_x}" y="14">{label}</text>
+    <text x="{text_x}" y="15" fill="#010101" fill-opacity=".3">{text}</text>
+    <text x="{text_x}" y="14">{text}</text>
   </g>
 </svg>"""
 
@@ -675,7 +704,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             elif self.path == "/badge.svg":
                 self._handle_badge()
             elif self.path.startswith("/badge.svg?"):
-                # Extract url query parameter
+                # Extract query parameters (url, style)
                 query_string = self.path[11:]  # Remove "/badge.svg?"
                 params = {}
                 for param in query_string.split("&"):
@@ -685,15 +714,19 @@ class StatusHandler(BaseHTTPRequestHandler):
                     else:
                         params[unquote(param)] = ""
                 url_param = params.get("url")
+                style_param = params.get("style", "default")
+                # Validate style parameter
+                if style_param not in ("default", "flat"):
+                    style_param = "default"
                 if url_param:
                     # Validate the URL name
                     validated_name = self._validate_url_name(url_param)
                     if validated_name:
-                        self._handle_badge(validated_name)
+                        self._handle_badge(validated_name, style_param)
                     else:
                         self._send_error_json(400, "Invalid URL name")
                 else:
-                    self._handle_badge()
+                    self._handle_badge(None, style_param)
             # PWA endpoints
             elif self.path == "/manifest.json":
                 self._send_manifest(MANIFEST_JSON)
@@ -861,12 +894,13 @@ class StatusHandler(BaseHTTPRequestHandler):
             logger.error("Database error in /metrics: %s", e)
             self._send_error_json(500, "Database error")
 
-    def _handle_badge(self, url_name: str | None = None) -> None:
+    def _handle_badge(self, url_name: str | None = None, style: str = "default") -> None:
         """Handle GET /badge.svg endpoint - returns status badge as SVG.
 
         Args:
             url_name: Optional URL name for service-specific badge.
                      If None, returns overall system status.
+            style: Badge style - "default" (gradient) or "flat" (no gradient).
         """
         if self.db_conn is None:
             self._send_error_json(503, "Database not available")
@@ -898,7 +932,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     else:
                         state = "degraded"
 
-            svg = _generate_badge_svg(label, state)
+            svg = _generate_badge_svg(label, state, style)
             self._send_svg(svg)
         except DatabaseError as e:
             logger.error("Database error in /badge.svg: %s", e)

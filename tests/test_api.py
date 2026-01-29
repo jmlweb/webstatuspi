@@ -1100,3 +1100,239 @@ class TestPwaEndpoints:
             # Online/offline event listeners
             assert "addEventListener('online'" in body or 'addEventListener("online"' in body
             assert "addEventListener('offline'" in body or 'addEventListener("offline"' in body
+
+
+class TestBadgeEndpoint:
+    """Tests for GET /badge.svg endpoint."""
+
+    @pytest.fixture
+    def running_server(self, db_conn: sqlite3.Connection) -> ApiServer:
+        """Start a server and yield it, stopping after test."""
+        port = get_free_port()
+        config = ApiConfig(enabled=True, port=port)
+        server = ApiServer(config, db_conn)
+        server.start()
+        time.sleep(0.1)
+        yield server
+        server.stop()
+
+    def _get_svg(self, server: ApiServer, path: str) -> tuple:
+        """Make a GET request and return (status_code, svg_body)."""
+        port = server.config.port
+        url = f"http://localhost:{port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                body = response.read().decode("utf-8")
+                content_type = response.headers.get("Content-Type", "")
+                return response.status, body, content_type
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8")
+            return e.code, body, ""
+
+    def test_badge_returns_svg(self, running_server: ApiServer) -> None:
+        """GET /badge.svg returns SVG content type."""
+        status, body, content_type = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        assert "image/svg+xml" in content_type
+        assert "<svg" in body
+        assert "</svg>" in body
+
+    def test_badge_unknown_status_empty_db(self, running_server: ApiServer) -> None:
+        """GET /badge.svg returns unknown status when database is empty."""
+        status, body, _ = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        assert "UNKNOWN" in body
+        assert "#9f9f9f" in body  # gray color
+
+    def test_badge_up_status_all_services_up(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg returns UP when all services are up."""
+        check = CheckResult(
+            url_name="BADGE_TEST",
+            url="https://badge.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        assert "UP" in body
+        assert "#4c1" in body  # green color
+
+    def test_badge_down_status_all_services_down(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg returns DOWN when all services are down."""
+        check = CheckResult(
+            url_name="BADGE_DOWN",
+            url="https://down.example.com",
+            status_code=500,
+            response_time_ms=0,
+            is_up=False,
+            error_message="Server error",
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        assert "DOWN" in body
+        assert "#e05d44" in body  # red color
+
+    def test_badge_degraded_status_mixed(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg returns DEGRADED when some services are down."""
+        # Insert one up, one down
+        check_up = CheckResult(
+            url_name="UP_SVC",
+            url="https://up.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        check_down = CheckResult(
+            url_name="DOWN_SVC",
+            url="https://down.example.com",
+            status_code=500,
+            response_time_ms=0,
+            is_up=False,
+            error_message="Error",
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check_up)
+        insert_check(db_conn, check_down)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        assert "DEGRADED" in body
+        assert "#dfb317" in body  # yellow color
+
+    def test_badge_specific_service_up(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg?url=SERVICE returns status for specific service."""
+        check = CheckResult(
+            url_name="MY_SVC",
+            url="https://mysvc.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg?url=MY_SVC")
+        assert status == 200
+        assert "MY_SVC" in body  # label should be service name
+        assert "UP" in body
+        assert "#4c1" in body  # green
+
+    def test_badge_specific_service_down(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg?url=SERVICE returns DOWN for down service."""
+        check = CheckResult(
+            url_name="FAIL_SVC",
+            url="https://fail.example.com",
+            status_code=503,
+            response_time_ms=0,
+            is_up=False,
+            error_message="Service unavailable",
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg?url=FAIL_SVC")
+        assert status == 200
+        assert "FAIL_SVC" in body
+        assert "DOWN" in body
+        assert "#e05d44" in body  # red
+
+    def test_badge_specific_service_not_found(self, running_server: ApiServer) -> None:
+        """GET /badge.svg?url=UNKNOWN returns 404."""
+        status, body, _ = self._get_svg(running_server, "/badge.svg?url=UNKNOWN")
+        assert status == 404
+        assert "not found" in body.lower()
+
+    def test_badge_flat_style(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg?style=flat returns flat badge without gradient."""
+        check = CheckResult(
+            url_name="FLAT_TEST",
+            url="https://flat.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg?style=flat")
+        assert status == 200
+        assert "<svg" in body
+        # Flat style should NOT have gradient elements
+        assert "linearGradient" not in body
+        assert "mask" not in body
+
+    def test_badge_default_style_has_gradient(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg returns default style with gradient."""
+        check = CheckResult(
+            url_name="GRAD_TEST",
+            url="https://grad.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg")
+        assert status == 200
+        # Default style should have gradient elements
+        assert "linearGradient" in body
+        assert "mask" in body
+
+    def test_badge_combined_params(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg?url=SERVICE&style=flat works with both params."""
+        check = CheckResult(
+            url_name="COMBO",
+            url="https://combo.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg?url=COMBO&style=flat")
+        assert status == 200
+        assert "COMBO" in body
+        assert "UP" in body
+        assert "linearGradient" not in body  # flat style
+
+    def test_badge_invalid_style_uses_default(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /badge.svg?style=invalid falls back to default style."""
+        check = CheckResult(
+            url_name="STYLE_FB",
+            url="https://style.example.com",
+            status_code=200,
+            response_time_ms=100,
+            is_up=True,
+            error_message=None,
+            checked_at=datetime.now(UTC),
+        )
+        insert_check(db_conn, check)
+
+        status, body, _ = self._get_svg(running_server, "/badge.svg?style=invalid")
+        assert status == 200
+        # Should use default style (with gradient)
+        assert "linearGradient" in body
+
+    def test_badge_has_cache_header(self, running_server: ApiServer) -> None:
+        """Badge response includes cache control header."""
+        port = running_server.config.port
+        url = f"http://localhost:{port}/badge.svg"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            cache_control = response.headers.get("Cache-Control")
+            assert "max-age=60" in cache_control  # 1 minute cache

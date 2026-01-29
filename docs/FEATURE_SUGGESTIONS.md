@@ -40,7 +40,14 @@ api:
 
 ---
 
-### 2. Embeddable Status Badge/Widget (Priority: P2)
+### 2. Embeddable Status Badge/Widget (Priority: P2) ✅ IMPLEMENTED
+
+> **Status**: Implemented
+> - Endpoint: `GET /badge.svg`
+> - Query params: `?url=SERVICE_NAME` for specific service, `?style=default|flat`
+> - States: UP (green), DOWN (red), DEGRADED (yellow), UNKNOWN (gray)
+> - Shields.io-compatible SVG with gradient and flat styles
+> - Tests: `tests/test_api.py::TestBadgeEndpoint`
 
 **Value**: Allows other websites to embed a visual status indicator, increasing visibility and transparency.
 
