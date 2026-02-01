@@ -807,6 +807,9 @@ class StatusHandler(BaseHTTPRequestHandler):
         # get_dashboard() supports hot-reload: detects template file changes
         html = get_dashboard().replace(CSP_NONCE_PLACEHOLDER, nonce)
         html = html.replace("__INITIAL_DATA__", initial_data)
+        # Hide reset button for remote (Cloudflare) connections
+        is_remote = "true" if self._is_cloudflare_request() else "false"
+        html = html.replace("__IS_REMOTE__", is_remote)
         body = html.encode("utf-8")
 
         self._send_html_bytes(200, body, nonce)

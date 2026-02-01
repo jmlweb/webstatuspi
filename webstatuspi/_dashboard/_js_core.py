@@ -648,6 +648,10 @@ JS_CORE = """
         }
 
         // Button event listeners (CSP-compliant, no inline handlers)
+        // Show reset button only for local connections (hidden by default)
+        if (!window.__IS_REMOTE__) {
+            document.getElementById('resetDataBtn').hidden = false;
+        }
         document.getElementById('resetDataBtn').addEventListener('click', showResetModal);
         document.getElementById('historyModalClose').addEventListener('click', closeModal);
         document.getElementById('resetModalClose').addEventListener('click', cancelReset);
