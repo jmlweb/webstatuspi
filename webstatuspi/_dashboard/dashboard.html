@@ -13,7 +13,9 @@
     <title>WebStatusπ // SYSTEM MONITOR</title>
     <!-- PWA manifest and icons -->
     <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <style nonce="__CSP_NONCE__">$css
     </style>
 </head>
@@ -25,7 +27,9 @@
     </div>
     <div class="scanline-overlay" aria-hidden="true"></div>
     <header role="banner">
-        <h1><span class="logo-bracket">&lt;</span><span class="logo-text">WebStatusπ</span><span class="logo-bracket">/&gt;</span></h1>
+        <h1>
+            <img src="/logo-desktop.svg" alt="WebStatusPI" width="47" height="16" />
+        </h1>
         <div class="live-indicator" role="status" aria-live="polite" aria-label="Live feed status">
             <span class="live-dot" id="liveDot" aria-hidden="true"></span>
             <span id="liveStatusText">// LIVE FEED [10 sec]</span>

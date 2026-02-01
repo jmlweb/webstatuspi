@@ -27,7 +27,10 @@ const STATIC_ASSETS = [
     '/',
     '/manifest.json',
     '/icon-192.png',
-    '/icon-512.png'
+    '/icon-512.png',
+    '/favicon.svg',
+    '/favicon.png',
+    '/apple-touch-icon.png'
 ];
 
 // Install event - cache static assets
@@ -166,9 +169,11 @@ self.addEventListener('fetch', (event) => {{
         return;
     }}
 
-    // Static assets: Cache-first (icons, manifest)
+    // Static assets: Cache-first (icons, manifest, favicon)
     if (url.pathname === '/manifest.json' ||
-        url.pathname.startsWith('/icon-')) {{
+        url.pathname.startsWith('/icon-') ||
+        url.pathname.startsWith('/favicon.') ||
+        url.pathname === '/apple-touch-icon.png') {{
         event.respondWith(
             caches.match(event.request)
                 .then(cachedResponse => {{

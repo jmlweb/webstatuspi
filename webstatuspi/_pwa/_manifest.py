@@ -24,6 +24,12 @@ MANIFEST_JSON = f"""{{
   "theme_color": "#00fff9",
   "icons": [
     {{
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }},
+    {{
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",

@@ -10,7 +10,7 @@ All files support hot-reload: changes to dashboard.html, styles.css, and JS file
 are detected automatically without requiring a server restart.
 """
 
-from ._html import build_html
+from ._html import build_html, get_static_asset
 
 # CSP nonce placeholder for runtime replacement
 CSP_NONCE_PLACEHOLDER = "__CSP_NONCE__"
@@ -38,4 +38,5 @@ __all__ = [
     "HTML_DASHBOARD",
     "CSP_NONCE_PLACEHOLDER",
     "get_dashboard",
+    "get_static_asset",
 ]

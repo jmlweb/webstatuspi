@@ -18,6 +18,7 @@ from urllib.parse import unquote
 from ._dashboard import (
     CSP_NONCE_PLACEHOLDER,
     get_dashboard,
+    get_static_asset,
 )
 from ._pwa import (
     ICON_192_PNG,
@@ -661,6 +662,45 @@ class StatusHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _handle_static_file(self, filename: str) -> None:
+        """Handle serving static files from the dashboard static directory.
+
+        Supports SVG and PNG files with hot-reload. Files are served with
+        appropriate Content-Type headers and caching.
+
+        Args:
+            filename: Name of the file in the static directory (e.g., "logo-desktop.svg").
+        """
+        # Validate filename to prevent path traversal
+        if ".." in filename or "/" in filename or "\\" in filename:
+            self._send_error_json(400, "Invalid filename")
+            return
+
+        # Determine if binary based on extension
+        is_binary = filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".ico"))
+        content = get_static_asset(filename, binary=is_binary)
+
+        if content is None:
+            self._send_error_json(404, "File not found")
+            return
+
+        # Determine Content-Type based on extension and serve accordingly
+        if filename.lower().endswith(".svg"):
+            # SVG files are text-based
+            svg_content = content if isinstance(content, str) else content.decode("utf-8")
+            self._send_svg(svg_content)
+        elif filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".ico")):
+            # Binary image files
+            if not isinstance(content, bytes):
+                # Shouldn't happen if binary=True, but handle gracefully
+                self._send_error_json(500, "Internal server error")
+                return
+            self._send_png(content)
+        else:
+            # Default to text/plain for unknown types
+            text_content = content if isinstance(content, str) else content.decode("utf-8")
+            self._send_text(200, text_content)
+
     def _send_xml(self, xml_content: str, cache_seconds: int = 60) -> None:
         """Send an XML response with caching headers.
 
@@ -739,6 +779,15 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self._send_png(ICON_192_PNG)
             elif self.path == "/icon-512.png":
                 self._send_png(ICON_512_PNG)
+            # Static assets from dashboard
+            elif self.path == "/logo-desktop.svg":
+                self._handle_static_file("logo-desktop.svg")
+            elif self.path == "/favicon.svg":
+                self._handle_static_file("favicon.svg")
+            elif self.path == "/favicon.png":
+                self._handle_static_file("favicon.png")
+            elif self.path == "/apple-touch-icon.png":
+                self._handle_static_file("apple-touch-icon.png")
             # SEO endpoints
             elif self.path == "/robots.txt":
                 self._send_robots_txt()

@@ -26,6 +26,9 @@ _template_cache: Template | None = None
 _template_mtime: float = 0.0
 _static_cache: dict[str, str] = {}
 _static_mtimes: dict[str, float] = {}
+# Cache for binary static files (PNG, etc.)
+_static_binary_cache: dict[str, bytes] = {}
+_static_binary_mtimes: dict[str, float] = {}
 
 
 def _get_template() -> Template:
@@ -67,6 +70,37 @@ def _get_static_file(key: str) -> str:
         _static_mtimes[key] = current_mtime
 
     return _static_cache[key]
+
+
+def get_static_asset(filename: str, binary: bool = False) -> str | bytes | None:
+    """Get a static asset file by name, reloading if changed.
+
+    Supports hot-reload: changes are detected automatically without server restart.
+
+    Args:
+        filename: Name of the file in the static directory (e.g., "logo-desktop.svg").
+        binary: If True, return bytes; if False, return string (UTF-8).
+
+    Returns:
+        File content as string or bytes, or None if file doesn't exist.
+    """
+    path = _STATIC_DIR / filename
+
+    if not path.exists():
+        return None
+
+    current_mtime = path.stat().st_mtime
+
+    if binary:
+        if filename not in _static_binary_cache or current_mtime != _static_binary_mtimes.get(filename):
+            _static_binary_cache[filename] = path.read_bytes()
+            _static_binary_mtimes[filename] = current_mtime
+        return _static_binary_cache[filename]
+    else:
+        if filename not in _static_cache or current_mtime != _static_mtimes.get(filename):
+            _static_cache[filename] = path.read_text(encoding="utf-8")
+            _static_mtimes[filename] = current_mtime
+        return _static_cache[filename]
 
 
 def build_html() -> str:
