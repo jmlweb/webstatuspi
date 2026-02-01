@@ -1,10 +1,3 @@
-"""JavaScript core functionality for the dashboard.
-
-This module contains the main dashboard rendering, API fetching,
-modal handling, and event listeners.
-"""
-
-JS_CORE = """
         function renderCard(url) {
             const statusClass = url.is_up ? 'up' : 'down';
             const cardClass = url.is_up ? '' : ' down';
@@ -38,7 +31,7 @@ JS_CORE = """
                         <div class="mini-stat-value">${formatResponseTime(url.max_response_time_24h)}</div>
                     </div>
                     <div class="mini-stat">
-                        <div class="mini-stat-label">\\u03C3</div>
+                        <div class="mini-stat-label">\u03C3</div>
                         <div class="mini-stat-value">${formatResponseTime(url.stddev_response_time_24h)}</div>
                     </div>
                 </div>
@@ -48,12 +41,12 @@ JS_CORE = """
             const warningHtml = url.consecutive_failures > 0 ? `
                 <div class="warning-banner" role="alert">
                     ${url.consecutive_failures} consecutive failure${url.consecutive_failures > 1 ? 's' : ''}
-                    ${url.last_downtime ? ' \\u2022 Last down: ' + formatRelativeTime(url.last_downtime) : ''}
+                    ${url.last_downtime ? ' \u2022 Last down: ' + formatRelativeTime(url.last_downtime) : ''}
                 </div>
             ` : '';
 
             // Build footer with last check and content length
-            const contentInfo = url.content_length !== null ? ` \\u2022 Size: ${formatBytes(url.content_length)}` : '';
+            const contentInfo = url.content_length !== null ? ` \u2022 Size: ${formatBytes(url.content_length)}` : '';
 
             const statusText = url.is_up ? 'online' : 'offline';
             const latencyText = url.response_time_ms ? url.response_time_ms + ' milliseconds' : 'unknown';
@@ -930,4 +923,3 @@ JS_CORE = """
                 setTheme(e.matches ? 'light' : 'dark');
             }
         });
-"""

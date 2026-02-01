@@ -1,19 +1,31 @@
 """HTML template for the dashboard.
 
-This module loads the HTML template from dashboard.html and provides
-a function to build the complete HTML by substituting CSS and JavaScript.
+This module loads the HTML template from dashboard.html and reads CSS/JS from
+static files, providing a function to build the complete HTML.
 
-The template is automatically reloaded when the file changes (hot-reload).
+All files support hot-reload: changes are detected automatically without
+requiring a server restart.
 """
 
 from pathlib import Path
 from string import Template
 
+_STATIC_DIR = Path(__file__).parent / "static"
 _TEMPLATE_PATH = Path(__file__).parent / "dashboard.html"
 
-# Cache for template and its mtime
+# File paths for static assets
+_STATIC_FILES = {
+    "css": _STATIC_DIR / "styles.css",
+    "js_utils": _STATIC_DIR / "utils.js",
+    "js_charts": _STATIC_DIR / "charts.js",
+    "js_core": _STATIC_DIR / "core.js",
+}
+
+# Cache for template and static files with their mtimes
 _template_cache: Template | None = None
 _template_mtime: float = 0.0
+_static_cache: dict[str, str] = {}
+_static_mtimes: dict[str, float] = {}
 
 
 def _get_template() -> Template:
@@ -36,27 +48,42 @@ def _get_template() -> Template:
     return _template_cache
 
 
-def build_html(css: str, js_utils: str, js_charts: str, js_core: str) -> str:
+def _get_static_file(key: str) -> str:
+    """Get static file content, reloading if the file changed.
+
+    Uses file modification time to detect changes for hot-reload support.
+
+    Args:
+        key: The key identifying the static file (e.g., "css", "js_utils")
+
+    Returns:
+        The current file content as a string.
+    """
+    path = _STATIC_FILES[key]
+    current_mtime = path.stat().st_mtime
+
+    if key not in _static_cache or current_mtime != _static_mtimes.get(key):
+        _static_cache[key] = path.read_text(encoding="utf-8")
+        _static_mtimes[key] = current_mtime
+
+    return _static_cache[key]
+
+
+def build_html() -> str:
     """Build the complete HTML dashboard from its components.
 
     Uses string.Template for safe substitution of CSS and JavaScript content.
     The template uses $variable syntax for placeholders.
 
-    The HTML template is automatically reloaded if the file changes,
-    enabling hot-reload during development without server restart.
-
-    Args:
-        css: CSS styles string
-        js_utils: JavaScript utility functions string
-        js_charts: JavaScript chart functions string
-        js_core: JavaScript core functionality string
+    All files (HTML template, CSS, JS) support hot-reload: changes are
+    detected automatically without server restart.
 
     Returns:
         Complete HTML dashboard string
     """
     return _get_template().safe_substitute(
-        css=css,
-        js_utils=js_utils,
-        js_charts=js_charts,
-        js_core=js_core,
+        css=_get_static_file("css"),
+        js_utils=_get_static_file("js_utils"),
+        js_charts=_get_static_file("js_charts"),
+        js_core=_get_static_file("js_core"),
     )

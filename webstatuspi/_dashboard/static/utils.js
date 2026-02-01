@@ -1,9 +1,3 @@
-"""JavaScript utility functions for the dashboard.
-
-This module contains formatting and helper functions used across the dashboard.
-"""
-
-JS_UTILS = """
         const POLL_INTERVAL = 10000;
         const FETCH_TIMEOUT_MS = 60000;  // 60 second timeout for slow RPi hardware
         let isUpdating = false;
@@ -158,4 +152,3 @@ JS_UTILS = """
                 minute: '2-digit'
             });
         }
-"""

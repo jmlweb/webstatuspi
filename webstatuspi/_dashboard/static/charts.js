@@ -1,9 +1,3 @@
-"""JavaScript chart rendering functions for the dashboard.
-
-This module contains SVG chart utilities and all chart rendering functions.
-"""
-
-JS_CHARTS = """
         // ============================================
         // SVG Chart Utilities
         // ============================================
@@ -614,4 +608,3 @@ JS_CHARTS = """
                 }
             });
         }
-"""
