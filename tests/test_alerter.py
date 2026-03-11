@@ -1,5 +1,6 @@
 """Tests for the webhook alerter module."""
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, Mock, patch
 
@@ -217,29 +218,30 @@ class TestAlerter:
         assert payload["status"]["success"] is True
         assert payload["previous_status"] == "down"
 
-    @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_success(self, mock_post: Mock, alerter: Alerter, check_result_down: CheckResult) -> None:
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
+    def test_send_webhook_success(self, mock_urlopen: Mock, alerter: Alerter, check_result_down: CheckResult) -> None:
         """Test successful webhook delivery."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
+        mock_cm = MagicMock()
+        mock_urlopen.return_value.__enter__ = Mock(return_value=mock_cm)
+        mock_urlopen.return_value.__exit__ = Mock(return_value=False)
 
         webhook = alerter._config.webhooks[0]
         alerter._send_webhook(webhook, check_result_down)
 
-        mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
-        assert args[0] == "https://example.com/webhook"
-        assert kwargs["timeout"] == 10
-        assert isinstance(kwargs["json"], dict)
-        assert "event" in kwargs["json"]
+        mock_urlopen.assert_called_once()
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert req.full_url == "https://example.com/webhook"
+        assert call_args[1]["timeout"] == 10
+        payload = json.loads(req.data)
+        assert "event" in payload
 
-    @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_retry_on_failure(self, mock_post: Mock, check_result_down: CheckResult) -> None:
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
+    def test_send_webhook_retry_on_failure(self, mock_urlopen: Mock, check_result_down: CheckResult) -> None:
         """Test that webhook retries on failure."""
-        import requests
+        import urllib.error
 
-        mock_post.side_effect = requests.RequestException("Connection error")
+        mock_urlopen.side_effect = urllib.error.URLError("Connection error")
 
         webhook = WebhookConfig(
             url="https://example.com/webhook",
@@ -253,20 +255,21 @@ class TestAlerter:
         alerter._send_webhook(webhook, check_result_down)
 
         # Should attempt 3 times (initial + 2 retries)
-        assert mock_post.call_count == 3
+        assert mock_urlopen.call_count == 3
 
-    @patch("webstatuspi.alerter.requests.post")
-    def test_send_webhook_success_after_retry(self, mock_post: Mock, check_result_down: CheckResult) -> None:
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
+    def test_send_webhook_success_after_retry(self, mock_urlopen: Mock, check_result_down: CheckResult) -> None:
         """Test successful delivery after retry."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
+        import urllib.error
 
-        import requests
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = Mock(return_value=mock_cm)
+        mock_cm.__exit__ = Mock(return_value=False)
 
         # Fail first, succeed second
-        mock_post.side_effect = [
-            requests.RequestException("Connection error"),
-            mock_response,
+        mock_urlopen.side_effect = [
+            urllib.error.URLError("Connection error"),
+            mock_cm,
         ]
 
         webhook = WebhookConfig(
@@ -281,26 +284,26 @@ class TestAlerter:
         alerter._send_webhook(webhook, check_result_down)
 
         # Should succeed after retry
-        assert mock_post.call_count == 2
+        assert mock_urlopen.call_count == 2
 
-    @patch("webstatuspi.alerter.requests.post")
-    def test_test_webhooks_all_success(self, mock_post: Mock, alerter: Alerter) -> None:
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
+    def test_test_webhooks_all_success(self, mock_urlopen: Mock, alerter: Alerter) -> None:
         """Test successful webhook testing."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
+        mock_cm = MagicMock()
+        mock_urlopen.return_value.__enter__ = Mock(return_value=mock_cm)
+        mock_urlopen.return_value.__exit__ = Mock(return_value=False)
 
         results = alerter.test_webhooks()
 
         assert results["https://example.com/webhook"] is True
-        mock_post.assert_called_once()
+        mock_urlopen.assert_called_once()
 
-    @patch("webstatuspi.alerter.requests.post")
-    def test_test_webhooks_failure(self, mock_post: Mock, alerter: Alerter) -> None:
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
+    def test_test_webhooks_failure(self, mock_urlopen: Mock, alerter: Alerter) -> None:
         """Test failed webhook testing."""
-        import requests
+        import urllib.error
 
-        mock_post.side_effect = requests.RequestException("Connection error")
+        mock_urlopen.side_effect = urllib.error.URLError("Connection error")
 
         results = alerter.test_webhooks()
 
@@ -314,10 +317,10 @@ class TestAlerter:
         )
         alerter = Alerter(AlertsConfig(webhooks=[webhook]))
 
-        with patch("webstatuspi.alerter.requests.post") as mock_post:
+        with patch("webstatuspi.alerter.urllib.request.urlopen") as mock_urlopen:
             results = alerter.test_webhooks()
             assert results["https://example.com/webhook"] is False
-            mock_post.assert_not_called()
+            mock_urlopen.assert_not_called()
 
     def test_multiple_webhooks(self) -> None:
         """Test alerter with multiple webhooks."""
@@ -476,25 +479,26 @@ class TestLatencyAlerts:
             assert alerter._state_tracker.consecutive_slow.get("test_url", 0) == 0
             mock_send.assert_not_called()  # No alert since we never reached threshold
 
-    @patch("webstatuspi.alerter.requests.post")
+    @patch("webstatuspi.alerter.urllib.request.urlopen")
     def test_send_latency_webhook_success(
-        self, mock_post: Mock, alerter: Alerter, url_config_with_threshold: UrlConfig
+        self, mock_urlopen: Mock, alerter: Alerter, url_config_with_threshold: UrlConfig
     ) -> None:
         """Test successful latency webhook delivery."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
+        mock_cm = MagicMock()
+        mock_urlopen.return_value.__enter__ = Mock(return_value=mock_cm)
+        mock_urlopen.return_value.__exit__ = Mock(return_value=False)
 
         # Trigger alert
         for _ in range(3):
             alerter.check_latency_alert(url_config_with_threshold, 1500)
 
-        mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
-        assert args[0] == "https://example.com/webhook"
-        assert kwargs["timeout"] == 10
+        mock_urlopen.assert_called_once()
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert req.full_url == "https://example.com/webhook"
+        assert call_args[1]["timeout"] == 10
 
-        payload = kwargs["json"]
+        payload = json.loads(req.data)
         assert payload["event"] == "latency_high"
         assert payload["url"]["name"] == "test_url"
         assert payload["url"]["url"] == "https://example.com"

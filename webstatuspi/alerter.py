@@ -1,15 +1,16 @@
 """Webhook and email alert system with state tracking and cooldown management."""
 
+import json
 import logging
 import smtplib
 import threading
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
-import requests
 
 from webstatuspi.config import AlertsConfig, SmtpConfig, UrlConfig, WebhookConfig
 from webstatuspi.models import CheckResult
@@ -191,15 +192,18 @@ class Alerter:
 
         payload = self._build_payload(result)
         retry_count = 0
+        data = json.dumps(payload).encode()
 
         while retry_count <= self._max_retries:
             try:
-                response = requests.post(
+                req = urllib.request.Request(
                     webhook.url,
-                    json=payload,
-                    timeout=10,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
                 )
-                response.raise_for_status()
+                with urllib.request.urlopen(req, timeout=10):
+                    pass
 
                 logger.info(
                     "Webhook sent successfully for %s to %s",
@@ -209,7 +213,7 @@ class Alerter:
                 self._state_tracker.last_alert_time[result.url_name] = time.time()
                 return
 
-            except requests.RequestException as e:
+            except (urllib.error.URLError, OSError) as e:
                 retry_count += 1
                 if retry_count <= self._max_retries:
                     delay = self._retry_delay * (2 ** (retry_count - 1))
@@ -311,14 +315,17 @@ class Alerter:
             }
 
             retry_count = 0
+            latency_data = json.dumps(payload).encode()
             while retry_count <= self._max_retries:
                 try:
-                    response = requests.post(
+                    req = urllib.request.Request(
                         webhook.url,
-                        json=payload,
-                        timeout=10,
+                        data=latency_data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
                     )
-                    response.raise_for_status()
+                    with urllib.request.urlopen(req, timeout=10):
+                        pass
 
                     logger.info(
                         "Latency webhook sent successfully for %s (%s) to %s",
@@ -329,7 +336,7 @@ class Alerter:
                     self._state_tracker.last_alert_time[url_config.name] = time.time()
                     return
 
-                except requests.RequestException as e:
+                except (urllib.error.URLError, OSError) as e:
                     retry_count += 1
                     if retry_count <= self._max_retries:
                         delay = self._retry_delay * (2 ** (retry_count - 1))
@@ -392,16 +399,19 @@ class Alerter:
             }
 
             try:
-                response = requests.post(
+                test_data = json.dumps(test_payload).encode()
+                req = urllib.request.Request(
                     webhook.url,
-                    json=test_payload,
-                    timeout=10,
+                    data=test_data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
                 )
-                response.raise_for_status()
+                with urllib.request.urlopen(req, timeout=10):
+                    pass
                 results[webhook.url] = True
                 logger.info("Test webhook sent successfully to %s", webhook.url)
 
-            except requests.RequestException as e:
+            except (urllib.error.URLError, OSError) as e:
                 results[webhook.url] = False
                 logger.error("Test webhook failed for %s: %s", webhook.url, e)
 
