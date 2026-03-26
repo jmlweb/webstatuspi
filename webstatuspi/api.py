@@ -56,8 +56,9 @@ RATE_LIMIT_MAX_REQUESTS = 60
 RATE_LIMIT_WINDOW_SECONDS = 60
 
 # Maximum number of history records to return per request.
-# Balances memory usage vs useful data for 24-hour view at typical intervals.
-HISTORY_LIMIT = 100
+# At 60s check interval, 1440 records = 24 hours of history for the modal view.
+# Pi 1B+ can handle this: each record is ~100 bytes → ~140KB per URL in memory.
+HISTORY_LIMIT = 1440
 
 
 class RateLimiter:
