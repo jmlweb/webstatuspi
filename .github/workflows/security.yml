@@ -26,11 +26,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pip-audit
-          # Install only the dependencies, not the local package
-          pip install PyYAML requests
 
       - name: Run pip-audit
-        run: pip-audit --strict --progress-spinner off
+        # Audit only project dependencies (requirements.txt), not the full runner environment.
+        # This avoids false positives from pre-installed system packages like pygments.
+        run: pip-audit --strict --progress-spinner off -r requirements.txt -r requirements-dev.txt
 
   codeql:
     runs-on: ubuntu-latest
