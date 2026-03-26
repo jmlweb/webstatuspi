@@ -71,6 +71,7 @@
             clearContainer(container);
 
             // Filter checks with valid response times
+            // Note: checks arrive pre-sorted chronologically (oldest→newest) via core.js .reverse()
             const validChecks = checks.filter(c => c.response_time_ms !== null && c.response_time_ms !== undefined);
 
             if (validChecks.length === 0) {
@@ -91,10 +92,12 @@
                 : validChecks;
 
             // Calculate scales
-            const times = data.map(c => new Date(c.checked_at).getTime());
+            // X axis: fixed 24h window ending now, so sparse data doesn't stretch to fill the full width
+            const now = Date.now();
+            const windowMs = 24 * 60 * 60 * 1000;
+            const minTime = now - windowMs;
+            const maxTime = now;
             const values = data.map(c => c.response_time_ms);
-            const minTime = Math.min(...times);
-            const maxTime = Math.max(...times);
             const maxValue = Math.max(...values, 100); // At least 100ms scale
 
             const xScale = (t) => padding.left + ((t - minTime) / (maxTime - minTime || 1)) * chartWidth;
@@ -267,11 +270,12 @@
             const downtimePeriods = sortedChecks.filter(c => !c.is_up).length;
             const ariaLabel = `Uptime: ${uptimePercent}% over the last 24 hours. ${downtimePeriods} downtime period${downtimePeriods !== 1 ? 's' : ''} detected.`;
 
-            // Calculate time range
-            const times = sortedChecks.map(c => new Date(c.checked_at).getTime());
-            const minTime = Math.min(...times);
-            const maxTime = Math.max(...times);
-            const timeRange = maxTime - minTime || 1;
+            // Fixed 24h window ending now — prevents sparse data from stretching across the full width
+            const now = Date.now();
+            const windowMs = 24 * 60 * 60 * 1000;
+            const minTime = now - windowMs;
+            const maxTime = now;
+            const timeRange = windowMs;
 
             const xScale = (t) => padding.left + ((t - minTime) / timeRange) * chartWidth;
 
