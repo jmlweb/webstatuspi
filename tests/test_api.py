@@ -552,10 +552,12 @@ class TestHistoryEndpoint:
         assert check_data["response_time_ms"] == 250
         assert check_data["error"] == "Service unavailable"
 
-    def test_history_limits_to_100(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
-        """GET /history/<name> limits results to 100 checks."""
-        # Insert 110 checks
-        for i in range(110):
+    def test_history_limits_to_max(self, running_server: ApiServer, db_conn: sqlite3.Connection) -> None:
+        """GET /history/<name> limits results to HISTORY_LIMIT checks."""
+        from webstatuspi.api import HISTORY_LIMIT
+
+        # Insert HISTORY_LIMIT + 10 checks to verify the limit is enforced
+        for i in range(HISTORY_LIMIT + 10):
             check = CheckResult(
                 url_name="LIMIT_TEST",
                 url="https://limit.example.com",
@@ -570,8 +572,8 @@ class TestHistoryEndpoint:
         status, body = self._get(running_server, "/history/LIMIT_TEST")
 
         assert status == 200
-        assert body["count"] == 100
-        assert len(body["checks"]) == 100
+        assert body["count"] == HISTORY_LIMIT
+        assert len(body["checks"]) == HISTORY_LIMIT
 
 
 class TestResetEndpoint:
