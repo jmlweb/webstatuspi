@@ -22,15 +22,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install pip-audit
         run: |
           python -m pip install --upgrade pip
           pip install pip-audit
 
       - name: Run pip-audit
-        # Audit only project dependencies (requirements.txt), not the full runner environment.
-        # This avoids false positives from pre-installed system packages like pygments.
-        run: pip-audit --strict --progress-spinner off -r requirements.txt -r requirements-dev.txt
+        # Create an isolated venv with only project deps to avoid false positives
+        # from packages installed in pip-audit itself (e.g. pygments via rich).
+        run: |
+          python -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install --quiet -r requirements.txt -r requirements-dev.txt
+          pip-audit --strict --progress-spinner off --path /tmp/audit-venv/lib/python*/site-packages
 
   codeql:
     runs-on: ubuntu-latest
