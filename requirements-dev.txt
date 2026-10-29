@@ -1,4 +1,4 @@
 -r requirements.txt
-pytest>=7.0.0
-pytest-mock>=3.0.0
-coverage>=6.0.0
+pytest>=9.2.0
+pytest-mock>=3.17.0
+coverage>=7.17.0

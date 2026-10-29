@@ -28,20 +28,20 @@ classifiers = [
 ]
 
 dependencies = [
-    "PyYAML>=6.0.1",
-    "requests>=2.31.0",
+    "PyYAML>=6.0.3",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-mock>=3.0.0",
-    "coverage>=6.0.0",
-    "ruff>=0.14.0",
-    "mypy>=1.15.0",
-    "pre-commit>=3.0.0",
-    "types-PyYAML>=6.0.0",
-    "types-requests>=2.31.0",
+    "pytest>=9.2.0",
+    "pytest-mock>=3.17.0",
+    "coverage>=7.17.0",
+    "ruff>=0.17.3",
+    "mypy>=2.4.1",
+    "pre-commit>=4.7.0",
+    "types-PyYAML>=6.0.12.20260906",
+    "types-requests>=2.33.0.20261006",
 ]
 
 [project.scripts]
@@ -67,6 +67,10 @@ ignore = [
     "E203",   # whitespace before ':'
     "E501",   # line too long (handled by formatter)
 ]
+
+[tool.ruff.format]
+# ruff 0.17+ also formats Markdown code blocks; keep formatting scoped to Python
+exclude = ["*.md"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["webstatuspi"]
